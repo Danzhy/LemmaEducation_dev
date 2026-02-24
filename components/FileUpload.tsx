@@ -20,7 +20,7 @@ const ACCEPT_STRING = 'image/png,image/jpeg,image/webp,application/pdf'
 
 /**
  * Converts the first page of a PDF to a PNG image using pdfjs-dist.
- * Uses webpack.mjs entry which auto-configures the worker for browser use.
+ * Uses dynamic import of the main build and CDN worker for Next.js compatibility.
  *
  * @param file - The PDF file from the file input
  * @returns { base64, mimeType } - PNG data ready for onUpload
@@ -28,7 +28,11 @@ const ACCEPT_STRING = 'image/png,image/jpeg,image/webp,application/pdf'
 async function convertPdfFirstPageToImage(
   file: File
 ): Promise<{ base64: string; mimeType: string }> {
-  const pdfjs = await import('pdfjs-dist/webpack.mjs')
+  const pdfjs = await import('pdfjs-dist')
+  // Configure worker for browser (webpack.mjs path fails to resolve in Next.js)
+  if (typeof window !== 'undefined' && pdfjs.GlobalWorkerOptions) {
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.mjs`
+  }
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise
   const page = await pdf.getPage(1)
@@ -39,7 +43,7 @@ async function convertPdfFirstPageToImage(
   canvas.height = viewport.height
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Could not get canvas context')
-  await page.render({ canvasContext: ctx, viewport }).promise
+  await page.render({ canvasContext: ctx, viewport, canvas }).promise
 
   const dataUrl = canvas.toDataURL('image/png')
   const base64 = dataUrl.split(',')[1]

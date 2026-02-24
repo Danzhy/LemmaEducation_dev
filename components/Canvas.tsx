@@ -38,6 +38,8 @@ export interface CanvasRef {
   exportBoard: () => string | null
   /** Get editor instance */
   getEditor: () => Editor | null
+  /** Capture visible viewport as base64 PNG for Realtime API (scale 1 for cost) */
+  captureViewport: () => Promise<string | null>
 }
 
 /**
@@ -106,6 +108,33 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(
       },
       getEditor() {
         return editorRef.current
+      },
+      async captureViewport() {
+        const editor = editorRef.current
+        if (!editor) return null
+        try {
+          const shapeIds = editor.getCurrentPageShapeIds()
+          if (shapeIds.size === 0) return null
+          const result = await editor.toImage([...shapeIds], {
+            format: 'png',
+            scale: 1,
+          })
+          const blob = result?.blob
+          if (!blob) return null
+          return new Promise<string | null>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => {
+              const dataUrl = reader.result as string
+              const base64 = dataUrl?.split(',')[1] ?? null
+              resolve(base64)
+            }
+            reader.onerror = () => resolve(null)
+            reader.readAsDataURL(blob)
+          })
+        } catch (err) {
+          console.error('Viewport capture error:', err)
+          return null
+        }
       },
     }))
 

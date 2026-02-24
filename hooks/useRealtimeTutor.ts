@@ -18,6 +18,8 @@ import type { TutorState } from '@/components/TutorAvatar'
 
 type UseRealtimeTutorOptions = {
   onError?: (error: string) => void
+  /** Called when user speech starts (for on-speech canvas send) */
+  onSpeechStarted?: () => void
 }
 
 /**
@@ -26,13 +28,18 @@ type UseRealtimeTutorOptions = {
  * @param options.onError - Called when connection fails or API returns an error
  * @returns { state, isConnected, transcript, connect, disconnect, sendText, sendImage, sendTextWithImage }
  */
-export function useRealtimeTutor({ onError }: UseRealtimeTutorOptions = {}) {
+const LEMMA_CANVAS_ITEM_ID = 'lemma_canvas_context'
+
+export function useRealtimeTutor({ onError, onSpeechStarted }: UseRealtimeTutorOptions = {}) {
   const [state, setState] = useState<TutorState>('idle')
   const [isConnected, setIsConnected] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
   const [transcript, setTranscript] = useState<string>('')
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioTrackRef = useRef<MediaStreamTrack | null>(null)
+  const canvasItemIdRef = useRef<string | null>(null)
 
   /**
    * Closes the WebRTC connection and resets all state.
@@ -50,7 +57,10 @@ export function useRealtimeTutor({ onError }: UseRealtimeTutorOptions = {}) {
     if (audioRef.current) {
       audioRef.current.srcObject = null
     }
+    audioTrackRef.current = null
+    canvasItemIdRef.current = null
     setIsConnected(false)
+    setIsPaused(false)
     setState('idle')
   }, [])
 
@@ -174,6 +184,14 @@ export function useRealtimeTutor({ onError }: UseRealtimeTutorOptions = {}) {
         case 'session.updated':
           setState('listening')
           break
+        case 'conversation.item.added': {
+          const item = (event as { item?: { id?: string; content?: Array<{ type?: string }> } })
+            .item
+          if (item?.content?.some((c) => c.type === 'input_image')) {
+            canvasItemIdRef.current = item.id ?? null
+          }
+          break
+        }
         case 'input_audio_buffer.speech_started':
           setState('listening')
           break
@@ -200,7 +218,7 @@ export function useRealtimeTutor({ onError }: UseRealtimeTutorOptions = {}) {
           break
       }
     },
-    [onError]
+    [onError, onSpeechStarted]
   )
 
   /**
@@ -285,6 +303,56 @@ export function useRealtimeTutor({ onError }: UseRealtimeTutorOptions = {}) {
     []
   )
 
+  /**
+   * Sends canvas image as context only (no response.create).
+   * Uses replace strategy: deletes previous canvas item before adding new one.
+   */
+  const sendCanvasImage = useCallback((base64: string) => {
+    const dc = dcRef.current
+    if (!dc || dc.readyState !== 'open') return
+
+    if (canvasItemIdRef.current) {
+      dc.send(
+        JSON.stringify({
+          type: 'conversation.item.delete',
+          item_id: canvasItemIdRef.current,
+        })
+      )
+      canvasItemIdRef.current = null
+    }
+
+    dc.send(
+      JSON.stringify({
+        type: 'conversation.item.create',
+        item: {
+          id: LEMMA_CANVAS_ITEM_ID,
+          type: 'message',
+          role: 'user',
+          content: [
+            {
+              type: 'input_image',
+              image_url: `data:image/png;base64,${base64}`,
+            },
+          ],
+        },
+      })
+    )
+  }, [])
+
+  const pause = useCallback(() => {
+    if (audioTrackRef.current) {
+      audioTrackRef.current.enabled = false
+      setIsPaused(true)
+    }
+  }, [])
+
+  const resume = useCallback(() => {
+    if (audioTrackRef.current) {
+      audioTrackRef.current.enabled = true
+      setIsPaused(false)
+    }
+  }, [])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => disconnect()
@@ -293,11 +361,15 @@ export function useRealtimeTutor({ onError }: UseRealtimeTutorOptions = {}) {
   return {
     state,
     isConnected,
+    isPaused,
     transcript,
     connect,
     disconnect,
     sendText,
     sendImage,
     sendTextWithImage,
+    sendCanvasImage,
+    pause,
+    resume,
   }
 }

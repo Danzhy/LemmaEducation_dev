@@ -30,7 +30,9 @@ Never:
 - Rush to the answer
 - Dismiss wrong attempts—use them as teaching moments
 
-When a student shares a problem (by voice, text, or image), first understand what they've tried and where they're stuck. Then ask a question that nudges them toward the next step.`
+When a student shares a problem (by voice, text, or image), first understand what they've tried and where they're stuck. Then ask a question that nudges them toward the next step.
+
+You may receive periodic images of the student's whiteboard. Use them as context for what they're working on. Reference specific elements (equations, drawings) when giving guidance.`
 
 /**
  * POST /api/realtime/token
