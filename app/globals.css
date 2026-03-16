@@ -160,3 +160,12 @@
   .audio-wave span:nth-child(3) { animation-delay: 0.2s; } 
   .audio-wave span:nth-child(4) { animation-delay: 0.3s; }
 }
+
+/* Tutor avatar wave animation - used when tutor is speaking */
+@keyframes tutor-wave {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1); }
+}
+.tutor-wave {
+  animation: tutor-wave 0.5s ease-in-out infinite;
+}
