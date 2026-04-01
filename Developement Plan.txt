@@ -1,0 +1,106 @@
+﻿Date: Tuesday, Jan 27, 2026
+Phase 1: Realtime AI Math Tutor (No Canvas)
+Aim to finish by: Tue, 3rd Feb
+Objective
+Test whether OpenAI’s Realtime API can function as an effective Socratic math tutor before investing in complex UI or handwriting features.
+This phase is about validating:
+* Voice based tutoring quality
+* Tutor behavior and pedagogy
+* Real time conversational flow
+Not about visual problem solving yet.
+________________
+
+
+Phase 1.1: Voice to voice tutoring only
+What the user experiences
+* A single page web app
+* A simple visual element (circle or avatar) representing the tutor
+* The circle changes state to show:
+   * Listening
+   * Thinking
+   * Speaking
+* The user talks to the tutor
+* The tutor talks back
+No typing, no uploading, no drawing.
+How interaction works (conceptually)
+* The student verbally describes:
+   * The problem they are working on
+   * What they have tried
+   * Where they are stuck
+* The tutor responds using voice only
+Tutor behavior
+* Acts as a Socratic math tutor
+* Always tries to:
+   * Hear the student’s reasoning first
+   * Ask guiding questions
+   * Explain step by step
+* Avoids immediately giving full solutions
+* Focuses on understanding, not answers
+Why this subphase matters
+* Fastest way to test core tutoring quality
+* Minimal UI and cognitive load
+* Lets us evaluate:
+   * Does the tutor ask good questions?
+   * Does real time voice feel natural?
+   * Does this work as a learning experience at all?
+________________
+
+
+Phase 1.2: Add problem upload as context
+New capability
+* User can upload a question (image or file)
+* This becomes shared context for the tutor
+What changes for the user
+* They can say:
+   * “Here’s the problem”
+   * Then talk through their thinking verbally
+* The tutor references the uploaded problem while speaking
+What stays the same
+* Still primarily voice to voice
+* Still no canvas or handwriting
+* Still Socratic and conversational
+Why this subphase matters
+* Reduces reliance on verbal problem descriptions
+* Makes tutoring more accurate and grounded
+* Tests multimodal context without adding complex UI
+________________
+
+
+Phase 1.3: Add text input alongside voice
+New capability
+* User can type:
+   * Equations
+   * Intermediate steps
+   * Short clarifications
+* Voice interaction remains primary
+What changes for the user
+* They can speak and type in the same session
+* Typed input acts as extra context, not a replacement for voice
+Why this subphase matters
+* Some math is hard to say out loud
+* Allows precise notation without handwriting
+* Tests mixed input modes before introducing a canvas
+________________
+
+
+What Phase 1 deliberately does NOT include
+* Drawing or handwriting
+* Screen sharing
+* Automatic grading
+* Long term memory or student profiles
+* Curriculum alignment
+Those are intentionally postponed until we confirm that:
+* Real time tutoring feels effective
+* The Socratic style actually helps learning
+* Voice first interaction is viable
+________________
+
+
+Phase 1 success criteria
+By the end of Phase 1, we should be able to answer:
+* Does a voice first AI tutor feel useful to students?
+* Can it guide reasoning instead of solving?
+* Does real time interaction improve engagement?
+* Is this worth building a canvas and visual layer on top of?
+If yes, Phase 2 introduces writing, drawing, and visual feedback on the canvas.
+________________
