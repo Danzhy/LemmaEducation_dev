@@ -7,6 +7,7 @@ This document outlines how to verify that all implemented features work correctl
 ## Prerequisites
 
 - **Environment:** Ensure `.env` has valid `OPENAI_API_KEY` and `NEXT_PUBLIC_TLDRAW_LICENSE_KEY`
+- **Neon Auth + DB:** `NEON_AUTH_BASE_URL`, `NEXT_PUBLIC_NEON_AUTH_URL`, `NEON_AUTH_COOKIE_SECRET` (32+ chars), `NEON_DATABASE_URL`; run `migrations/001_tutor_auth_quota.sql` on the database
 - **Browser:** Use Chrome or Edge (WebRTC, microphone access)
 - **Network:** Stable connection for Realtime API
 - **Run app:** `npm run dev` and open `http://localhost:3000/tutor`
@@ -18,9 +19,27 @@ This document outlines how to verify that all implemented features work correctl
 | Test | Steps | Expected |
 |------|-------|----------|
 | Build succeeds | `npm run build` | Exit code 0, no TypeScript or lint errors |
-| App loads | Open `/tutor` | Page renders; no console errors |
-| Nav visible | Check header | Lemma. link, language dropdown, Back link present |
+| App loads | Open `/tutor` (signed in) | Page renders; recording notice visible; no console errors |
+| Nav visible | Check header | Lemma. link, Feedback, Tutorial, language dropdown, Back link present |
 | Canvas visible | Check main area | Whiteboard loads; can draw with pen tool |
+| Public routes unchanged | Open `/`, `/board`, submit waitlist | No auth wall; waitlist still works |
+
+---
+
+## 1b. Tutor auth, quota, and token route
+
+| Test | Steps | Expected |
+|------|-------|----------|
+| Middleware | Open `/tutor` while logged out | Redirect to `/auth/sign-in` with return to tutor |
+| Quota prefetch | Log in, open `/tutor` | Allowance shows before Start; Start disabled if remaining is 0 |
+| `session/start` at cap | User at 20 min usage | `POST /api/tutor/session/start` returns `403` + `QUOTA_EXCEEDED`; Start stays disabled |
+| Token 401 | Call `POST /api/realtime/token` without session | `401` + `UNAUTHORIZED` |
+| Token 429 | Call token route when `tutor_usage` at cap | `429` + `QUOTA_EXCEEDED` |
+| Mid-session cap | Simulate tick returning quota exceeded | Session ends with friendly message; WebRTC disconnects |
+| Logging soft-fail | Break `log-message` or tick (bad session id in dev) | Tutor voice/text still usable; optional soft warning for usage log |
+| Feedback | Open `/feedback`, submit message | Success; row in `feedback` table |
+| Feedback rate limit | POST `/api/feedback` repeatedly from same IP (>8 / 15m) | `429 Too many requests` |
+| Single session | Open two tabs, Start in both | Second start auto-closes prior open DB session; no duplicate `ended_at IS NULL` rows |
 
 ---
 

@@ -12,6 +12,10 @@
 
 import { NextResponse } from 'next/server'
 import { getLanguageRestrictionInstruction } from '@/lib/languageInstructions'
+import { getNeonSql } from '@/lib/tutor/db'
+import { TUTOR_QUOTA_SECONDS } from '@/lib/tutor/constants'
+import { getSessionUserId } from '@/lib/tutor/session-user'
+import { ensureTutorUsageRow } from '@/lib/tutor/ensure-usage'
 
 const DEFAULT_REALTIME_MODEL = 'gpt-realtime-mini'
 
@@ -75,6 +79,45 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: 'OPENAI_API_KEY is not configured' },
       { status: 500 }
+    )
+  }
+
+  const userId = await getSessionUserId()
+  if (!userId) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: 'UNAUTHORIZED',
+        message: 'Please sign in again.',
+      },
+      { status: 401 }
+    )
+  }
+
+  try {
+    const sql = getNeonSql()
+    await ensureTutorUsageRow(userId)
+    const rows = await sql`
+      SELECT total_active_seconds FROM tutor_usage WHERE user_id = ${userId}
+    `
+    const row = rows[0] as { total_active_seconds: string | bigint } | undefined
+    const total = row ? Number(row.total_active_seconds) || 0 : 0
+    if (total >= TUTOR_QUOTA_SECONDS) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'QUOTA_EXCEEDED',
+          message: 'Tutoring time limit reached.',
+          remainingSeconds: 0,
+        },
+        { status: 429 }
+      )
+    }
+  } catch (e) {
+    console.error('[realtime/token] quota check', e)
+    return NextResponse.json(
+      { ok: false, code: 'QUOTA_CHECK_FAILED', message: 'Could not verify quota.' },
+      { status: 503 }
     )
   }
 

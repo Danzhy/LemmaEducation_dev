@@ -91,8 +91,9 @@ export default function Home() {
       {/* Navigation */}
       <nav className="w-full px-6 py-8 md:px-12 flex justify-between items-center fade-in-up">
         <div className="text-2xl tracking-tight font-medium serif italic text-[#16423C]">Lemma.</div>
-        <div className="flex gap-6">
+        <div className="flex flex-wrap gap-x-6 gap-y-2 justify-end">
           <a href="/tutor" className="text-xs uppercase tracking-widest text-[#3F524C] hover:text-[#16423C] transition-colors">Try Tutor</a>
+          <a href="/feedback" className="text-xs uppercase tracking-widest text-[#3F524C] hover:text-[#16423C] transition-colors">Feedback</a>
           <a href="#waitlist" className="text-xs uppercase tracking-widest text-[#3F524C] hover:text-[#16423C] transition-colors">Request Access</a>
         </div>
       </nav>

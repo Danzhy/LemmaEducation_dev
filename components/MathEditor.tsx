@@ -100,7 +100,7 @@ export default function MathEditor({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div
-        className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl"
+        className="bg-white text-[#0F2922] rounded-lg shadow-xl p-6 w-full max-w-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-semibold mb-4 text-[#0F2922]">
@@ -119,7 +119,7 @@ export default function MathEditor({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="e.g., x^2 + y^2 or \frac{a}{b}"
-            className="w-full px-3 py-2 border border-[#A3B8B2] rounded focus:outline-none focus:ring-2 focus:ring-[#16423C] focus:border-transparent"
+            className="w-full px-3 py-2 bg-white text-[#0F2922] placeholder:text-[#8CA39D] border border-[#A3B8B2] rounded focus:outline-none focus:ring-2 focus:ring-[#16423C] focus:border-transparent"
           />
           <p className="mt-1 text-xs text-[#3F524C]">
             Use ^ for superscripts, _ for subscripts. Press Cmd/Ctrl+Enter to
@@ -141,10 +141,11 @@ export default function MathEditor({
         </div>
 
         {/* Preview */}
-        <div className="mb-4 p-4 bg-[#F2F5F4] rounded border border-[#D1DBD7]">
+        <div className="mb-4 p-4 bg-[#F2F5F4] rounded border border-[#D1DBD7] text-[#0F2922]">
           <p className="text-xs text-[#3F524C] mb-2">Preview:</p>
           <div
-            className="min-h-[60px] flex items-center justify-center"
+            className="min-h-[60px] flex items-center justify-center text-[#0F2922] [&_.katex]:text-[#0F2922] [&_.katex-html]:text-[#0F2922]"
+            style={{ color: '#0F2922' }}
             dangerouslySetInnerHTML={{ __html: previewHTML }}
           />
         </div>

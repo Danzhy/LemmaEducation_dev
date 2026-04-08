@@ -16,11 +16,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TutorState } from '@/components/TutorAvatar'
 
+export type TutorUserMessageSource = 'text' | 'text_with_image' | 'image_only'
+
 type UseRealtimeTutorOptions = {
   /** Called with user-friendly message (raw error logged to console) */
   onError?: (userMessage: string, rawError?: string) => void
   /** Called when user speech starts (for on-speech canvas send) */
   onSpeechStarted?: () => void
+  /** After a user turn is appended to chat (for minimal server logging). */
+  onUserMessageLogged?: (payload: { content: string; source: TutorUserMessageSource }) => void
+  /** Assistant turn finalized (response.done / response.cancelled). */
+  onAssistantFinalized?: (content: string) => void
 }
 
 /**
@@ -39,7 +45,16 @@ function logErrorToServer(source: string, rawError?: string) {
   }).catch(() => {})
 }
 
-export function useRealtimeTutor({ onError, onSpeechStarted }: UseRealtimeTutorOptions = {}) {
+export function useRealtimeTutor({
+  onError,
+  onSpeechStarted,
+  onUserMessageLogged,
+  onAssistantFinalized,
+}: UseRealtimeTutorOptions = {}) {
+  const onUserMessageLoggedRef = useRef(onUserMessageLogged)
+  const onAssistantFinalizedRef = useRef(onAssistantFinalized)
+  onUserMessageLoggedRef.current = onUserMessageLogged
+  onAssistantFinalizedRef.current = onAssistantFinalized
   const [state, setState] = useState<TutorState>('idle')
   const [isConnected, setIsConnected] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
@@ -159,10 +174,21 @@ export function useRealtimeTutor({ onError, onSpeechStarted }: UseRealtimeTutorO
       })
       if (!tokenRes.ok) {
         const err = await tokenRes.json().catch(() => ({}))
-        const errObj = err as { error?: string; details?: string }
-        const rawErr = errObj.error || errObj.details || JSON.stringify(err)
+        const errObj = err as {
+          error?: string
+          details?: string
+          code?: string
+          message?: string
+        }
+        const rawErr = errObj.error || errObj.details || errObj.message || JSON.stringify(err)
         console.error('[Lemma Tutor] Token request failed:', rawErr)
         logErrorToServer('token', rawErr)
+        if (tokenRes.status === 401 || errObj.code === 'UNAUTHORIZED') {
+          throw new Error('Please sign in again.')
+        }
+        if (tokenRes.status === 429 || errObj.code === 'QUOTA_EXCEEDED') {
+          throw new Error('Your tutoring time limit has been reached.')
+        }
         throw new Error('Something went wrong. Please try again.')
       }
       const { value: ephemeralKey } = (await tokenRes.json()) as {
@@ -212,12 +238,18 @@ export function useRealtimeTutor({ onError, onSpeechStarted }: UseRealtimeTutorO
       })
     } catch (err) {
       const rawMsg = err instanceof Error ? err.message : String(err)
-      const userMsg = rawMsg.includes('try again') ? rawMsg : 'Something went wrong. Please try again.'
+      const userMsg =
+        rawMsg === 'Please sign in again.' || rawMsg === 'Your tutoring time limit has been reached.'
+          ? rawMsg
+          : rawMsg.includes('try again')
+            ? rawMsg
+            : 'Something went wrong. Please try again.'
       console.error('[Lemma Tutor] Connection error:', rawMsg)
       logErrorToServer('connection', rawMsg)
       onError?.(userMsg, rawMsg)
       setState('idle')
       disconnect()
+      throw new Error(userMsg)
     }
   }, [disconnect, onError, isSpeakerMuted])
 
@@ -268,6 +300,7 @@ export function useRealtimeTutor({ onError, onSpeechStarted }: UseRealtimeTutorO
           const content = transcriptRef.current.trim()
           if (content) {
             setChatHistory((prev) => [...prev, { role: 'assistant', content }])
+            onAssistantFinalizedRef.current?.(content)
           }
           isResponseActiveRef.current = false
           setTranscript('')
@@ -279,6 +312,7 @@ export function useRealtimeTutor({ onError, onSpeechStarted }: UseRealtimeTutorO
           const content = transcriptRef.current.trim()
           if (content) {
             setChatHistory((prev) => [...prev, { role: 'assistant', content }])
+            onAssistantFinalizedRef.current?.(content)
           }
           isResponseActiveRef.current = false
           setTranscript('')
@@ -314,6 +348,7 @@ export function useRealtimeTutor({ onError, onSpeechStarted }: UseRealtimeTutorO
     if (!dc || dc.readyState !== 'open') return
 
     setChatHistory((prev) => [...prev, { role: 'user', content: text }])
+    onUserMessageLoggedRef.current?.({ content: text, source: 'text' })
     dc.send(
       JSON.stringify({
         type: 'conversation.item.create',
@@ -338,6 +373,7 @@ export function useRealtimeTutor({ onError, onSpeechStarted }: UseRealtimeTutorO
     if (!dc || dc.readyState !== 'open') return
 
     setChatHistory((prev) => [...prev, { role: 'user', content: '[Sent an image]' }])
+    onUserMessageLoggedRef.current?.({ content: '[Sent an image]', source: 'image_only' })
     const format = mimeType.replace('image/', '')
     dc.send(
       JSON.stringify({
@@ -369,6 +405,7 @@ export function useRealtimeTutor({ onError, onSpeechStarted }: UseRealtimeTutorO
       if (!dc || dc.readyState !== 'open') return
 
       setChatHistory((prev) => [...prev, { role: 'user', content: text }])
+      onUserMessageLoggedRef.current?.({ content: text, source: 'text_with_image' })
       const format = mimeType.replace('image/', '')
       dc.send(
         JSON.stringify({
