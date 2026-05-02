@@ -4,15 +4,17 @@ export default function DemoSection() {
   return (
     <section
       id="demo"
-      className="relative z-10 flex w-full flex-col items-center border-t border-[#D1DBD7] bg-[#F2F5F4] px-6 py-24 md:px-12"
+      className="relative z-10 flex w-full flex-col items-center border-t border-[#D1DBD7] bg-[#F2F5F4] px-6 py-20 md:px-12"
     >
       <div className="w-full max-w-5xl">
-        <div className="mx-auto mb-10 max-w-3xl text-center">
+        <div className="mx-auto mb-8 max-w-3xl text-center">
           <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.24em] text-[#5C7069]">
             Demo
           </p>
-          <h3 className="serif text-3xl text-[#0F2922] md:text-5xl">See Lemma in action.</h3>
-          <p className="mx-auto mt-5 max-w-2xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.06rem]">
+          <h3 className="serif text-[1.9rem] leading-tight text-[#0F2922] md:text-[2.35rem]">
+            See Lemma in action.
+          </h3>
+          <p className="mx-auto mt-4 max-w-2xl text-[0.94rem] font-light leading-relaxed text-[#3F524C] md:text-[0.98rem]">
             Watch Lemma follow a student&apos;s work, listen to their reasoning, and
             respond while they solve.
           </p>
@@ -42,7 +44,7 @@ export default function DemoSection() {
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap justify-center gap-x-8 gap-y-3 opacity-70">
+        <div className="mt-5 flex flex-wrap justify-center gap-x-8 gap-y-3 opacity-70">
           {[
             'Voice reasoning',
             'Shared canvas',

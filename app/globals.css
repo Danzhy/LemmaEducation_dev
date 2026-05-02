@@ -60,16 +60,19 @@
 
   .reveal-fade-rise {
     opacity: 0;
-    transform: translate3d(0, 36px, 0);
+    transform: translate3d(0, 28px, 0) scale(0.985);
+    filter: blur(6px);
     transition:
-      opacity 0.82s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0ms),
-      transform 0.82s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0ms);
-    will-change: opacity, transform;
+      opacity 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0ms),
+      transform 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0ms),
+      filter 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0ms);
+    will-change: opacity, transform, filter;
   }
 
   .reveal-fade-rise.is-visible {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
   }
 
   .learning-signal {

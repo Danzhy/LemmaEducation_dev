@@ -59,15 +59,12 @@ export default function Home() {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible')
-            observer.unobserve(entry.target)
-          }
+          entry.target.classList.toggle('is-visible', entry.isIntersecting)
         })
       },
       {
-        threshold: 0.18,
-        rootMargin: '0px 0px -8% 0px',
+        threshold: 0.14,
+        rootMargin: '0px 0px -6% 0px',
       }
     )
 
@@ -230,18 +227,18 @@ export default function Home() {
         </div>
       </main>
 
-      <section className="relative z-10 border-t border-[#D1DBD7] bg-[#E6ECE9]/80 px-6 py-24 backdrop-blur-md md:px-12">
-        <div className="mx-auto grid max-w-6xl gap-14 lg:grid-cols-[0.94fr_1.06fr] lg:gap-20">
+      <section className="relative z-10 border-t border-[#D1DBD7] bg-[#E6ECE9]/80 px-6 py-20 backdrop-blur-md md:px-12">
+        <div className="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[0.94fr_1.06fr] lg:gap-16">
           <div data-reveal className="reveal-fade-rise">
             <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.24em] text-[#5C7069]">
               The Problem
             </p>
-            <h2 className="serif text-[2.35rem] leading-tight text-[#0F2922] md:text-[3rem]">
+            <h2 className="serif text-[1.9rem] leading-tight text-[#0F2922] md:text-[2.35rem]">
               Math learning is still
               <br />
               a global problem.
             </h2>
-            <p className="mt-6 max-w-xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.05rem]">
+            <p className="mt-5 max-w-xl text-[0.94rem] font-light leading-relaxed text-[#3F524C] md:text-[0.98rem]">
               Across the world, students struggle with math, and the gap compounds over
               time.
             </p>
@@ -254,10 +251,10 @@ export default function Home() {
                 data-reveal
                 className={`reveal-fade-rise ${revealDelayClasses[index]} border-t border-[#CCD7D3] py-5 first:pt-0`}
               >
-                <p className="text-[1.6rem] font-light tracking-[-0.04em] text-[#0F2922] md:text-[1.95rem]">
+                <p className="text-[1.28rem] font-light tracking-[-0.03em] text-[#0F2922] md:text-[1.55rem]">
                   {signal.figure}
                 </p>
-                <p className="mt-2 max-w-lg text-[0.94rem] font-light leading-relaxed text-[#0F2922]">
+                <p className="mt-2 max-w-lg text-[0.86rem] font-light leading-relaxed text-[#0F2922]">
                   {signal.title}
                 </p>
               </article>
@@ -267,33 +264,33 @@ export default function Home() {
 
         <p
           data-reveal
-          className="reveal-fade-rise reveal-delay-200 mx-auto mt-8 max-w-6xl text-[10px] uppercase tracking-[0.22em] text-[#7A8D87]"
+          className="reveal-fade-rise reveal-delay-200 mx-auto mt-8 max-w-5xl text-[10px] uppercase tracking-[0.22em] text-[#7A8D87]"
         >
           Sources: UNESCO Institute for Statistics, OECD PISA 2022, NBER tutoring
           meta-analysis, Education Endowment Foundation.
         </p>
       </section>
 
-      <section className="relative z-10 border-t border-[#D1DBD7] bg-[#F2F5F4] px-6 py-24 md:px-12">
-        <div className="mx-auto max-w-6xl">
-          <div data-reveal className="reveal-fade-rise lg:grid lg:grid-cols-[0.94fr_1.06fr] lg:gap-20 lg:items-start">
+      <section className="relative z-10 border-t border-[#D1DBD7] bg-[#F2F5F4] px-6 py-20 md:px-12">
+        <div className="mx-auto max-w-5xl">
+          <div data-reveal className="reveal-fade-rise lg:grid lg:grid-cols-[0.94fr_1.06fr] lg:gap-16 lg:items-start">
             <div>
               <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.24em] text-[#5C7069]">
                 Root Cause
               </p>
-              <h2 className="serif text-[2.3rem] leading-tight text-[#0F2922] md:text-[3rem]">
+              <h2 className="serif text-[1.9rem] leading-tight text-[#0F2922] md:text-[2.35rem]">
                 We don’t see how students think,
                 <br />
                 only what they answer.
               </h2>
             </div>
             <div className="mt-6 lg:mt-1">
-              <p className="max-w-xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.05rem]">
+              <p className="max-w-xl text-[0.94rem] font-light leading-relaxed text-[#3F524C] md:text-[0.98rem]">
                 Most classrooms, worksheets, and software only capture the result. They
                 rarely capture the explanation or work that reveals what a student
                 actually understands.
               </p>
-              <p className="mt-4 max-w-xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.05rem]">
+              <p className="mt-4 max-w-xl text-[0.94rem] font-light leading-relaxed text-[#3F524C] md:text-[0.98rem]">
                 That is why students often get feedback too late. Good tutors work
                 differently. They respond during the process, not after it.
               </p>
@@ -302,26 +299,26 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="relative z-10 border-t border-[#D1DBD7] bg-[#E8EFEC] px-6 py-24 md:px-12">
-        <div className="mx-auto max-w-6xl">
-          <div data-reveal className="reveal-fade-rise lg:grid lg:grid-cols-[0.94fr_1.06fr] lg:gap-20 lg:items-start">
+      <section className="relative z-10 border-t border-[#D1DBD7] bg-[#E8EFEC] px-6 py-20 md:px-12">
+        <div className="mx-auto max-w-5xl">
+          <div data-reveal className="reveal-fade-rise lg:grid lg:grid-cols-[0.94fr_1.06fr] lg:gap-16 lg:items-start">
             <div>
               <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.24em] text-[#5C7069]">
                 The Solution
               </p>
-              <h2 className="serif text-[2.3rem] leading-tight text-[#0F2922] md:text-[3rem]">
+              <h2 className="serif text-[1.9rem] leading-tight text-[#0F2922] md:text-[2.35rem]">
                 Getting closer to
                 <br />
                 a good human tutor.
               </h2>
             </div>
             <div className="mt-6 lg:mt-1">
-              <p className="max-w-xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.05rem]">
+              <p className="max-w-xl text-[0.94rem] font-light leading-relaxed text-[#3F524C] md:text-[0.98rem]">
                 Lemma is a voice AI tutor built specifically for math. It listens to
                 students, follows the work on a shared canvas, and responds in real
                 time.
               </p>
-              <p className="mt-4 max-w-xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.05rem]">
+              <p className="mt-4 max-w-xl text-[0.94rem] font-light leading-relaxed text-[#3F524C] md:text-[0.98rem]">
                 Our goal is to get as close as we can to a strong human tutor by
                 listening, watching, and guiding while the student is still solving.
               </p>
