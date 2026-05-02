@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import CanvasBackground from '@/components/CanvasBackground'
 import DemoSection from '@/components/DemoSection'
 
@@ -12,6 +12,23 @@ const roleOptions = [
   'Researcher',
   'School leader',
   'Other',
+]
+
+const revealDelayClasses = ['', 'reveal-delay-100', 'reveal-delay-200']
+
+const problemSignals = [
+  {
+    figure: '44%',
+    title: 'of children globally achieve minimum proficiency in mathematics by the end of primary school.',
+  },
+  {
+    figure: '15-point drop',
+    title: 'in OECD-average math performance in PISA 2022 compared with 2018.',
+  },
+  {
+    figure: '1:1 tutoring works',
+    title: 'but it is too expensive and scarce to reach every student.',
+  },
 ]
 
 type WaitlistForm = {
@@ -34,6 +51,31 @@ export default function Home() {
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState<string | null>(null)
 
+  useEffect(() => {
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'))
+
+    if (!nodes.length) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      {
+        threshold: 0.18,
+        rootMargin: '0px 0px -8% 0px',
+      }
+    )
+
+    nodes.forEach((node) => observer.observe(node))
+
+    return () => observer.disconnect()
+  }, [])
+
   const updateField = <K extends keyof WaitlistForm>(field: K, value: WaitlistForm[K]) => {
     setFormData((current) => ({
       ...current,
@@ -48,14 +90,12 @@ export default function Home() {
     const trimmedGoals = formData.goals.trim()
     const trimmedRoleSelection = formData.roleSelection.trim()
 
-    // Client-side validation
     if (!trimmedEmail) {
       setStatus('error')
       setMessage('Please enter your email.')
       return
     }
 
-    // Basic email format check on client
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(trimmedEmail)) {
       setStatus('error')
@@ -94,7 +134,6 @@ export default function Home() {
         }),
       })
 
-      // Handle network errors
       if (!res.ok && res.status >= 500) {
         throw new Error('Server error. Please try again later.')
       }
@@ -102,16 +141,14 @@ export default function Home() {
       let data
       try {
         data = await res.json()
-      } catch (parseError) {
+      } catch {
         throw new Error('Invalid response from server. Please try again.')
       }
 
-      // Handle API errors
       if (!data.ok) {
         throw new Error(data.error || 'Something went wrong. Please try again.')
       }
 
-      // Success - show message (could be new signup or already on waitlist)
       setStatus('success')
       setMessage(data.message || 'You\'re on the list. We’ll follow up when we start opening access.')
       setFormData({
@@ -123,10 +160,8 @@ export default function Home() {
       })
     } catch (err) {
       setStatus('error')
-      
-      // Provide user-friendly error messages
+
       if (err instanceof Error) {
-        // Check for specific error types
         if (err.message.includes('fetch')) {
           setMessage('Network error. Please check your connection and try again.')
         } else if (err.message.includes('timeout')) {
@@ -143,69 +178,158 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen justify-between">
-      {/* The Animated Background */}
+    <div className="flex min-h-screen flex-col justify-between">
       <CanvasBackground />
 
-      {/* Navigation */}
-      <nav className="w-full px-6 py-8 md:px-12 flex justify-between items-center fade-in-up">
-        <div className="text-2xl tracking-tight font-medium serif italic text-[#16423C]">Lemma.</div>
-        <div className="flex gap-6">
-          <a href="#waitlist" className="text-xs uppercase tracking-widest text-[#3F524C] hover:text-[#16423C] transition-colors">Request Access</a>
+      <nav className="fade-in-up flex w-full items-center justify-between px-6 py-8 md:px-12">
+        <div className="text-2xl font-medium tracking-tight serif italic text-[#16423C]">Lemma.</div>
+        <div className="flex items-center gap-4 md:gap-6">
+          <a
+            href="#demo"
+            className="text-[10px] uppercase tracking-[0.22em] text-[#5C7069] transition-colors hover:text-[#16423C]"
+          >
+            Watch Demo
+          </a>
+          <a
+            href="#waitlist"
+            className="waitlist-ui-text inline-flex items-center rounded-full border border-[#AFC0BA] px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-[#16423C] transition-colors hover:border-[#16423C] hover:bg-white/60"
+          >
+            Request Access
+          </a>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <main className="flex-grow flex flex-col items-center justify-center px-6 md:px-12 py-20 max-w-4xl mx-auto text-center relative z-10">
-        
-        <p className="fade-in-up uppercase tracking-[0.2em] text-[10px] md:text-xs text-[#5C7069] mb-8">Practice Smarter, Learn Deeper</p>
-        
-        <h1 className="fade-in-up delay-100 text-6xl md:text-8xl leading-[1.0] font-light serif mb-8 text-[#0F2922]">
+      <main className="relative z-10 mx-auto flex max-w-4xl flex-grow flex-col items-center justify-center px-6 py-20 text-center md:px-12">
+        <p className="fade-in-up mb-8 text-[10px] uppercase tracking-[0.2em] text-[#5C7069] md:text-xs">
+          Making student thinking visible in math.
+        </p>
+
+        <h1 className="fade-in-up delay-100 mb-8 text-6xl font-light leading-[1] serif text-[#0F2922] md:text-8xl">
           The AI that <br />
           <span className="italic text-[#2C5F56]">listens to you.</span>
         </h1>
 
-        <p className="fade-in-up delay-200 text-lg md:text-xl font-light text-[#3F524C] max-w-2xl leading-relaxed mx-auto">
-          Traditional tools just generate answers. We built an interface that asks you to verbalize your thinking while you solve, capturing what you actually understand.
+        <p className="fade-in-up delay-200 mx-auto max-w-2xl text-lg font-light leading-relaxed text-[#3F524C] md:text-xl">
+          Traditional tools just generate answers. Lemma is a voice AI math tutor that
+          listens to students&apos; reasoning while they solve and gives real-time feedback.
         </p>
 
-        <a
-          href="#waitlist"
-          className="waitlist-ui-text fade-in-up delay-300 mt-16 inline-flex items-center justify-center rounded-full border border-[#143C36] bg-[#12352F] px-7 py-3.5 text-[0.95rem] font-light text-[#F2F5F4] shadow-[0_12px_28px_-20px_rgba(15,41,34,0.55)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#16423C]"
-        >
-          Join the waitlist
-        </a>
-
+        <div className="fade-in-up delay-300 mt-12 flex flex-col items-center gap-4 sm:flex-row">
+          <a
+            href="#waitlist"
+            className="waitlist-ui-text inline-flex items-center justify-center rounded-full border border-[#143C36] bg-[#12352F] px-7 py-3.5 text-[0.95rem] font-light text-[#F2F5F4] shadow-[0_12px_28px_-20px_rgba(15,41,34,0.55)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#16423C]"
+          >
+            Join the waitlist
+          </a>
+          <a
+            href="#demo"
+            className="waitlist-ui-text inline-flex items-center justify-center rounded-full border border-[#B8C8C2] bg-[#ECF1EE] px-7 py-3.5 text-[0.95rem] font-light text-[#16423C] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#9FB2AB] hover:bg-white"
+          >
+            Watch demo
+          </a>
+        </div>
       </main>
 
-      <section className="w-full bg-[#E6ECE9]/80 backdrop-blur-md py-24 px-6 md:px-12 border-t border-[#D1DBD7] relative z-10">
-        <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-16 md:gap-24">
-          
-          {/* Column 1 */}
-          <div>
-            <h3 className="serif text-3xl italic mb-6 text-[#0F2922]">Beyond the Answer</h3>
-            <p className="text-[#3F524C] leading-relaxed mb-4 font-light">
-              Students today learn procedures instead of concepts. When they get stuck, they often face &quot;eroding confidence&quot; because systems only check if the final output is correct.
+      <section className="relative z-10 border-t border-[#D1DBD7] bg-[#E6ECE9]/80 px-6 py-24 backdrop-blur-md md:px-12">
+        <div className="mx-auto grid max-w-6xl gap-14 lg:grid-cols-[0.94fr_1.06fr] lg:gap-20">
+          <div data-reveal className="reveal-fade-rise">
+            <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.24em] text-[#5C7069]">
+              The Problem
             </p>
-            <p className="text-[#3F524C] leading-relaxed font-light">
-              We believe assessment needs to probe thinking, not just answers.
+            <h2 className="serif text-[2.35rem] leading-tight text-[#0F2922] md:text-[3rem]">
+              Math learning is still
+              <br />
+              a global problem.
+            </h2>
+            <p className="mt-6 max-w-xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.05rem]">
+              Across the world, students struggle with math, and the gap compounds over
+              time.
             </p>
           </div>
 
-          {/* Column 2 */}
-          <div>
-            <h3 className="serif text-3xl italic mb-6 text-[#0F2922]">Reasoning Out Loud</h3>
-            <p className="text-[#3F524C] leading-relaxed mb-4 font-light">
-              Lemma works at the pace of understanding, not curriculum timelines. By using voice reasoning and digital handwriting, we capture the complete picture of a student&apos;s thought process.
-            </p>
-            <p className="text-[#3F524C] leading-relaxed font-light">
-              Real-time feedback targets misconceptions in logic, mirroring the experience of an expert human tutor.
-            </p>
+          <div className="space-y-0">
+            {problemSignals.map((signal, index) => (
+              <article
+                key={signal.figure}
+                data-reveal
+                className={`reveal-fade-rise ${revealDelayClasses[index]} border-t border-[#CCD7D3] py-5 first:pt-0`}
+              >
+                <p className="text-[1.6rem] font-light tracking-[-0.04em] text-[#0F2922] md:text-[1.95rem]">
+                  {signal.figure}
+                </p>
+                <p className="mt-2 max-w-lg text-[0.94rem] font-light leading-relaxed text-[#0F2922]">
+                  {signal.title}
+                </p>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <p
+          data-reveal
+          className="reveal-fade-rise reveal-delay-200 mx-auto mt-8 max-w-6xl text-[10px] uppercase tracking-[0.22em] text-[#7A8D87]"
+        >
+          Sources: UNESCO Institute for Statistics, OECD PISA 2022, NBER tutoring
+          meta-analysis, Education Endowment Foundation.
+        </p>
+      </section>
+
+      <section className="relative z-10 border-t border-[#D1DBD7] bg-[#F2F5F4] px-6 py-24 md:px-12">
+        <div className="mx-auto max-w-6xl">
+          <div data-reveal className="reveal-fade-rise lg:grid lg:grid-cols-[0.94fr_1.06fr] lg:gap-20 lg:items-start">
+            <div>
+              <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.24em] text-[#5C7069]">
+                Root Cause
+              </p>
+              <h2 className="serif text-[2.3rem] leading-tight text-[#0F2922] md:text-[3rem]">
+                We don’t see how students think,
+                <br />
+                only what they answer.
+              </h2>
+            </div>
+            <div className="mt-6 lg:mt-1">
+              <p className="max-w-xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.05rem]">
+                Most classrooms, worksheets, and software only capture the result. They
+                rarely capture the explanation or work that reveals what a student
+                actually understands.
+              </p>
+              <p className="mt-4 max-w-xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.05rem]">
+                That is why students often get feedback too late. Good tutors work
+                differently. They respond during the process, not after it.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Demo Section */}
+      <section className="relative z-10 border-t border-[#D1DBD7] bg-[#E8EFEC] px-6 py-24 md:px-12">
+        <div className="mx-auto max-w-6xl">
+          <div data-reveal className="reveal-fade-rise lg:grid lg:grid-cols-[0.94fr_1.06fr] lg:gap-20 lg:items-start">
+            <div>
+              <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.24em] text-[#5C7069]">
+                The Solution
+              </p>
+              <h2 className="serif text-[2.3rem] leading-tight text-[#0F2922] md:text-[3rem]">
+                Getting closer to
+                <br />
+                a good human tutor.
+              </h2>
+            </div>
+            <div className="mt-6 lg:mt-1">
+              <p className="max-w-xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.05rem]">
+                Lemma is a voice AI tutor built specifically for math. It listens to
+                students, follows the work on a shared canvas, and responds in real
+                time.
+              </p>
+              <p className="mt-4 max-w-xl text-[1rem] font-light leading-relaxed text-[#3F524C] md:text-[1.05rem]">
+                Our goal is to get as close as we can to a strong human tutor by
+                listening, watching, and guiding while the student is still solving.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <DemoSection />
 
       <section id="waitlist" className="relative z-10 bg-[#DDE7E3] px-6 py-16 md:px-12">
@@ -216,12 +340,13 @@ export default function Home() {
                 Waitlist
               </p>
               <h2 className="serif text-[1.85rem] leading-tight text-[#0F2922] md:text-[2.25rem]">
-                Get on the list
+                Get early access
                 <br />
                 before we open up.
               </h2>
               <p className="mt-4 max-w-md text-[0.97rem] font-light leading-relaxed text-[#3F524C]">
-                Tell us who you are and how you would use Lemma.
+                Tell us who you are and how you would use Lemma. We are inviting early
+                users by hand.
               </p>
             </div>
 
@@ -257,7 +382,7 @@ export default function Home() {
                     disabled={isSubmitting}
                     required
                   >
-                    <option value="">I’m a student, parent, teacher, tutor...</option>
+                    <option value="">Role</option>
                     {roleOptions.map((role) => (
                       <option key={role} value={role}>
                         {role}
@@ -289,7 +414,7 @@ export default function Home() {
                   <textarea
                     id="goals"
                     name="goals"
-                    placeholder="What would you want to use Lemma for, or what feedback would you have for us?"
+                    placeholder="How would you use Lemma?"
                     className="waitlist-input min-h-[128px] resize-y"
                     value={formData.goals}
                     onChange={(e) => updateField('goals', e.target.value)}
@@ -306,7 +431,9 @@ export default function Home() {
                     disabled={isSubmitting}
                     className="h-4.5 w-4.5 rounded border-[#A3B8B2] text-[#16423C] focus:ring-[#16423C]"
                   />
-                  <span className="text-[0.95rem] font-light text-[#0F2922]">I’d be open to paying for it.</span>
+                  <span className="text-[0.95rem] font-light text-[#0F2922]">
+                    I’d be open to giving feedback after trying it.
+                  </span>
                 </label>
 
                 <button
@@ -318,7 +445,8 @@ export default function Home() {
                 </button>
 
                 <p className="waitlist-ui-text px-1 text-[0.82rem] font-light text-[#5C7069]">
-                  Use a real email and a short, specific note. We review early access requests by hand.
+                  Use a real email and a short, specific note. We review early access
+                  requests by hand.
                 </p>
 
                 {message && (
@@ -336,49 +464,52 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="w-full px-6 py-12 md:px-12 border-t border-[#D1DBD7] bg-[#F2F5F4] relative z-10">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
-          
+      <footer
+        id="team"
+        className="relative z-10 w-full border-t border-[#D1DBD7] bg-[#F2F5F4] px-6 py-12 md:px-12"
+      >
+        <div className="mx-auto flex max-w-5xl flex-col gap-8 md:flex-row md:items-end md:justify-between">
           <div>
-            <h4 className="uppercase tracking-widest text-[10px] font-bold text-[#5C7069] mb-4">The Team</h4>
-            <ul className="space-y-1 text-sm text-[#3F524C] font-light">
+            <h4 className="mb-4 text-[10px] font-bold uppercase tracking-widest text-[#5C7069]">
+              The Team
+            </h4>
+            <ul className="space-y-1 text-sm font-light text-[#3F524C]">
               <li>
-                <a 
-                  href="https://www.linkedin.com/in/shayanahmad7/" 
-                  target="_blank" 
+                <a
+                  href="https://www.linkedin.com/in/shayanahmad7/"
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-[#16423C] transition-colors"
+                  className="transition-colors hover:text-[#16423C]"
                 >
                   Shayan Ahmad
                 </a>
               </li>
               <li>
-                <a 
-                  href="https://www.linkedin.com/in/myrarafiq/" 
-                  target="_blank" 
+                <a
+                  href="https://www.linkedin.com/in/myrarafiq/"
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-[#16423C] transition-colors"
+                  className="transition-colors hover:text-[#16423C]"
                 >
                   Myra Rafiq
                 </a>
               </li>
               <li>
-                <a 
-                  href="https://www.linkedin.com/in/vlera-mehani-a11a56178/" 
-                  target="_blank" 
+                <a
+                  href="https://www.linkedin.com/in/vlera-mehani-a11a56178/"
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-[#16423C] transition-colors"
+                  className="transition-colors hover:text-[#16423C]"
                 >
                   Vlera Mehani
                 </a>
               </li>
               <li>
-                <a 
-                  href="https://www.linkedin.com/in/daniar-zhylangozov/" 
-                  target="_blank" 
+                <a
+                  href="https://www.linkedin.com/in/daniar-zhylangozov/"
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-[#16423C] transition-colors"
+                  className="transition-colors hover:text-[#16423C]"
                 >
                   Daniar Zhylangozov
                 </a>
@@ -387,8 +518,10 @@ export default function Home() {
           </div>
 
           <div className="text-left md:text-right">
-            <p className="serif italic text-xl mb-2 text-[#16423C]">LemmaEducation</p>
-            <p className="text-[10px] text-[#5C7069] tracking-wide">© 2026 Lemma Education.</p>
+            <p className="serif mb-2 text-xl italic text-[#16423C]">LemmaEducation</p>
+            <p className="text-sm font-light text-[#5C7069]">
+              Making student thinking visible in math.
+            </p>
           </div>
         </div>
       </footer>

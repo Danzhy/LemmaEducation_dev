@@ -46,12 +46,82 @@
   .delay-100 { animation-delay: 0.1s; }
   .delay-200 { animation-delay: 0.2s; }
   .delay-300 { animation-delay: 0.3s; }
+  .reveal-delay-100 { --reveal-delay: 100ms; }
+  .reveal-delay-200 { --reveal-delay: 200ms; }
+  .reveal-delay-300 { --reveal-delay: 300ms; }
+  .reveal-delay-400 { --reveal-delay: 400ms; }
 
   @keyframes fadeInUp {
     to {
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  .reveal-fade-rise {
+    opacity: 0;
+    transform: translate3d(0, 36px, 0);
+    transition:
+      opacity 0.82s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0ms),
+      transform 0.82s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0ms);
+    will-change: opacity, transform;
+  }
+
+  .reveal-fade-rise.is-visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .learning-signal {
+    position: relative;
+    padding-left: 1.85rem;
+  }
+
+  .learning-signal::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 1.95rem;
+    width: 0.68rem;
+    height: 0.68rem;
+    border-radius: 9999px;
+    border: 1px solid #9fb2ab;
+    background: #e6ece9;
+    box-shadow: 0 0 0 0 rgba(22, 66, 60, 0);
+    transform: scale(0.75);
+    transition:
+      transform 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0ms),
+      background-color 0.72s ease var(--reveal-delay, 0ms),
+      border-color 0.72s ease var(--reveal-delay, 0ms),
+      box-shadow 0.9s ease var(--reveal-delay, 0ms);
+  }
+
+  .learning-signal::after {
+    content: '';
+    position: absolute;
+    left: 0.31rem;
+    top: 2.7rem;
+    bottom: -2.5rem;
+    width: 1px;
+    background: linear-gradient(180deg, rgba(22, 66, 60, 0.34), rgba(22, 66, 60, 0));
+    transform: scaleY(0);
+    transform-origin: top center;
+    transition: transform 0.95s cubic-bezier(0.2, 0.8, 0.2, 1) var(--reveal-delay, 0ms);
+  }
+
+  .learning-signal:last-child::after {
+    display: none;
+  }
+
+  .learning-signal.is-visible::before {
+    transform: scale(1);
+    background: #16423C;
+    border-color: #16423C;
+    box-shadow: 0 0 0 12px rgba(22, 66, 60, 0.08);
+  }
+
+  .learning-signal.is-visible::after {
+    transform: scaleY(1);
   }
 
   /* Minimal Input Field Styling - Just a line */
