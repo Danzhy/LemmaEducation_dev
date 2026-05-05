@@ -1,6 +1,6 @@
 # Testing Strategy
 
-This document outlines how to verify that all implemented features work correctly and that no regressions have been introduced. It covers the tutor instructions, language handling, UI, error handling, and canvas streaming optimizations described in `IMPLEMENTATION_SUMMARY.md` and `realtime_streaming.md`.
+This document outlines how to verify that all implemented features work correctly and that no regressions have been introduced. It covers the tutor instructions, language handling, UI, error handling, and canvas streaming optimizations described in `docs/IMPLEMENTATION_SUMMARY.md` and `docs/realtime_streaming.md`.
 
 ---
 
@@ -109,7 +109,7 @@ This document outlines how to verify that all implemented features work correctl
 | No duplicated latest bubble | Let assistant finish a reply | Final assistant bubble appears once (no duplicate streaming/final copy) |
 | No duplicate assistant messages | Have tutor respond multiple times | Each assistant response appears once |
 | Text/file user messages | Send text and upload image | User entries appear correctly in chat |
-| Voice user messages | Speak a short sentence and stop | Spoken user turn is handled in audio flow; transcript-in-chat is currently not implemented |
+| Voice user messages | Speak a short sentence and stop | Spoken user turn appears in the session feed after transcription completes |
 | Transcript live | While tutor speaks | Current assistant transcript streams in chat and finalizes cleanly |
 
 ---
@@ -223,7 +223,7 @@ Use this checklist for a full manual pass:
 - [ ] Two-sided chat layout is active
 - [ ] Latest assistant bubble is not duplicated
 - [ ] No duplicate assistant messages in chat
-- [ ] Spoken user turns are handled in audio flow (transcript in chat is TODO)
+- [ ] Spoken user turns appear in chat after transcription completes
 - [ ] Canvas on speech start
 - [ ] Canvas on text send
 - [ ] Canvas on image send

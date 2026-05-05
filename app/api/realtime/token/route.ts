@@ -17,50 +17,22 @@ import { TUTOR_QUOTA_SECONDS } from '@/lib/tutor/constants'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { ensureTutorUsageRow } from '@/lib/tutor/ensure-usage'
 
-const DEFAULT_REALTIME_MODEL = 'gpt-realtime-mini'
-
-/**
- * System prompt that configures the tutor's Socratic teaching style.
- * Instructs the model to guide with questions rather than give direct answers.
- */
-const DEFAULT_SOCRATIC_TUTOR_INSTRUCTIONS = `You are a Socratic math tutor. Your role is to guide students to discover solutions themselves, not to give answers directly.
-
-Scope Control:
-Before responding, determine whether the user’s request is related to mathematics.
-
-- If the request is clearly mathematical, proceed with Socratic tutoring.
-- If the request is clearly non-mathematical, do NOT attempt to reinterpret it as math or invent a math problem.
-- If the request is ambiguous or unclear, ask a brief clarification question before proceeding.
-
-Handling Non-Math Requests:
-If the user’s request is not related to math, respond politely and redirect them back to math. For example:
-“I’m here to help with math questions. Do you have one I can help you with?”
-
-Important Guardrails:
-- Do NOT force a mathematical framework onto unrelated topics.
-- Do NOT hallucinate or fabricate math problems from non-math input.
-- Do NOT over-reject: if the query can reasonably involve math, try to guide it in a mathematical direction.
-- Prefer clarification over rejection when unsure.
-
-Always:
-- Hear the student's reasoning first before responding
-- Ask guiding questions that lead them to the right insight
-- Explain step by step when needed, but prefer questions over explanations
-- Focus on understanding, not just correct answers
-- Be encouraging and patient
-
-Never:
-- Immediately give full solutions
-- Rush to the answer
-- Dismiss wrong attempts—use them as teaching moments
-
-When a student shares a problem (by voice, text, or image), first understand what they've tried and where they're stuck. Then ask a question that nudges them toward the next step.
-
-You may receive periodic images of the student's whiteboard. Use them as context for what they're working on. Reference specific elements (equations, drawings) when giving guidance.`
-
-function getEnvOrDefault(value: string | undefined, fallback: string): string {
+function getRequiredEnv(value: string | undefined): string | null {
   const normalized = value?.trim()
-  return normalized && normalized.length > 0 ? normalized : fallback
+  return normalized && normalized.length > 0 ? normalized : null
+}
+
+function getRequiredInstructionEnv(value: string | undefined): string | null {
+  const normalized = getRequiredEnv(value)
+  if (!normalized) return null
+  return normalized.replace(/\\n/g, '\n')
+}
+
+function getGradeLevelInstruction(gradeLevel: string): string {
+  const normalized = gradeLevel.trim()
+  if (!normalized) return ''
+
+  return `Student context: The student is working at ${normalized}. Match the level of explanation, vocabulary, examples, pacing, and question difficulty to ${normalized}. Keep the math accessible for that exact level, and do not jump to more advanced methods unless the student asks or it is clearly necessary.`
 }
 
 /**
@@ -102,6 +74,7 @@ export async function POST(request: Request) {
     `
     const row = rows[0] as { total_active_seconds: string | bigint } | undefined
     const total = row ? Number(row.total_active_seconds) || 0 : 0
+
     if (total >= TUTOR_QUOTA_SECONDS) {
       return NextResponse.json(
         {
@@ -113,37 +86,68 @@ export async function POST(request: Request) {
         { status: 429 }
       )
     }
-  } catch (e) {
-    console.error('[realtime/token] quota check', e)
+  } catch (error) {
+    console.error('[realtime/token] quota check', error)
     return NextResponse.json(
-      { ok: false, code: 'QUOTA_CHECK_FAILED', message: 'Could not verify quota.' },
+      {
+        ok: false,
+        code: 'QUOTA_CHECK_FAILED',
+        message: 'Could not verify quota.',
+      },
       { status: 503 }
     )
   }
 
+  const realtimeModel = getRequiredEnv(process.env.OPENAI_REALTIME_MODEL)
+  if (!realtimeModel) {
+    return NextResponse.json(
+      { error: 'OPENAI_REALTIME_MODEL is not configured' },
+      { status: 500 }
+    )
+  }
+
+  const baseInstructions = getRequiredInstructionEnv(
+    process.env.OPENAI_SOCRATIC_TUTOR_INSTRUCTIONS
+  )
+  if (!baseInstructions) {
+    return NextResponse.json(
+      { error: 'OPENAI_SOCRATIC_TUTOR_INSTRUCTIONS is not configured' },
+      { status: 500 }
+    )
+  }
+
+  const realtimeTranscriptionModel = getRequiredEnv(
+    process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL
+  )
+  if (!realtimeTranscriptionModel) {
+    return NextResponse.json(
+      { error: 'OPENAI_REALTIME_TRANSCRIPTION_MODEL is not configured' },
+      { status: 500 }
+    )
+  }
+
   let language = 'en'
+  let gradeLevel = ''
   try {
     const body = await request.json()
     if (body?.language && typeof body.language === 'string') {
       language = body.language
     }
+    if (body?.gradeLevel && typeof body.gradeLevel === 'string') {
+      gradeLevel = body.gradeLevel
+    }
   } catch {
     // ignore parse errors; use default language
   }
 
-  const realtimeModel = getEnvOrDefault(
-    process.env.OPENAI_REALTIME_MODEL,
-    DEFAULT_REALTIME_MODEL
-  )
-  // const baseInstructions = getEnvOrDefault(
-  //   process.env.OPENAI_SOCRATIC_TUTOR_INSTRUCTIONS,
-  //   DEFAULT_SOCRATIC_TUTOR_INSTRUCTIONS
-  // )
   const languageRestriction = getLanguageRestrictionInstruction(language)
-  const instructions = `${DEFAULT_SOCRATIC_TUTOR_INSTRUCTIONS}\n\n${languageRestriction}`
+  const gradeLevelInstruction = getGradeLevelInstruction(gradeLevel)
+  const instructions = [baseInstructions, gradeLevelInstruction, languageRestriction]
+    .filter(Boolean)
+    .join('\n\n')
 
   /**
-   * Session config sent to OpenAI. See TUTOR_DOCUMENTATION.md for why
+   * Session config sent to OpenAI. See docs/TUTOR_DOCUMENTATION.md for why
    * output_modalities is ['audio'] only (not ['audio', 'text']).
    */
   const sessionConfig = {
@@ -151,7 +155,15 @@ export async function POST(request: Request) {
     model: realtimeModel,
     instructions,
     output_modalities: ['audio'],
-    audio: { output: { voice: 'marin' } },
+    audio: {
+      input: {
+        transcription: {
+          model: realtimeTranscriptionModel,
+          language,
+        },
+      },
+      output: { voice: 'marin' },
+    },
   }
 
   try {

@@ -60,9 +60,13 @@ export function useRealtimeTutor({
   const [isPaused, setIsPaused] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false)
+  const [currentUserTranscript, setCurrentUserTranscript] = useState<string>('')
   const [transcript, setTranscript] = useState<string>('')
   const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
   const transcriptRef = useRef<string>('')
+  const currentUserTranscriptRef = useRef<string>('')
+  const pendingInputAudioItemIdRef = useRef<string | null>(null)
+  const pendingInputAudioTranscriptsRef = useRef<Map<string, string>>(new Map())
   const isResponseActiveRef = useRef(false)
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -93,8 +97,12 @@ export function useRealtimeTutor({
     setIsPaused(false)
     setIsMuted(false)
     setIsSpeakerMuted(false)
+    setCurrentUserTranscript('')
     setTranscript('')
     transcriptRef.current = ''
+    currentUserTranscriptRef.current = ''
+    pendingInputAudioItemIdRef.current = null
+    pendingInputAudioTranscriptsRef.current.clear()
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current.currentTime = 0
@@ -113,7 +121,7 @@ export function useRealtimeTutor({
    * 4. POST SDP offer directly to OpenAI (avoids server timeout)
    * 5. Set remote description with OpenAI's SDP answer
    */
-  const connect = useCallback(async (options?: { language?: string }) => {
+  const connect = useCallback(async (options?: { language?: string; gradeLevel?: string }) => {
     try {
       setChatHistory([])
       setState('thinking')
@@ -170,7 +178,10 @@ export function useRealtimeTutor({
       const tokenRes = await fetch('/api/realtime/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ language: options?.language ?? 'en' }),
+        body: JSON.stringify({
+          language: options?.language ?? 'en',
+          gradeLevel: options?.gradeLevel ?? '',
+        }),
       })
       if (!tokenRes.ok) {
         const err = await tokenRes.json().catch(() => ({}))
@@ -272,12 +283,68 @@ export function useRealtimeTutor({
           }
           break
         }
+        case 'input_audio_buffer.committed': {
+          const itemId = (event as { item_id?: string }).item_id ?? null
+          if (itemId) {
+            pendingInputAudioItemIdRef.current = itemId
+            pendingInputAudioTranscriptsRef.current.set(itemId, '')
+            currentUserTranscriptRef.current = ''
+            setCurrentUserTranscript('')
+          }
+          break
+        }
         case 'input_audio_buffer.speech_started':
           // TODO: If we support user voice messages in chat later, wire user input
           // transcription events here and append finalized transcripts as user turns.
           onSpeechStarted?.()
           setState('listening')
           break
+        case 'conversation.item.input_audio_transcription.delta': {
+          const itemId = (event as { item_id?: string }).item_id ?? null
+          const delta = (event as { delta?: string }).delta ?? ''
+          if (!itemId || !delta) break
+          const nextTranscript =
+            (pendingInputAudioTranscriptsRef.current.get(itemId) ?? '') + delta
+          pendingInputAudioTranscriptsRef.current.set(itemId, nextTranscript)
+
+          if (
+            !pendingInputAudioItemIdRef.current ||
+            pendingInputAudioItemIdRef.current === itemId
+          ) {
+            pendingInputAudioItemIdRef.current = itemId
+            currentUserTranscriptRef.current = nextTranscript
+            setCurrentUserTranscript(nextTranscript)
+          }
+          break
+        }
+        case 'conversation.item.input_audio_transcription.completed': {
+          const itemId = (event as { item_id?: string }).item_id ?? null
+          const completedTranscript = (event as { transcript?: string }).transcript?.trim() ?? ''
+          if (!itemId) break
+
+          pendingInputAudioTranscriptsRef.current.delete(itemId)
+          if (pendingInputAudioItemIdRef.current === itemId) {
+            pendingInputAudioItemIdRef.current = null
+            currentUserTranscriptRef.current = ''
+            setCurrentUserTranscript('')
+          }
+
+          if (completedTranscript) {
+            setChatHistory((prev) => [...prev, { role: 'user', content: completedTranscript }])
+          }
+          break
+        }
+        case 'conversation.item.input_audio_transcription.failed': {
+          const itemId = (event as { item_id?: string }).item_id ?? null
+          if (!itemId) break
+          pendingInputAudioTranscriptsRef.current.delete(itemId)
+          if (pendingInputAudioItemIdRef.current === itemId) {
+            pendingInputAudioItemIdRef.current = null
+            currentUserTranscriptRef.current = ''
+            setCurrentUserTranscript('')
+          }
+          break
+        }
         case 'response.created':
           isResponseActiveRef.current = true
           setState('thinking')
@@ -516,6 +583,7 @@ export function useRealtimeTutor({
     isPaused,
     isMuted,
     isSpeakerMuted,
+    currentUserTranscript,
     transcript,
     chatHistory,
     connect,

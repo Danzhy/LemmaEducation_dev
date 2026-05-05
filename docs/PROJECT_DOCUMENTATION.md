@@ -502,12 +502,12 @@ Notes:
 
 ## 18) Related Internal Docs
 
-- `IMPLEMENTATION_SUMMARY.md`
-- `realtime_streaming.md`
-- `testing_strategy.md`
-- `PROJECT_REPORT.md`
-- `TUTOR_DOCUMENTATION.md`
-- `canvasAI.md`
+- `docs/IMPLEMENTATION_SUMMARY.md`
+- `docs/realtime_streaming.md`
+- `docs/testing_strategy.md`
+- `docs/PROJECT_REPORT.md`
+- `docs/TUTOR_DOCUMENTATION.md`
+- `docs/canvasAI.md`
 
 This file should be treated as the authoritative high-level reference for the
 current project state, with the above docs providing deeper topic-specific detail.

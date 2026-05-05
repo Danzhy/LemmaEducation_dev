@@ -46,6 +46,14 @@ These sections were added to constrain behavior:
 
 These are generated dynamically from [`lib/languageInstructions.ts`](lib/languageInstructions.ts) based on the selected language. The token route merges them into the final instructions.
 
+### 1.4 Grade-Level Context
+
+The tutor now also receives a lightweight math-level hint from the UI:
+
+- Options are limited to `Grade 3` through `Grade 7`
+- The selected level is sent from the tutor page when the session starts
+- The token route appends a short instruction telling the tutor to match vocabulary, pacing, and explanation depth to that level
+
 ---
 
 ## 2. Language Instructions
@@ -104,10 +112,11 @@ These are generated dynamically from [`lib/languageInstructions.ts`](lib/languag
 ### 4.1 Token Route
 
 - **Endpoint:** `POST /api/realtime/token`
-- **Body:** `{ language?: string }` (default `'en'`)
+- **Body:** `{ language?: string, gradeLevel?: string }` (default language `'en'`)
 - **Response:** `{ value: string }` (ephemeral token)
-- **Model:** `gpt-realtime-mini`
-- **Instructions:** Socratic instructions + scope/guardrails + language restriction
+- **Model:** loaded from `OPENAI_REALTIME_MODEL`
+- **Instructions:** env tutor prompt + grade-level context + language restriction
+- **Input transcription:** enables spoken user transcription with the model from `OPENAI_REALTIME_TRANSCRIPTION_MODEL`
 - **Error handling:** Generic message returned; raw errors logged on the server
 
 ### 4.2 Log Error Route
@@ -139,9 +148,10 @@ These are generated dynamically from [`lib/languageInstructions.ts`](lib/languag
 ### 6.1 useRealtimeTutor
 
 - **Mute vs Pause:** Mute only affects mic; Pause affects mic and canvas streaming
-- **connect(options):** Accepts `{ language?: string }` and sends it in the token request
+- **connect(options):** Accepts `{ language?: string, gradeLevel?: string }` and sends it in the token request
 - **onError:** `(userMessage: string, rawError?: string)`
 - **logErrorToServer:** Called in all client error paths (token, webrtc, connection, session)
+- **User speech transcription:** listens for realtime transcription events and appends spoken user turns to chat history when transcription completes
 
 ### 6.2 useCanvasChangeDetection
 
@@ -159,4 +169,5 @@ These are generated dynamically from [`lib/languageInstructions.ts`](lib/languag
 | `lib/languageInstructions.ts` | Language restriction instructions |
 | `hooks/useRealtimeTutor.ts` | WebRTC session, mute/pause, error reporting |
 | `hooks/useCanvasChangeDetection.ts` | Debounced canvas change detection |
-| `app/tutor/page.tsx` | Tutor UI, controls, language dropdown |
+| `app/tutor/page.tsx` | Tutor UI, controls, language dropdown, grade-level selector |
+| `components/TutorChatWindow.tsx` | Scrollable session feed with typed, spoken, and assistant messages |

@@ -210,19 +210,19 @@ export default function GuidedTutorialOverlay({
       <div
         role="dialog"
         aria-modal="true"
-        className="fixed z-[2147483647] w-[320px] rounded-xl border border-[#D1DBD7] bg-white p-4 shadow-xl"
+        className="fixed z-[2147483647] w-[320px] rounded-[24px] border border-[#D8E4DF] bg-[rgba(251,253,252,0.96)] p-5 shadow-[0_28px_80px_-48px_rgba(15,41,34,0.75)] backdrop-blur-md"
         style={{ top: tooltipPosition.top, left: tooltipPosition.left }}
       >
-        <div className="text-xs uppercase tracking-wider text-[#5C7069]">
+        <div className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">
           Step {currentStepIndex + 1} of {steps.length}
         </div>
-        <h3 className="mt-1 text-sm font-semibold text-[#16423C]">{currentStep.title}</h3>
-        <p className="mt-2 text-sm text-[#3F524C] leading-relaxed">{currentStep.description}</p>
+        <h3 className="mt-2 text-base font-medium tracking-[-0.02em] text-[#163B35]">{currentStep.title}</h3>
+        <p className="mt-2 text-sm leading-relaxed text-[#49615A]">{currentStep.description}</p>
         <div className="mt-4 flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-2.5 py-1.5 text-xs border border-[#A3B8B2] text-[#3F524C] rounded-sm hover:border-[#16423C] hover:text-[#16423C] transition-colors"
+            className="rounded-full border border-[#C9D6D1] bg-white/80 px-3 py-1.5 text-xs font-medium text-[#3F524C] transition-all hover:border-[#16423C] hover:text-[#16423C]"
           >
             Skip
           </button>
@@ -231,14 +231,14 @@ export default function GuidedTutorialOverlay({
               type="button"
               onClick={() => onStepChange(currentStepIndex - 1)}
               disabled={isFirst}
-              className="px-2.5 py-1.5 text-xs border border-[#A3B8B2] text-[#3F524C] rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-full border border-[#C9D6D1] bg-white/80 px-3 py-1.5 text-xs font-medium text-[#3F524C] transition-all disabled:cursor-not-allowed disabled:opacity-50"
             >
               Back
             </button>
             <button
               type="button"
               onClick={() => (isLast ? onClose() : onStepChange(currentStepIndex + 1))}
-              className="px-2.5 py-1.5 text-xs bg-[#16423C] text-white rounded-sm hover:bg-[#0A2621] transition-colors"
+              className="rounded-full bg-[#16423C] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0A2621]"
             >
               {isLast ? 'Finish' : 'Next'}
             </button>

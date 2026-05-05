@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const { email } = body
+    const { email, roleSelection, customRole, goals, willingToPay } = body
 
     // Validate email presence
     if (typeof email !== 'string' || !email.trim()) {
@@ -57,6 +57,46 @@ export async function POST(request: Request) {
       )
     }
 
+    const normalizedRoleSelection = typeof roleSelection === 'string' ? roleSelection.trim() : ''
+    if (!normalizedRoleSelection) {
+      return NextResponse.json(
+        { ok: false, error: 'Please tell us which option best describes you.' },
+        { status: 400 }
+      )
+    }
+
+    if (normalizedRoleSelection.length > 80) {
+      return NextResponse.json(
+        { ok: false, error: 'Role description is too long.' },
+        { status: 400 }
+      )
+    }
+
+    const normalizedCustomRole = typeof customRole === 'string' ? customRole.trim() : ''
+    if (normalizedCustomRole.length > 160) {
+      return NextResponse.json(
+        { ok: false, error: 'Please keep your custom role under 160 characters.' },
+        { status: 400 }
+      )
+    }
+
+    const normalizedGoals = typeof goals === 'string' ? goals.trim() : ''
+    if (!normalizedGoals) {
+      return NextResponse.json(
+        { ok: false, error: 'Please share how you would want to use Lemma.' },
+        { status: 400 }
+      )
+    }
+
+    if (normalizedGoals.length > 2000) {
+      return NextResponse.json(
+        { ok: false, error: 'Please keep your note under 2000 characters.' },
+        { status: 400 }
+      )
+    }
+
+    const normalizedWillingToPay = Boolean(willingToPay)
+
     // Initialize database connection
     let sql
     try {
@@ -74,12 +114,27 @@ export async function POST(request: Request) {
 
     // Insert email into database
     try {
-      await sql`INSERT INTO public.waitlist_signups (email) VALUES (${trimmed})`
+      await sql`
+        INSERT INTO public.waitlist_signups (
+          email,
+          role_selection,
+          custom_role,
+          goals,
+          willing_to_pay
+        )
+        VALUES (
+          ${trimmed},
+          ${normalizedRoleSelection},
+          ${normalizedCustomRole || null},
+          ${normalizedGoals},
+          ${normalizedWillingToPay}
+        )
+      `
       
       return NextResponse.json(
         { 
           ok: true, 
-          message: 'You\'re on the waitlist. We\'ll be in touch soon.' 
+          message: 'You’re on the list. We’ll reach out as we open up more spots.' 
         },
         { status: 200 }
       )
@@ -89,7 +144,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { 
             ok: true, 
-            message: 'You\'re already on the waitlist! We\'ll be in touch soon.' 
+            message: 'You’re already on the list. We’ll be in touch when more spots open.' 
           },
           { status: 200 }
         )

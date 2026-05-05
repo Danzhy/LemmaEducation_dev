@@ -13,8 +13,9 @@ This document explains how the Lemma real-time math tutor works, including imple
 5. [Data Flow](#data-flow)
 6. [Realtime API Events](#realtime-api-events)
 7. [Input Modes (Voice, Text, File)](#input-modes-voice-text-file)
-8. [PDF Handling](#pdf-handling)
-9. [Environment Variables](#environment-variables)
+8. [User Speech Transcription In Chat](#user-speech-transcription-in-chat)
+9. [PDF Handling](#pdf-handling)
+10. [Environment Variables](#environment-variables)
 
 ---
 
@@ -115,6 +116,7 @@ types/
 
 - **Input:** Microphone → WebRTC audio track → OpenAI (automatic)
 - **Output:** OpenAI → WebRTC audio track → `pc.ontrack` → `<audio>.srcObject` → autoplay
+- **User transcript in UI:** OpenAI emits input-audio transcription events over the data channel; we render the live partial transcript and then add the completed spoken user turn to chat history
 
 ### Text/Image Flow
 
@@ -137,7 +139,11 @@ types/
 | Event | Purpose |
 |-------|---------|
 | `session.created` / `session.updated` | Session ready |
+| `input_audio_buffer.committed` | Signals that a spoken user turn was committed as a conversation item |
 | `input_audio_buffer.speech_started` | User started speaking |
+| `conversation.item.input_audio_transcription.delta` | Partial transcript of the user's spoken turn |
+| `conversation.item.input_audio_transcription.completed` | Final transcript of the user's spoken turn |
+| `conversation.item.input_audio_transcription.failed` | User speech transcription failed or was unavailable |
 | `response.created` | Model started generating |
 | `response.output_audio.delta` | Audio chunk (we use for "speaking" state) |
 | `response.output_audio_transcript.delta` | Transcript chunk (we display) |
@@ -160,6 +166,48 @@ All three modes work **independently** or **in combination**:
 | **Voice + File** | User speaks and uploads | Both flows in same session |
 | **Text + File** | User types with image | `conversation.item.create` with both input_text and input_image |
 | **All three** | Voice, text, and file | All flows in same session |
+
+---
+
+## User Speech Transcription In Chat
+
+The tutor now shows **spoken user turns in the session feed**, not just typed ones.
+
+### How it works
+
+1. The client opens a normal `type: 'realtime'` session for speech-to-speech tutoring.
+2. In the session config, we also enable:
+
+```javascript
+audio: {
+  input: {
+    transcription: {
+      model: 'gpt-4o-mini-transcribe',
+      language,
+      prompt: 'The student is discussing grade 3 to grade 7 math...'
+    }
+  },
+  output: { voice: 'marin' }
+}
+```
+
+3. OpenAI transcribes the user's audio asynchronously and emits data-channel events:
+   - `conversation.item.input_audio_transcription.delta`
+   - `conversation.item.input_audio_transcription.completed`
+4. We render the live partial spoken text in the UI while the student is speaking.
+5. When transcription completes, we append the final spoken user turn to `chatHistory`.
+
+### Important behavior
+
+- The tutor still listens to the raw audio stream for actual reasoning and response generation.
+- The transcript shown in chat is a **UI aid**, not the sole source of truth for the model.
+- If transcription fails, the voice interaction still works; only the transcript bubble is missing.
+
+### Why this approach
+
+- It keeps the session feed complete and easier to review.
+- It matches typed and spoken inputs in one place.
+- It avoids changing the underlying speech-to-speech tutoring flow.
 
 ---
 
@@ -186,6 +234,9 @@ The Realtime API accepts **images** (`input_image` with `data:image/...;base64,.
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `OPENAI_API_KEY` | Yes | Used server-side to mint ephemeral tokens. Never sent to the client. |
+| `OPENAI_REALTIME_MODEL` | Yes | Realtime model used for tutoring sessions. |
+| `OPENAI_REALTIME_TRANSCRIPTION_MODEL` | Yes | Speech-to-text model used for spoken user transcript in chat. |
+| `OPENAI_SOCRATIC_TUTOR_INSTRUCTIONS` | Yes | Base tutor prompt loaded from environment and combined with level/language context. |
 | `NEON_DATABASE_URL` | No (for tutor) | Used elsewhere in the app (e.g. waitlist). Not used by the tutor. |
 
 **Note:** Ensure `OPENAI_API_KEY` has no spaces around the `=` in `.env`.
@@ -199,17 +250,26 @@ The session config sent to `client_secrets`:
 ```javascript
 {
   type: 'realtime',
-  model: 'gpt-realtime',
-  instructions: SOCRATIC_TUTOR_INSTRUCTIONS,
+  model: process.env.OPENAI_REALTIME_MODEL,
+  instructions: BASE_PROMPT + gradeLevelInstruction + languageRestriction,
   output_modalities: ['audio'],
-  audio: { output: { voice: 'marin' } },
+  audio: {
+    input: {
+      transcription: {
+        model: process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL,
+        language
+      }
+    },
+    output: { voice: 'marin' }
+  },
 }
 ```
 
 - **type:** `realtime` = speech-to-speech (vs. `transcription` for transcription-only)
-- **model:** `gpt-realtime` = multimodal Realtime model
-- **instructions:** Socratic tutor system prompt
+- **model:** realtime model loaded from environment
+- **instructions:** env prompt + grade-level context + language restriction
 - **output_modalities:** `['audio']` only (see above)
+- **input transcription:** model loaded from `OPENAI_REALTIME_TRANSCRIPTION_MODEL`
 - **voice:** `marin` = one of the supported Realtime voices (alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar)
 
 ---

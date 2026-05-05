@@ -66,8 +66,8 @@ LemmaEducation_dev/
 ├── types/
 │   ├── pdfjs-dist.d.ts
 │   └── tldraw.d.ts
-├── canvasAI.md                  # Canvas integration design doc
-├── TUTOR_DOCUMENTATION.md       # Realtime tutor technical docs
+├── docs/canvasAI.md             # Canvas integration design doc
+├── docs/TUTOR_DOCUMENTATION.md  # Realtime tutor technical docs
 └── package.json
 ```
 
@@ -215,7 +215,7 @@ The tutor page passes `onSpeechStarted: () => sendCanvasToTutorRef.current()` to
 | Pause | When paused, canvas change detection is disabled. |
 | Conditional capture | Capture only when `streamCanvas && editor && isConnected && !isPaused`. |
 
-### Not Implemented (vs. canvasAI.md)
+### Not Implemented (vs. docs/canvasAI.md)
 
 | Recommendation | Status |
 |-----------------|--------|
@@ -313,7 +313,7 @@ The tutor page passes `onSpeechStarted: () => sendCanvasToTutorRef.current()` to
 
 ---
 
-## 2.6 Cost Model (from canvasAI.md)
+## 2.6 Cost Model (from docs/canvasAI.md)
 
 | Modality | Input | Output |
 |----------|-------|--------|
@@ -347,15 +347,15 @@ The tutor page passes `onSpeechStarted: () => sendCanvasToTutorRef.current()` to
 - **Location:** `components/Canvas.tsx`, `captureViewport()`.
 - **Issue:** Uses `getCurrentPageShapeIds()` (all shapes on the page) instead of viewport bounds.
 - **Impact:** Larger images and higher token cost than viewport-only capture.
-- **Recommendation:** Use viewport bounds as in canvasAI.md (e.g. `editor.getViewportScreenBounds()`, `editor.screenToPage()`, `editor.toImage()` with viewport bounds).
+- **Recommendation:** Use viewport bounds as in `docs/canvasAI.md` (e.g. `editor.getViewportScreenBounds()`, `editor.screenToPage()`, `editor.toImage()` with viewport bounds).
 
 ---
 
-# Appendix A: Relationship to canvasAI.md
+# Appendix A: Relationship to docs/canvasAI.md
 
-The existing `canvasAI.md` document is a design/planning document. The report above reflects the current implementation:
+The existing `docs/canvasAI.md` document is a design/planning document. The report above reflects the current implementation:
 
-| canvasAI.md Recommendation | Implementation Status |
+| `docs/canvasAI.md` Recommendation | Implementation Status |
 |---------------------------|------------------------|
 | Replace strategy (delete before add) | Implemented |
 | Debounce 2–3 s | Implemented (2.5 s) |

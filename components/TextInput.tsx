@@ -10,13 +10,14 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 interface TextInputProps {
   onSend: (text: string) => void
   disabled?: boolean
   placeholder?: string
   className?: string
+  leadingAccessory?: ReactNode
 }
 
 export default function TextInput({
@@ -24,6 +25,7 @@ export default function TextInput({
   disabled = false,
   placeholder = 'Type equations, steps, or clarifications...',
   className = '',
+  leadingAccessory,
 }: TextInputProps) {
   const [value, setValue] = useState('')
 
@@ -40,22 +42,38 @@ export default function TextInput({
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      const trimmed = value.trim()
+      if (trimmed && !disabled) {
+        onSend(trimmed)
+        setValue('')
+      }
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className={className}>
-      <div className="flex gap-2">
-        <input
-          type="text"
+      <div className="flex items-end gap-2 rounded-[22px] border border-[#D5E1DD] bg-white/78 p-2 shadow-[0_16px_42px_-30px_rgba(15,41,34,0.35)] transition-colors focus-within:border-[#16423C]">
+        {leadingAccessory ? <div className="flex-shrink-0">{leadingAccessory}</div> : null}
+        <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="flex-1 minimal-input px-3 py-2 text-sm"
+          rows={2}
+          className="min-h-[48px] flex-1 resize-none bg-transparent px-3 py-2 text-[13px] leading-5 text-[#0F2922] outline-none placeholder:text-[#8CA39D] md:text-sm"
         />
         <button
           type="submit"
           disabled={disabled || !value.trim()}
-          className="px-4 py-2 bg-[#16423C] text-[#F2F5F4] rounded-sm hover:bg-[#0A2621] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+          className="inline-flex items-center gap-2 rounded-full bg-[#16423C] px-4 py-2.5 text-sm font-medium text-[#F2F5F4] transition-all hover:-translate-y-0.5 hover:bg-[#0A2621] disabled:cursor-not-allowed disabled:opacity-50"
         >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h11m0 0l-4-4m4 4l-4 4" />
+          </svg>
           Send
         </button>
       </div>

@@ -17,6 +17,21 @@ import { useCallback, useRef, useState } from 'react'
 const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 const ACCEPTED_PDF_TYPE = 'application/pdf'
 const ACCEPT_STRING = 'image/png,image/jpeg,image/webp,application/pdf'
+const ACCEPTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.pdf']
+const SUPPORTED_FILES_MESSAGE = 'Please upload a PNG, JPG, WEBP image, or a PDF.'
+
+const hasAcceptedExtension = (fileName: string) => {
+  const lower = fileName.toLowerCase()
+  return ACCEPTED_EXTENSIONS.some((extension) => lower.endsWith(extension))
+}
+
+const isAcceptedFile = (file: File) => {
+  return (
+    ACCEPTED_IMAGE_TYPES.includes(file.type) ||
+    file.type === ACCEPTED_PDF_TYPE ||
+    (!file.type && hasAcceptedExtension(file.name))
+  )
+}
 
 /**
  * Converts the first page of a PDF to a PNG image using pdfjs-dist.
@@ -56,6 +71,7 @@ interface FileUploadProps {
   onError?: (message: string) => void
   disabled?: boolean
   className?: string
+  variant?: 'default' | 'icon'
 }
 
 export default function FileUpload({
@@ -63,6 +79,7 @@ export default function FileUpload({
   onError,
   disabled = false,
   className = '',
+  variant = 'default',
 }: FileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isConverting, setIsConverting] = useState(false)
@@ -74,7 +91,20 @@ export default function FileUpload({
    */
   const handleFile = useCallback(
     async (file: File) => {
-      if (ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      if (!isAcceptedFile(file)) {
+        onError?.(SUPPORTED_FILES_MESSAGE)
+        return
+      }
+
+      const isPdf = file.type === ACCEPTED_PDF_TYPE || file.name.toLowerCase().endsWith('.pdf')
+      const isImage =
+        ACCEPTED_IMAGE_TYPES.includes(file.type) ||
+        (!file.type &&
+          ['.png', '.jpg', '.jpeg', '.webp'].some((extension) =>
+            file.name.toLowerCase().endsWith(extension)
+          ))
+
+      if (isImage) {
         const reader = new FileReader()
         reader.onload = () => {
           const result = reader.result as string
@@ -87,7 +117,7 @@ export default function FileUpload({
         return
       }
 
-      if (file.type === ACCEPTED_PDF_TYPE) {
+      if (isPdf) {
         setIsConverting(true)
         try {
           const { base64, mimeType } = await convertPdfFirstPageToImage(file)
@@ -108,9 +138,9 @@ export default function FileUpload({
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
+      e.target.value = ''
       if (file) {
         handleFile(file)
-        e.target.value = ''
       }
     },
     [handleFile]
@@ -133,7 +163,13 @@ export default function FileUpload({
         type="button"
         onClick={handleClick}
         disabled={disabled || isConverting}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#A3B8B2] text-[#3F524C] hover:border-[#16423C] hover:text-[#16423C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+        aria-label={isConverting ? 'Converting attachment' : 'Attach image or PDF'}
+        title={isConverting ? 'Converting attachment' : 'Attach image or PDF'}
+        className={
+          variant === 'icon'
+            ? 'inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#C9D6D1] bg-[#F6FAF8] text-[#3F524C] transition-all hover:-translate-y-0.5 hover:border-[#16423C] hover:text-[#16423C] disabled:cursor-not-allowed disabled:opacity-50'
+            : 'inline-flex items-center gap-2 rounded-full border border-[#C9D6D1] bg-white/82 px-4 py-2.5 text-sm text-[#3F524C] shadow-[0_16px_38px_-30px_rgba(15,41,34,0.32)] transition-all hover:-translate-y-0.5 hover:border-[#16423C] hover:text-[#16423C] disabled:cursor-not-allowed disabled:opacity-50'
+        }
       >
         <svg
           className="w-4 h-4"
@@ -145,10 +181,10 @@ export default function FileUpload({
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
-            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+            d="M16.5 6.5l-6.8 6.8a2.5 2.5 0 103.54 3.54l7.15-7.15a4 4 0 10-5.66-5.66l-7.07 7.07"
           />
         </svg>
-        {isConverting ? 'Converting PDF...' : 'Upload problem'}
+        {variant === 'icon' ? null : isConverting ? 'Converting PDF...' : 'Attach image or PDF'}
       </button>
     </div>
   )

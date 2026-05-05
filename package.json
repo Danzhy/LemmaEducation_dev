@@ -9,7 +9,8 @@
     "build:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true});\" && npm run build",
     "build:fallback-minify": "NEXT_DISABLE_SWC_MINIFY=1 node --max-old-space-size=8192 node_modules/next/dist/bin/next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "migrate:waitlist": "node scripts/migrate-waitlist-schema.mjs"
   },
   "dependencies": {
     "@neondatabase/auth": "0.2.0-beta.1",
