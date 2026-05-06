@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getNeonSql } from '@/lib/tutor/db'
-import { TUTOR_QUOTA_SECONDS } from '@/lib/tutor/constants'
+import { TUTOR_INACTIVITY_PAUSE_SECONDS, TUTOR_QUOTA_SECONDS } from '@/lib/tutor/constants'
+import { takeTutorApiRateLimit } from '@/lib/tutor/api-rate-limit'
 import { getSessionUserId } from '@/lib/tutor/session-user'
-import { finalizeSessionById, getOpenSessionById, getPersistedUsageTotal } from '@/lib/tutor/quota'
+import {
+  finalizeSessionById,
+  getOpenSessionById,
+  getQuotaSnapshot,
+  pauseSessionById,
+} from '@/lib/tutor/quota'
 
 export async function POST(request: Request) {
   try {
@@ -30,6 +36,20 @@ export async function POST(request: Request) {
     }
 
     const sql = getNeonSql()
+    const rateLimit = await takeTutorApiRateLimit(request, {
+      endpoint: 'usage-tick',
+      userId,
+      sessionId,
+      maxHits: 720,
+      windowSeconds: 60 * 60,
+    })
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { ok: false, code: 'RATE_LIMITED', message: 'Too many tutor activity checks.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+      )
+    }
 
     const session = await getOpenSessionById(sql, userId, sessionId)
     if (!session) {
@@ -39,25 +59,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, code: 'SESSION_ENDED', message: 'Session already ended' }, { status: 400 })
     }
 
-    const persistedActiveSeconds = await getPersistedUsageTotal(sql, userId)
-    const elapsedSeconds = Math.max(
-      0,
-      Math.floor((Date.now() - new Date(session.started_at).getTime()) / 1000)
-    )
-    const totalActiveSeconds = Math.min(
-      TUTOR_QUOTA_SECONDS,
-      persistedActiveSeconds + elapsedSeconds
-    )
-    const remainingSeconds = Math.max(0, TUTOR_QUOTA_SECONDS - totalActiveSeconds)
+    let quota = await getQuotaSnapshot(sql, userId)
 
-    if (remainingSeconds <= 0) {
-      await finalizeSessionById(sql, userId, sessionId, 'quota')
+    if (
+      quota.activeSessionId === sessionId &&
+      quota.activeSessionState === 'active' &&
+      quota.inactivitySeconds >= TUTOR_INACTIVITY_PAUSE_SECONDS
+    ) {
+      await pauseSessionById(sql, userId, sessionId)
+      quota = await getQuotaSnapshot(sql, userId)
+      return NextResponse.json({
+        ok: true,
+        paused: true,
+        inactivityPaused: true,
+        totalActiveSeconds: quota.totalActiveSeconds,
+        remainingSeconds: quota.remainingSeconds,
+        quotaSeconds: quota.quotaSeconds,
+        sessionActiveSeconds: quota.activeSessionSeconds,
+      })
+    }
+
+    if (
+      quota.activeSessionId === sessionId &&
+      quota.activeSessionState === 'active' &&
+      (quota.remainingSeconds <= 0 || quota.activeSessionSeconds >= quota.maxSessionSeconds)
+    ) {
+      const endedReason =
+        quota.activeSessionSeconds >= quota.maxSessionSeconds ? 'session_limit' : 'quota'
+      await finalizeSessionById(sql, userId, sessionId, endedReason)
       return NextResponse.json(
         {
           ok: false,
-          code: 'QUOTA_EXCEEDED',
-          quotaExceeded: true,
-          message: 'Your tutoring time limit has been reached.',
+          code: endedReason === 'session_limit' ? 'SESSION_LIMIT_REACHED' : 'QUOTA_EXCEEDED',
+          quotaExceeded: endedReason === 'quota',
+          sessionLimitReached: endedReason === 'session_limit',
+          message:
+            endedReason === 'session_limit'
+              ? 'This tutoring session reached its 1 hour limit.'
+              : 'Your tutoring time limit has been reached.',
           remainingSeconds: 0,
           quotaSeconds: TUTOR_QUOTA_SECONDS,
         },
@@ -67,11 +106,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      appliedSeconds: 0,
-      totalActiveSeconds,
-      remainingSeconds,
-      quotaSeconds: TUTOR_QUOTA_SECONDS,
-      sessionActiveSeconds: elapsedSeconds,
+      paused: quota.activeSessionState === 'paused',
+      totalActiveSeconds: quota.totalActiveSeconds,
+      remainingSeconds: quota.remainingSeconds,
+      quotaSeconds: quota.quotaSeconds,
+      sessionActiveSeconds: quota.activeSessionSeconds,
     })
   } catch (e) {
     console.error('[tutor/usage/tick]', e)

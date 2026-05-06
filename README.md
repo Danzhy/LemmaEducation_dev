@@ -10,6 +10,20 @@ Lemma is an educational platform that captures the complete picture of a student
 - **Digital Handwriting** - Capture your work naturally
 - **Real-time Feedback** - Get targeted guidance on misconceptions
 - **Interactive Demo** - Experience the difference with our live demo
+- **Saved Session Review** - Revisit transcripts and board snapshots after each tutor session
+- **Role-Based Access** - Separate student, teacher, and parent dashboards with scoped visibility
+
+## Pilot Readiness
+
+The dev app now includes the core guardrails needed for a limited pilot with real students:
+
+- **Role-based onboarding** for students, teachers, parents, and admins
+- **Teacher classrooms** with join codes for student enrollment
+- **Parent access codes** for read-only session review
+- **Saved tutor history** with transcripts and canvas snapshots
+- **Pilot tutor limits** of up to 4 sessions per student, with each session capped at 1 hour
+- **Automatic inactivity pause** after 5 minutes without activity
+- **Server-backed tutor API rate limits** to reduce abuse and accidental spend
 
 ## Tech Stack
 
@@ -64,6 +78,10 @@ npm run migrate:waitlist
 ```
 
 This updates the `public.waitlist_signups` table with the extra waitlist fields used by the local form and API.
+
+### Tutor / Dashboard Migrations
+
+If you are setting up a fresh pilot database, apply the tutor migrations in `migrations/` so the role dashboards, session history, and pilot guardrails are available.
 
 ## Project Structure
 

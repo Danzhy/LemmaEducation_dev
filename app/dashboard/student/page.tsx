@@ -36,6 +36,8 @@ function formatEndedReason(reason: string | null) {
       return 'Completed'
     case 'quota':
       return 'Time limit reached'
+    case 'session_limit':
+      return 'Session limit reached'
     case 'error':
       return 'Ended early'
     default:

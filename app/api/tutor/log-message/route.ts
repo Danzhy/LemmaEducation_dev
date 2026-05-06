@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { getNeonSql } from '@/lib/tutor/db'
+import { takeTutorApiRateLimit } from '@/lib/tutor/api-rate-limit'
 import { TUTOR_MESSAGE_MAX_CHARS } from '@/lib/tutor/constants'
 import { getSessionUserId } from '@/lib/tutor/session-user'
+import { touchSessionActivity } from '@/lib/tutor/quota'
 
 const ALLOWED_SOURCES = new Set(['text', 'text_with_image', 'image_only', 'speech', 'assistant'])
 
@@ -38,6 +40,20 @@ export async function POST(request: Request) {
     }
 
     const sql = getNeonSql()
+    const rateLimit = await takeTutorApiRateLimit(request, {
+      endpoint: 'log-message',
+      userId,
+      sessionId,
+      maxHits: 1200,
+      windowSeconds: 60 * 60,
+    })
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { ok: false, code: 'RATE_LIMITED', message: 'Too many tutor messages.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+      )
+    }
 
     const sessionRows = await sql`
       SELECT id, user_id, ended_at
@@ -58,6 +74,10 @@ export async function POST(request: Request) {
       INSERT INTO tutor_messages (id, session_id, user_id, role, content, source)
       VALUES (${id}::uuid, ${sessionId}::uuid, ${userId}, ${role}, ${content}, ${source})
     `
+
+    if (role === 'user') {
+      await touchSessionActivity(sql, userId, sessionId)
+    }
 
     return NextResponse.json({ ok: true })
   } catch (e) {

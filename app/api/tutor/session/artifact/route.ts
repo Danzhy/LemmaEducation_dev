@@ -1,8 +1,10 @@
 import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { getNeonSql } from '@/lib/tutor/db'
+import { takeTutorApiRateLimit } from '@/lib/tutor/api-rate-limit'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { TUTOR_CANVAS_ARTIFACT_MAX_BASE64_CHARS } from '@/lib/tutor/constants'
+import { touchSessionActivity } from '@/lib/tutor/quota'
 
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
@@ -52,6 +54,21 @@ export async function POST(request: Request) {
     }
 
     const sql = getNeonSql()
+    const rateLimit = await takeTutorApiRateLimit(request, {
+      endpoint: 'session-artifact',
+      userId,
+      sessionId,
+      maxHits: 480,
+      windowSeconds: 60 * 60,
+    })
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { ok: false, code: 'RATE_LIMITED', message: 'Too many board snapshots.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+      )
+    }
+
     const sessionRows = await sql`
       SELECT id
       FROM tutor_sessions
@@ -99,6 +116,7 @@ export async function POST(request: Request) {
         byte_size = EXCLUDED.byte_size,
         updated_at = NOW()
     `
+    await touchSessionActivity(sql, userId, sessionId)
 
     return NextResponse.json({ ok: true })
   } catch (error) {

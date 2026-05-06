@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { getNeonSql } from '@/lib/tutor/db'
-import { TUTOR_QUOTA_SECONDS } from '@/lib/tutor/constants'
+import {
+  TUTOR_MAX_COMPLETED_SESSIONS,
+  TUTOR_MAX_SESSION_SECONDS,
+  TUTOR_QUOTA_SECONDS,
+} from '@/lib/tutor/constants'
+import { takeTutorApiRateLimit } from '@/lib/tutor/api-rate-limit'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { getQuotaSnapshot, reconcileOpenSessions } from '@/lib/tutor/quota'
 
@@ -20,8 +25,35 @@ export async function POST(request: Request) {
     }
 
     const sql = getNeonSql()
+    const rateLimit = await takeTutorApiRateLimit(request, {
+      endpoint: 'session-start',
+      userId,
+      maxHits: 24,
+      windowSeconds: 60 * 60,
+    })
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { ok: false, code: 'RATE_LIMITED', message: 'Too many session starts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+      )
+    }
+
     await reconcileOpenSessions(sql, userId, 'unknown')
     const quota = await getQuotaSnapshot(sql, userId)
+
+    if (quota.remainingSessionCount <= 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'SESSION_LIMIT_REACHED',
+          message: 'You have used all 4 pilot tutoring sessions.',
+          remainingSessionCount: 0,
+          maxCompletedSessions: TUTOR_MAX_COMPLETED_SESSIONS,
+        },
+        { status: 403 }
+      )
+    }
 
     if (quota.remainingSeconds <= 0) {
       return NextResponse.json(
@@ -61,9 +93,23 @@ export async function POST(request: Request) {
         active_seconds,
         model_snapshot,
         language,
-        grade_level
+        grade_level,
+        session_state,
+        last_resumed_at,
+        last_activity_at
       )
-      VALUES (${sessionId}, ${userId}, NOW(), 0, ${modelSnapshot}, ${language}, ${gradeLevel})
+      VALUES (
+        ${sessionId},
+        ${userId},
+        NOW(),
+        0,
+        ${modelSnapshot},
+        ${language},
+        ${gradeLevel},
+        'active',
+        NOW(),
+        NOW()
+      )
     `
 
     return NextResponse.json({
@@ -71,6 +117,9 @@ export async function POST(request: Request) {
       sessionId,
       remainingSeconds: quota.remainingSeconds,
       quotaSeconds: TUTOR_QUOTA_SECONDS,
+      remainingSessionCount: quota.remainingSessionCount - 1,
+      maxCompletedSessions: TUTOR_MAX_COMPLETED_SESSIONS,
+      maxSessionSeconds: TUTOR_MAX_SESSION_SECONDS,
     })
   } catch (e) {
     console.error('[tutor/session/start]', e)

@@ -229,6 +229,7 @@ export default function TutorPage() {
     state,
     isConnected,
     isPaused,
+    lastPauseReason,
     isMuted,
     isSpeakerMuted,
     currentSessionId,
@@ -697,7 +698,9 @@ export default function TutorPage() {
                       </div>
                     ) : isPaused ? (
                       <div className="rounded-[22px] border border-[#DCE7E2] bg-white/72 px-4 py-4 text-sm leading-relaxed text-[#5C7069]">
-                        Session is paused. Resume when you want to send text, voice, or images again.
+                        {lastPauseReason === 'inactivity'
+                          ? 'Session paused after inactivity. Resume when you are ready to keep working.'
+                          : 'Session is paused. Resume when you want to send text, voice, or images again.'}
                       </div>
                     ) : (
                       <>

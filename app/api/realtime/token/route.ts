@@ -13,8 +13,10 @@
 import { NextResponse } from 'next/server'
 import { getLanguageRestrictionInstruction } from '@/lib/languageInstructions'
 import { getNeonSql } from '@/lib/tutor/db'
+import { takeTutorApiRateLimit } from '@/lib/tutor/api-rate-limit'
 import { getSessionUserId } from '@/lib/tutor/session-user'
-import { finalizeSessionById, getQuotaSnapshot } from '@/lib/tutor/quota'
+import { finalizeSessionById, getQuotaSnapshot, pauseSessionById } from '@/lib/tutor/quota'
+import { TUTOR_INACTIVITY_PAUSE_SECONDS } from '@/lib/tutor/constants'
 
 function getRequiredEnv(value: string | undefined): string | null {
   const normalized = value?.trim()
@@ -67,9 +69,43 @@ export async function POST(request: Request) {
 
   try {
     const sql = getNeonSql()
+    const rateLimit = await takeTutorApiRateLimit(request, {
+      endpoint: 'realtime-token',
+      userId,
+      maxHits: 48,
+      windowSeconds: 60 * 60,
+    })
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'RATE_LIMITED',
+          message: 'Too many connection attempts. Please try again later.',
+        },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+      )
+    }
+
     let quota = await getQuotaSnapshot(sql, userId)
-    if (quota.activeSessionId && quota.remainingSeconds <= 0) {
-      await finalizeSessionById(sql, userId, quota.activeSessionId, 'quota')
+    if (
+      quota.activeSessionId &&
+      quota.activeSessionState === 'active' &&
+      quota.inactivitySeconds >= TUTOR_INACTIVITY_PAUSE_SECONDS
+    ) {
+      await pauseSessionById(sql, userId, quota.activeSessionId)
+      quota = await getQuotaSnapshot(sql, userId)
+    }
+    if (
+      quota.activeSessionId &&
+      (quota.remainingSeconds <= 0 || quota.activeSessionSeconds >= quota.maxSessionSeconds)
+    ) {
+      await finalizeSessionById(
+        sql,
+        userId,
+        quota.activeSessionId,
+        quota.activeSessionSeconds >= quota.maxSessionSeconds ? 'session_limit' : 'quota'
+      )
       quota = await getQuotaSnapshot(sql, userId)
     }
 
@@ -93,6 +129,17 @@ export async function POST(request: Request) {
           remainingSeconds: 0,
         },
         { status: 429 }
+      )
+    }
+
+    if (quota.activeSessionState === 'paused') {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'SESSION_PAUSED',
+          message: 'Resume the tutor session before reconnecting.',
+        },
+        { status: 409 }
       )
     }
   } catch (error) {

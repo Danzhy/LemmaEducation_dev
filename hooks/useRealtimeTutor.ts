@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TutorState } from '@/components/TutorAvatar'
+import { TUTOR_INACTIVITY_PAUSE_SECONDS } from '@/lib/tutor/constants'
 
 export type TutorUserMessageSource = 'text' | 'text_with_image' | 'image_only' | 'speech'
 
@@ -58,6 +59,7 @@ export function useRealtimeTutor({
   const [state, setState] = useState<TutorState>('idle')
   const [isConnected, setIsConnected] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
+  const [lastPauseReason, setLastPauseReason] = useState<'manual' | 'inactivity' | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false)
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
@@ -69,6 +71,8 @@ export function useRealtimeTutor({
   const pendingInputAudioItemIdRef = useRef<string | null>(null)
   const pendingInputAudioTranscriptsRef = useRef<Map<string, string>>(new Map())
   const isResponseActiveRef = useRef(false)
+  const inactivityTimeoutRef = useRef<number | null>(null)
+  const autoPauseRef = useRef<() => void>(() => {})
   const sessionIdRef = useRef<string | null>(null)
   const usageIntervalRef = useRef<number | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
@@ -84,8 +88,47 @@ export function useRealtimeTutor({
     }
   }, [])
 
+  const clearInactivityTimeout = useCallback(() => {
+    if (inactivityTimeoutRef.current !== null) {
+      window.clearTimeout(inactivityTimeoutRef.current)
+      inactivityTimeoutRef.current = null
+    }
+  }, [])
+
+  const touchServerSessionActivity = useCallback(async () => {
+    const sessionId = sessionIdRef.current
+    if (!sessionId) return
+
+    try {
+      await fetch('/api/tutor/session/activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      })
+    } catch {
+      // Best-effort only.
+    }
+  }, [])
+
+  const registerLocalActivity = useCallback(
+    (shouldPingServer = false) => {
+      if (!isConnected || isPaused) return
+
+      clearInactivityTimeout()
+      inactivityTimeoutRef.current = window.setTimeout(() => {
+        autoPauseRef.current()
+      }, TUTOR_INACTIVITY_PAUSE_SECONDS * 1000)
+
+      if (shouldPingServer) {
+        void touchServerSessionActivity()
+      }
+    },
+    [clearInactivityTimeout, isConnected, isPaused, touchServerSessionActivity]
+  )
+
   const finalizeTutorSession = useCallback((endedReason: 'user' | 'error' | 'quota') => {
     clearUsageInterval()
+    clearInactivityTimeout()
     const sessionId = sessionIdRef.current
     sessionIdRef.current = null
     if (!sessionId) return
@@ -95,7 +138,7 @@ export function useRealtimeTutor({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, endedReason }),
     }).catch(() => {})
-  }, [clearUsageInterval])
+  }, [clearInactivityTimeout, clearUsageInterval])
 
   /**
    * Closes the WebRTC connection and resets all state.
@@ -123,6 +166,7 @@ export function useRealtimeTutor({
     setCurrentSessionId(null)
     setIsConnected(false)
     setIsPaused(false)
+    setLastPauseReason(null)
     setIsMuted(false)
     setIsSpeakerMuted(false)
     setCurrentUserTranscript('')
@@ -155,6 +199,10 @@ export function useRealtimeTutor({
       setChatHistory([])
       setState('thinking')
 
+      const ms = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const track = ms.getTracks()[0]
+      audioTrackRef.current = track
+
       const startSessionRes = await fetch('/api/tutor/session/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -171,6 +219,12 @@ export function useRealtimeTutor({
         }
         if (startSessionRes.status === 403 || code === 'QUOTA_EXCEEDED') {
           throw new Error('Your tutoring time limit has been reached.')
+        }
+        if (code === 'SESSION_LIMIT_REACHED') {
+          throw new Error('You have used all 4 pilot tutoring sessions.')
+        }
+        if (startSessionRes.status === 429 || code === 'RATE_LIMITED') {
+          throw new Error('Too many session attempts. Please wait a moment and try again.')
         }
         throw new Error('Something went wrong. Please try again.')
       }
@@ -199,10 +253,7 @@ export function useRealtimeTutor({
       }
 
       // Add microphone as input track
-      const ms = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const track = ms.getTracks()[0]
       pc.addTrack(track)
-      audioTrackRef.current = track
 
       // Data channel for JSON events (text input, image upload, server events)
       const dc = pc.createDataChannel('oai-events')
@@ -220,7 +271,9 @@ export function useRealtimeTutor({
       dc.addEventListener('open', () => {
         setIsConnected(true)
         setState('listening')
+        setLastPauseReason(null)
         if (audioTrackRef.current) audioTrackRef.current.enabled = true
+        registerLocalActivity(false)
 
         clearUsageInterval()
         usageIntervalRef.current = window.setInterval(async () => {
@@ -239,6 +292,21 @@ export function useRealtimeTutor({
             if (res.status === 403 && code === 'QUOTA_EXCEEDED') {
               onError?.('Your tutoring time limit has been reached.', code)
               disconnect('quota')
+              return
+            }
+            if (res.status === 403 && code === 'SESSION_LIMIT_REACHED') {
+              onError?.('This tutoring session reached its 1 hour limit.', code)
+              disconnect('quota')
+              return
+            }
+            if (res.status === 429 && code === 'RATE_LIMITED') {
+              onError?.('Too many tutor requests. Please wait a moment and try again.', code)
+              return
+            }
+
+            const tickData = data as { paused?: boolean; inactivityPaused?: boolean }
+            if (tickData.paused && tickData.inactivityPaused && !isPaused) {
+              autoPauseRef.current()
             }
           } catch {
             // Non-fatal: usage reporting can retry on the next interval.
@@ -278,6 +346,12 @@ export function useRealtimeTutor({
         }
         if (tokenRes.status === 429 || errObj.code === 'QUOTA_EXCEEDED') {
           throw new Error('Your tutoring time limit has been reached.')
+        }
+        if (errObj.code === 'SESSION_LIMIT_REACHED') {
+          throw new Error('This tutoring session reached its 1 hour limit.')
+        }
+        if (errObj.code === 'RATE_LIMITED') {
+          throw new Error('Too many connection attempts. Please wait a moment and try again.')
         }
         throw new Error('Something went wrong. Please try again.')
       }
@@ -328,8 +402,15 @@ export function useRealtimeTutor({
       })
     } catch (err) {
       const rawMsg = err instanceof Error ? err.message : String(err)
+      const isMicPermissionError =
+        err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'SecurityError')
+      const isMicMissingError = err instanceof DOMException && err.name === 'NotFoundError'
       const userMsg =
-        rawMsg === 'Please sign in again.' || rawMsg === 'Your tutoring time limit has been reached.'
+        isMicPermissionError
+          ? 'Allow microphone access to start tutoring.'
+          : isMicMissingError
+            ? 'No microphone was found. Connect one and try again.'
+            : rawMsg === 'Please sign in again.' || rawMsg === 'Your tutoring time limit has been reached.'
           ? rawMsg
           : rawMsg.includes('try again')
             ? rawMsg
@@ -345,7 +426,7 @@ export function useRealtimeTutor({
       }
       throw new Error(userMsg)
     }
-  }, [clearUsageInterval, disconnect, onError, isSpeakerMuted])
+  }, [clearUsageInterval, disconnect, isPaused, onError, registerLocalActivity, isSpeakerMuted])
 
   /**
    * Handles server-sent events from the Realtime API data channel.
@@ -377,8 +458,7 @@ export function useRealtimeTutor({
           break
         }
         case 'input_audio_buffer.speech_started':
-          // TODO: If we support user voice messages in chat later, wire user input
-          // transcription events here and append finalized transcripts as user turns.
+          registerLocalActivity(true)
           onSpeechStarted?.()
           setState('listening')
           break
@@ -486,7 +566,7 @@ export function useRealtimeTutor({
         }
       }
     },
-    [onError, onSpeechStarted]
+    [onError, onSpeechStarted, registerLocalActivity]
   )
 
   /**
@@ -498,6 +578,7 @@ export function useRealtimeTutor({
     const dc = dcRef.current
     if (!dc || dc.readyState !== 'open') return
 
+    registerLocalActivity(false)
     setChatHistory((prev) => [...prev, { role: 'user', content: text }])
     onUserMessageLoggedRef.current?.({ content: text, source: 'text' })
     dc.send(
@@ -512,7 +593,7 @@ export function useRealtimeTutor({
     )
     dc.send(JSON.stringify({ type: 'response.create' }))
     setState('thinking')
-  }, [isPaused])
+  }, [isPaused, registerLocalActivity])
 
   /**
    * Sends an image to the tutor and triggers a response.
@@ -523,6 +604,7 @@ export function useRealtimeTutor({
     const dc = dcRef.current
     if (!dc || dc.readyState !== 'open') return
 
+    registerLocalActivity(false)
     setChatHistory((prev) => [...prev, { role: 'user', content: '[Sent an image]' }])
     onUserMessageLoggedRef.current?.({ content: '[Sent an image]', source: 'image_only' })
     const format = mimeType.replace('image/', '')
@@ -543,7 +625,7 @@ export function useRealtimeTutor({
     )
     dc.send(JSON.stringify({ type: 'response.create' }))
     setState('thinking')
-  }, [isPaused])
+  }, [isPaused, registerLocalActivity])
 
   /**
    * Sends text and image together (e.g. "Help me with step 2" + problem image).
@@ -555,6 +637,7 @@ export function useRealtimeTutor({
       const dc = dcRef.current
       if (!dc || dc.readyState !== 'open') return
 
+      registerLocalActivity(false)
       setChatHistory((prev) => [...prev, { role: 'user', content: text }])
       onUserMessageLoggedRef.current?.({ content: text, source: 'text_with_image' })
       const format = mimeType.replace('image/', '')
@@ -577,7 +660,7 @@ export function useRealtimeTutor({
       dc.send(JSON.stringify({ type: 'response.create' }))
       setState('thinking')
     },
-    [isPaused]
+    [isPaused, registerLocalActivity]
   )
 
   /**
@@ -589,6 +672,7 @@ export function useRealtimeTutor({
     const dc = dcRef.current
     if (!dc || dc.readyState !== 'open') return
 
+    registerLocalActivity(false)
     if (canvasItemIdRef.current) {
       dc.send(
         JSON.stringify({
@@ -616,7 +700,7 @@ export function useRealtimeTutor({
         },
       })
     )
-  }, [isPaused])
+  }, [isPaused, registerLocalActivity])
 
   const mute = useCallback(() => {
     setIsMuted(true)
@@ -630,21 +714,78 @@ export function useRealtimeTutor({
     }
   }, [isPaused])
 
-  const pause = useCallback(() => {
+  const applyLocalPause = useCallback((reason: 'manual' | 'inactivity') => {
+    clearInactivityTimeout()
     setIsPaused(true)
+    setLastPauseReason(reason)
     if (audioTrackRef.current) audioTrackRef.current.enabled = false
     const dc = dcRef.current
     if (dc && dc.readyState === 'open' && isResponseActiveRef.current) {
       dc.send(JSON.stringify({ type: 'response.cancel' }))
     }
-  }, [])
+  }, [clearInactivityTimeout])
 
-  const resume = useCallback(() => {
-    setIsPaused(false)
-    if (audioTrackRef.current && !isMuted) {
-      audioTrackRef.current.enabled = true
+  const pause = useCallback(
+    async (reason: 'manual' | 'inactivity' = 'manual', skipServerSync = false) => {
+      applyLocalPause(reason)
+      const sessionId = sessionIdRef.current
+      if (!sessionId || skipServerSync) return
+
+      try {
+        await fetch('/api/tutor/session/pause', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId }),
+        })
+      } catch {
+        // Best-effort only. Local pause still protects the session UX.
+      }
+    },
+    [applyLocalPause]
+  )
+
+  const resume = useCallback(async () => {
+    const sessionId = sessionIdRef.current
+    if (!sessionId) return
+
+    try {
+      const res = await fetch('/api/tutor/session/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      const code = (data as { code?: string }).code
+
+      if (!res.ok) {
+        if (code === 'QUOTA_EXCEEDED') {
+          onError?.('Your tutoring time limit has been reached.', code)
+          disconnect('quota')
+          return
+        }
+        if (code === 'SESSION_LIMIT_REACHED') {
+          onError?.('This tutoring session reached its 1 hour limit.', code)
+          disconnect('quota')
+          return
+        }
+        onError?.('Something went wrong. Please try again.', code)
+        return
+      }
+
+      setIsPaused(false)
+      setLastPauseReason(null)
+      if (audioTrackRef.current && !isMuted) {
+        audioTrackRef.current.enabled = true
+      }
+      registerLocalActivity(true)
+    } catch {
+      onError?.('Something went wrong. Please try again.')
     }
-  }, [isMuted])
+  }, [disconnect, isMuted, onError, registerLocalActivity])
+
+  autoPauseRef.current = () => {
+    void pause('inactivity')
+  }
 
   const muteSpeaker = useCallback(() => {
     setIsSpeakerMuted(true)
@@ -656,6 +797,31 @@ export function useRealtimeTutor({
     if (audioRef.current) audioRef.current.muted = false
   }, [])
 
+  useEffect(() => {
+    if (!isConnected || isPaused) {
+      clearInactivityTimeout()
+      return
+    }
+
+    const handleActivity = () => {
+      registerLocalActivity(false)
+    }
+
+    registerLocalActivity(false)
+    window.addEventListener('pointerdown', handleActivity)
+    window.addEventListener('mousemove', handleActivity)
+    window.addEventListener('keydown', handleActivity)
+    window.addEventListener('touchstart', handleActivity)
+
+    return () => {
+      window.removeEventListener('pointerdown', handleActivity)
+      window.removeEventListener('mousemove', handleActivity)
+      window.removeEventListener('keydown', handleActivity)
+      window.removeEventListener('touchstart', handleActivity)
+      clearInactivityTimeout()
+    }
+  }, [clearInactivityTimeout, isConnected, isPaused, registerLocalActivity])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => disconnect('user')
@@ -665,6 +831,7 @@ export function useRealtimeTutor({
     state,
     isConnected,
     isPaused,
+    lastPauseReason,
     isMuted,
     isSpeakerMuted,
     currentUserTranscript,
