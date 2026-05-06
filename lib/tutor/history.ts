@@ -1,5 +1,6 @@
 import { getNeonSql } from '@/lib/tutor/db'
 import { getQuotaSnapshot } from '@/lib/tutor/quota'
+import { canViewStudentRecords } from '@/lib/school/access'
 
 type SessionRow = {
   id: string
@@ -217,4 +218,68 @@ export async function getTutorSessionDetailForUser(userId: string, sessionId: st
         }
       : null,
   } satisfies TutorSessionDetail
+}
+
+export async function getAccessibleTutorSessionDetail(viewerUserId: string, sessionId: string) {
+  const sql = getNeonSql()
+  const ownerRows = await sql`
+    SELECT user_id
+    FROM tutor_sessions
+    WHERE id = ${sessionId}::uuid
+    LIMIT 1
+  `
+
+  const ownerUserId = (ownerRows[0] as { user_id: string } | undefined)?.user_id
+  if (!ownerUserId) {
+    return null
+  }
+
+  const allowed = await canViewStudentRecords(viewerUserId, ownerUserId)
+  if (!allowed) {
+    return null
+  }
+
+  return getTutorSessionDetailForUser(ownerUserId, sessionId)
+}
+
+export async function listTutorSessionsForStudent(studentUserId: string) {
+  const sql = getNeonSql()
+
+  const rows = await sql`
+    SELECT
+      s.id,
+      s.started_at,
+      s.ended_at,
+      s.active_seconds,
+      s.ended_reason,
+      s.model_snapshot,
+      s.language,
+      s.grade_level,
+      COALESCE(stats.user_message_count, 0)::int AS user_message_count,
+      COALESCE(stats.assistant_message_count, 0)::int AS assistant_message_count,
+      first_message.content AS first_user_message,
+      (artifact.session_id IS NOT NULL) AS has_canvas_snapshot,
+      artifact.updated_at AS artifact_updated_at
+    FROM tutor_sessions s
+    LEFT JOIN LATERAL (
+      SELECT
+        COUNT(*) FILTER (WHERE role = 'user') AS user_message_count,
+        COUNT(*) FILTER (WHERE role = 'assistant') AS assistant_message_count
+      FROM tutor_messages
+      WHERE session_id = s.id
+    ) stats ON true
+    LEFT JOIN LATERAL (
+      SELECT content
+      FROM tutor_messages
+      WHERE session_id = s.id AND role = 'user'
+      ORDER BY created_at ASC
+      LIMIT 1
+    ) first_message ON true
+    LEFT JOIN tutor_session_artifacts artifact
+      ON artifact.session_id = s.id AND artifact.artifact_kind = 'canvas_snapshot'
+    WHERE s.user_id = ${studentUserId}
+    ORDER BY s.started_at DESC
+  `
+
+  return (rows as SessionRow[]).map(toListItem)
 }

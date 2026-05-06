@@ -9,7 +9,7 @@ type AuthMode = 'sign-in' | 'sign-up'
 type FormField = 'name' | 'email' | 'password'
 type FieldErrors = Partial<Record<FormField, string>>
 
-const TUTOR_PATH = '/tutor'
+const APP_HOME_PATH = '/dashboard'
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type AuthResponseError = {
@@ -192,7 +192,7 @@ export function AuthEmailForm({ mode }: { mode: AuthMode }) {
   const navigateToTutor = () => {
     // Use a hard navigation so route-scoped auth assets/styles fully unload
     // before the tutor workspace renders.
-    window.location.replace(TUTOR_PATH)
+    window.location.replace(APP_HOME_PATH)
   }
 
   useEffect(() => {

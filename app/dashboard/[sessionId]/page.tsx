@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import SignOutButton from '@/components/SignOutButton'
+import DashboardScaffold from '@/components/dashboard/DashboardScaffold'
 import { getSessionUserId } from '@/lib/tutor/session-user'
-import { getTutorSessionDetailForUser } from '@/lib/tutor/history'
+import { getAccessibleTutorSessionDetail } from '@/lib/tutor/history'
+import { getCurrentUserProfile, isOnboardingComplete } from '@/lib/school/profiles'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,42 +73,25 @@ export default async function DashboardSessionDetailPage({
     redirect('/auth/sign-in')
   }
 
+  const profile = await getCurrentUserProfile()
+  if (!profile || !isOnboardingComplete(profile)) {
+    redirect('/dashboard/onboarding')
+  }
+
   const { sessionId } = await params
-  const session = await getTutorSessionDetailForUser(userId, sessionId)
+  const session = await getAccessibleTutorSessionDetail(userId, sessionId)
 
   if (!session) {
     notFound()
   }
 
   return (
-    <div className="min-h-screen bg-[#F2F5F4]">
-      <nav className="w-full border-b border-[#D1DBD7] px-6 py-6 md:px-12">
-        <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-4">
-          <Link
-            href="/"
-            className="text-2xl tracking-tight font-medium serif italic text-[#16423C] hover:text-[#0A2621]"
-          >
-            Lemma.
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/tutor"
-              className="text-xs uppercase tracking-widest text-[#3F524C] transition-colors hover:text-[#16423C]"
-            >
-              Tutor
-            </Link>
-            <Link
-              href="/dashboard"
-              className="text-xs uppercase tracking-widest text-[#3F524C] transition-colors hover:text-[#16423C]"
-            >
-              Dashboard
-            </Link>
-            <SignOutButton className="text-xs uppercase tracking-widest text-[#3F524C] transition-colors hover:text-[#16423C]" />
-          </div>
-        </div>
-      </nav>
-
-      <main className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-6 py-8 md:px-12 md:py-10">
+    <DashboardScaffold
+      currentLabel="Session detail"
+      title={session.firstUserMessage?.trim() ? session.firstUserMessage : 'Tutor session'}
+      description="Saved transcript, session metadata, and the latest board snapshot from this tutoring session."
+      navLink={{ href: '/dashboard', label: 'Dashboard' }}
+    >
         <section className="rounded-[32px] border border-white/70 bg-[rgba(248,251,249,0.9)] px-6 py-7 shadow-[0_28px_80px_-50px_rgba(15,41,34,0.6)] backdrop-blur-xl md:px-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
@@ -117,16 +101,6 @@ export default async function DashboardSessionDetailPage({
               >
                 Back to all sessions
               </Link>
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.26em] text-[#5C7069]">Session detail</p>
-                <h1 className="mt-2 text-[2.4rem] font-light leading-none tracking-[-0.04em] text-[#0F2922] serif">
-                  {session.firstUserMessage?.trim() ? session.firstUserMessage : 'Tutor session'}
-                </h1>
-                <p className="mt-3 text-[0.98rem] leading-relaxed text-[#4D625C]">
-                  Saved transcript, session metadata, and the latest board snapshot from this
-                  tutoring session.
-                </p>
-              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[36rem]">
@@ -240,12 +214,11 @@ export default async function DashboardSessionDetailPage({
               </div>
               <div className="mt-5 space-y-3 text-sm leading-relaxed text-[#4D625C]">
                 <p>This session stores the transcript, practice time, math level, language, and the latest saved board image.</p>
-                <p>Teacher and parent views can be layered on top of this same structure later without changing the student history model.</p>
+                <p>Authorized teachers and parents can review the same saved record without changing the student workspace itself.</p>
               </div>
             </section>
           </div>
         </section>
-      </main>
-    </div>
+    </DashboardScaffold>
   )
 }
