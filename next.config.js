@@ -15,9 +15,6 @@ const nextConfig = {
     '@tldraw/validate',
     '@tldraw/utils',
   ],
-  // Very large client graphs (tldraw + Neon Auth UI) can stall during SWC minify on some machines.
-  // `NEXT_DISABLE_SWC_MINIFY=1 npm run build` falls back to Terser — slower but often completes.
-  swcMinify: process.env.NEXT_DISABLE_SWC_MINIFY !== '1',
   webpack: (config, { isServer }) => {
     // Reduce concurrent module work if builds OOM or “hang” with no CPU (memory thrashing).
     if (process.env.NEXT_WEBPACK_PARALLELISM) {

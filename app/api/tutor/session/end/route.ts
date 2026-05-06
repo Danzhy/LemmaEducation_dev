@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     }
 
     const allowed: EndReason[] = ['user', 'quota', 'error', 'unknown']
-    let endedReason =
+    const endedReason =
       body.endedReason && allowed.includes(body.endedReason) ? body.endedReason : 'user'
 
     const sql = getNeonSql()
