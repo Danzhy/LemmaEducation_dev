@@ -2,18 +2,13 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { getNeonSql } from '@/lib/tutor/db'
 import { getSessionUserId } from '@/lib/tutor/session-user'
-import { getClientIp, isFeedbackRateLimited } from '@/lib/feedback-rate-limit'
+import { getTrustedClientIp, takeRateLimit } from '@/lib/request-rate-limit'
 
 const MAX_MESSAGE = 8000
 const MAX_EMAIL = 320
 
 export async function POST(request: Request) {
   try {
-    const ip = getClientIp(request)
-    if (isFeedbackRateLimited(ip)) {
-      return NextResponse.json({ ok: false, error: 'Too many requests' }, { status: 429 })
-    }
-
     let body: {
       message?: string
       email?: string
@@ -53,6 +48,25 @@ export async function POST(request: Request) {
     const id = randomUUID()
 
     const sql = getNeonSql()
+    const rateLimit = await takeRateLimit(sql, {
+      endpoint: 'feedback',
+      subject: getTrustedClientIp(request),
+      maxHits: 8,
+      windowSeconds: 15 * 60,
+    })
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { ok: false, error: 'Too many requests. Please try again later.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfterSeconds),
+          },
+        }
+      )
+    }
+
     await sql`
       INSERT INTO feedback (id, user_id, email, message, rating, page_context)
       VALUES (

@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import { neon } from '@neondatabase/serverless'
+import { getTrustedClientIp, takeRateLimit } from '@/lib/request-rate-limit'
 
 const connectionString = process.env.NEON_DATABASE_URL
+const WAITLIST_SUCCESS_MESSAGE =
+  'You’re on the list. We’ll reach out as we open up more spots.'
 
 export async function POST(request: Request) {
   try {
@@ -112,6 +115,25 @@ export async function POST(request: Request) {
       )
     }
 
+    const rateLimit = await takeRateLimit(sql, {
+      endpoint: 'waitlist',
+      subject: getTrustedClientIp(request),
+      maxHits: 12,
+      windowSeconds: 60 * 60,
+    })
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { ok: false, error: 'Too many requests. Please try again later.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfterSeconds),
+          },
+        }
+      )
+    }
+
     // Insert email into database
     try {
       await sql`
@@ -129,27 +151,14 @@ export async function POST(request: Request) {
           ${normalizedGoals},
           ${normalizedWillingToPay}
         )
+        ON CONFLICT (email) DO NOTHING
       `
-      
+
       return NextResponse.json(
-        { 
-          ok: true, 
-          message: 'You’re on the list. We’ll reach out as we open up more spots.' 
-        },
+        { ok: true, message: WAITLIST_SUCCESS_MESSAGE },
         { status: 200 }
       )
     } catch (err: any) {
-      // Handle duplicate email (PostgreSQL unique constraint violation)
-      if (err?.code === '23505') {
-        return NextResponse.json(
-          { 
-            ok: true, 
-            message: 'You’re already on the list. We’ll be in touch when more spots open.' 
-          },
-          { status: 200 }
-        )
-      }
-
       // Handle other database errors
       if (err?.code === '23514') {
         // Check constraint violation
