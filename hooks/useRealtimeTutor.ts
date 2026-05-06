@@ -68,17 +68,40 @@ export function useRealtimeTutor({
   const pendingInputAudioItemIdRef = useRef<string | null>(null)
   const pendingInputAudioTranscriptsRef = useRef<Map<string, string>>(new Map())
   const isResponseActiveRef = useRef(false)
+  const sessionIdRef = useRef<string | null>(null)
+  const usageIntervalRef = useRef<number | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioTrackRef = useRef<MediaStreamTrack | null>(null)
   const canvasItemIdRef = useRef<string | null>(null)
 
+  const clearUsageInterval = useCallback(() => {
+    if (usageIntervalRef.current !== null) {
+      window.clearInterval(usageIntervalRef.current)
+      usageIntervalRef.current = null
+    }
+  }, [])
+
+  const finalizeTutorSession = useCallback((endedReason: 'user' | 'error' | 'quota') => {
+    clearUsageInterval()
+    const sessionId = sessionIdRef.current
+    sessionIdRef.current = null
+    if (!sessionId) return
+
+    void fetch('/api/tutor/session/end', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, endedReason }),
+    }).catch(() => {})
+  }, [clearUsageInterval])
+
   /**
    * Closes the WebRTC connection and resets all state.
    * Called on disconnect button click or when the data channel closes.
    */
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback((endedReason: 'user' | 'error' | 'quota' = 'user') => {
+    finalizeTutorSession(endedReason)
     if (dcRef.current) {
       dcRef.current.close()
       dcRef.current = null
@@ -109,7 +132,7 @@ export function useRealtimeTutor({
       audioRef.current.muted = false
     }
     setState('idle')
-  }, [])
+  }, [finalizeTutorSession])
 
   /**
    * Establishes the WebRTC connection to OpenAI's Realtime API.
@@ -122,9 +145,29 @@ export function useRealtimeTutor({
    * 5. Set remote description with OpenAI's SDP answer
    */
   const connect = useCallback(async (options?: { language?: string; gradeLevel?: string }) => {
+    let startedSessionId: string | null = null
     try {
       setChatHistory([])
       setState('thinking')
+
+      const startSessionRes = await fetch('/api/tutor/session/start', { method: 'POST' })
+      const startSessionData = await startSessionRes.json().catch(() => ({}))
+      if (!startSessionRes.ok) {
+        const code = (startSessionData as { code?: string }).code
+        if (startSessionRes.status === 401 || code === 'UNAUTHORIZED') {
+          throw new Error('Please sign in again.')
+        }
+        if (startSessionRes.status === 403 || code === 'QUOTA_EXCEEDED') {
+          throw new Error('Your tutoring time limit has been reached.')
+        }
+        throw new Error('Something went wrong. Please try again.')
+      }
+
+      startedSessionId = (startSessionData as { sessionId?: string }).sessionId ?? null
+      sessionIdRef.current = startedSessionId
+      if (!startedSessionId) {
+        throw new Error('Something went wrong. Please try again.')
+      }
 
       const pc = new RTCPeerConnection()
       pcRef.current = pc
@@ -165,10 +208,33 @@ export function useRealtimeTutor({
         setIsConnected(true)
         setState('listening')
         if (audioTrackRef.current) audioTrackRef.current.enabled = true
+
+        clearUsageInterval()
+        usageIntervalRef.current = window.setInterval(async () => {
+          const sessionId = sessionIdRef.current
+          if (!sessionId) return
+
+          try {
+            const res = await fetch('/api/tutor/usage/tick', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sessionId }),
+            })
+
+            const data = await res.json().catch(() => ({}))
+            const code = (data as { code?: string }).code
+            if (res.status === 403 && code === 'QUOTA_EXCEEDED') {
+              onError?.('Your tutoring time limit has been reached.', code)
+              disconnect('quota')
+            }
+          } catch {
+            // Non-fatal: usage reporting can retry on the next interval.
+          }
+        }, 25000)
       })
 
       dc.addEventListener('close', () => {
-        disconnect()
+        disconnect('error')
       })
 
       const offer = await pc.createOffer()
@@ -259,10 +325,14 @@ export function useRealtimeTutor({
       logErrorToServer('connection', rawMsg)
       onError?.(userMsg, rawMsg)
       setState('idle')
-      disconnect()
+      if (startedSessionId) {
+        disconnect(rawMsg === 'Your tutoring time limit has been reached.' ? 'quota' : 'error')
+      } else {
+        disconnect('error')
+      }
       throw new Error(userMsg)
     }
-  }, [disconnect, onError, isSpeakerMuted])
+  }, [clearUsageInterval, disconnect, onError, isSpeakerMuted])
 
   /**
    * Handles server-sent events from the Realtime API data channel.
@@ -574,7 +644,7 @@ export function useRealtimeTutor({
 
   // Cleanup on unmount
   useEffect(() => {
-    return () => disconnect()
+    return () => disconnect('user')
   }, [disconnect])
 
   return {

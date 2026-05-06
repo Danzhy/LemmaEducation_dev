@@ -221,6 +221,315 @@
     color: #71847d;
   }
 
+  .lemma-auth-shell :where(form) {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .lemma-auth-shell,
+  .lemma-auth-shell :where(div, span, p, h1, h2, h3, h4, label, input, button, a) {
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0;
+  }
+
+  .lemma-auth-shell [data-slot='card'] {
+    border-color: #dce7e2;
+    background: rgba(255, 255, 255, 0.82);
+    border-radius: 1.5rem;
+    box-shadow: 0 16px 42px -34px rgba(15, 41, 34, 0.32);
+    gap: 1.15rem;
+  }
+
+  .lemma-auth-shell [data-slot='card-header'],
+  .lemma-auth-shell [data-slot='card-content'],
+  .lemma-auth-shell [data-slot='card-footer'] {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  .lemma-auth-shell [data-slot='card-title'] {
+    color: #0f2922;
+    font-size: 1.9rem;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  .lemma-auth-shell [data-slot='card-description'] {
+    color: #5c7069;
+    font-size: 0.92rem;
+    font-weight: 300;
+    line-height: 1.55;
+  }
+
+  .lemma-auth-shell [data-slot='form-label'] {
+    display: block;
+    margin-bottom: 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #5c7069;
+  }
+
+  .lemma-auth-shell [data-slot='form-control'] {
+    width: 100%;
+    min-height: 3.1rem;
+    border-radius: 0.95rem;
+    border: 1px solid #c6d4cf;
+    background: rgba(255, 255, 255, 0.82);
+    color: #0f2922;
+    padding: 0.88rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 300;
+    line-height: 1.5;
+    outline: none;
+    box-shadow: none;
+    transition:
+      border-color 0.25s ease,
+      box-shadow 0.25s ease,
+      transform 0.25s ease;
+  }
+
+  .lemma-auth-shell [data-slot='form-control']:focus {
+    border-color: #16423c;
+    box-shadow: 0 0 0 3px rgba(22, 66, 60, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .lemma-auth-shell [data-slot='form-control']::placeholder {
+    color: #8ca39d;
+  }
+
+  .lemma-auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .lemma-auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.42rem;
+  }
+
+  .lemma-auth-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #5c7069;
+  }
+
+  .lemma-auth-input {
+    width: 100%;
+    min-height: 3.1rem;
+    border-radius: 0.95rem;
+    border: 1px solid #c6d4cf;
+    background: rgba(255, 255, 255, 0.82);
+    color: #0f2922;
+    padding: 0.88rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 300;
+    line-height: 1.5;
+    outline: none;
+    box-shadow: none;
+    transition:
+      border-color 0.25s ease,
+      box-shadow 0.25s ease,
+      transform 0.25s ease;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0;
+  }
+
+  .lemma-auth-input:focus {
+    border-color: #16423c;
+    box-shadow: 0 0 0 3px rgba(22, 66, 60, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .lemma-auth-input::placeholder {
+    color: #8ca39d;
+  }
+
+  .lemma-auth-error {
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: #8b3a2e;
+  }
+
+  .lemma-auth-form-alert {
+    border-radius: 1rem;
+    border: 1px solid #f0cbc2;
+    background: #fdf3f1;
+    padding: 0.85rem 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: #8b3a2e;
+  }
+
+  .lemma-auth-submit {
+    width: 100%;
+    min-height: 3.1rem;
+    border-radius: 9999px;
+    border: 1px solid #143c36;
+    background: #12352f;
+    color: #f2f5f4;
+    padding: 0.88rem 1.1rem;
+    font-size: 0.95rem;
+    font-weight: 400;
+    line-height: 1.2;
+    transition:
+      transform 0.25s ease,
+      background-color 0.25s ease,
+      box-shadow 0.25s ease,
+      opacity 0.25s ease;
+    box-shadow: 0 12px 28px -20px rgba(15, 41, 34, 0.55);
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0;
+  }
+
+  .lemma-auth-submit:hover {
+    background: #16423c;
+    transform: translateY(-1px);
+  }
+
+  .lemma-auth-submit:disabled {
+    cursor: not-allowed;
+    opacity: 0.68;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .lemma-auth-footer {
+    color: #5c7069;
+    font-size: 0.92rem;
+    font-weight: 300;
+    line-height: 1.5;
+  }
+
+  .lemma-auth-inline-link {
+    color: #0f2922;
+    font-size: 0.92rem;
+    font-weight: 400;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
+  .lemma-auth-inline-link:hover {
+    color: #16423c;
+  }
+
+  .lemma-auth-shell form > button[type='submit'][data-slot='button'] {
+    width: 100%;
+    min-height: 3.1rem;
+    border-radius: 9999px;
+    border: 1px solid #143c36 !important;
+    background: #12352f !important;
+    color: #f2f5f4 !important;
+    padding: 0.88rem 1.1rem;
+    font-size: 0.95rem;
+    font-weight: 400;
+    line-height: 1.2;
+    transition:
+      transform 0.25s ease,
+      background-color 0.25s ease,
+      box-shadow 0.25s ease;
+    box-shadow: 0 12px 28px -20px rgba(15, 41, 34, 0.55) !important;
+  }
+
+  .lemma-auth-shell form > button[type='submit'][data-slot='button']:hover {
+    background: #16423c !important;
+    transform: translateY(-1px);
+  }
+
+  .lemma-auth-shell form > button[type='submit'][data-slot='button']:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .lemma-auth-shell [data-slot='card-footer'] {
+    color: #5c7069;
+    font-size: 0.92rem;
+    font-weight: 300;
+    line-height: 1.5;
+    gap: 0.35rem;
+  }
+
+  .lemma-auth-shell [data-slot='card-footer'] a,
+  .lemma-auth-shell [data-slot='card-footer'] [data-slot='button'] {
+    color: #0f2922 !important;
+    font-size: 0.92rem;
+    font-weight: 400;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+
+  .lemma-auth-shell [data-slot='form-item'] .relative > button[data-slot='button'] {
+    color: #7a8c86 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    width: 2.75rem !important;
+    padding: 0 !important;
+    border-radius: 0 0.95rem 0.95rem 0 !important;
+  }
+
+  .lemma-auth-shell [data-slot='form-item'] .relative > button[data-slot='button']:hover {
+    color: #16423c !important;
+  }
+
+  .lemma-auth-shell :where(h1, h2, h3, h4) {
+    color: #0f2922;
+    font-weight: 500;
+  }
+
+  .lemma-auth-shell :where(a) {
+    color: #16423c;
+    text-decoration: none;
+  }
+
+  .lemma-auth-shell :where(a:hover) {
+    color: #0a2621;
+  }
+
+  .lemma-auth-shell :where(p) {
+    color: #5c7069;
+    line-height: 1.65;
+  }
+
+  .lemma-auth-shell :where(hr) {
+    border-color: #dce7e2;
+  }
+
+  .lemma-auth-shell :where([role='alert']) {
+    border-radius: 1rem;
+    border: 1px solid #f0cbc2;
+    background: #fdf3f1;
+    padding: 0.85rem 1rem;
+    font-size: 0.9rem;
+    color: #8b3a2e;
+  }
+
+  .lemma-auth-shell :where(.separator, [data-separator]) {
+    color: #8ca39d;
+  }
+
   select.waitlist-input {
     background-image:
       linear-gradient(45deg, transparent 50%, #16423c 50%),
