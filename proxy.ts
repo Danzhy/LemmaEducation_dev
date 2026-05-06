@@ -18,5 +18,5 @@ export default function middleware(request: NextRequest, event: NextFetchEvent) 
 }
 
 export const config = {
-  matcher: ['/tutor'],
+  matcher: ['/tutor', '/dashboard/:path*'],
 }

@@ -4,7 +4,7 @@ import { getNeonSql } from '@/lib/tutor/db'
 import { TUTOR_MESSAGE_MAX_CHARS } from '@/lib/tutor/constants'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 
-const ALLOWED_SOURCES = new Set(['text', 'text_with_image', 'image_only', 'assistant'])
+const ALLOWED_SOURCES = new Set(['text', 'text_with_image', 'image_only', 'speech', 'assistant'])
 
 export async function POST(request: Request) {
   try {

@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TutorState } from '@/components/TutorAvatar'
 
-export type TutorUserMessageSource = 'text' | 'text_with_image' | 'image_only'
+export type TutorUserMessageSource = 'text' | 'text_with_image' | 'image_only' | 'speech'
 
 type UseRealtimeTutorOptions = {
   /** Called with user-friendly message (raw error logged to console) */
@@ -60,6 +60,7 @@ export function useRealtimeTutor({
   const [isPaused, setIsPaused] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false)
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [currentUserTranscript, setCurrentUserTranscript] = useState<string>('')
   const [transcript, setTranscript] = useState<string>('')
   const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
@@ -113,9 +114,13 @@ export function useRealtimeTutor({
     if (audioRef.current) {
       audioRef.current.srcObject = null
     }
-    audioTrackRef.current = null
+    if (audioTrackRef.current) {
+      audioTrackRef.current.stop()
+      audioTrackRef.current = null
+    }
     canvasItemIdRef.current = null
     isResponseActiveRef.current = false
+    setCurrentSessionId(null)
     setIsConnected(false)
     setIsPaused(false)
     setIsMuted(false)
@@ -150,7 +155,14 @@ export function useRealtimeTutor({
       setChatHistory([])
       setState('thinking')
 
-      const startSessionRes = await fetch('/api/tutor/session/start', { method: 'POST' })
+      const startSessionRes = await fetch('/api/tutor/session/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: options?.language ?? 'en',
+          gradeLevel: options?.gradeLevel ?? '',
+        }),
+      })
       const startSessionData = await startSessionRes.json().catch(() => ({}))
       if (!startSessionRes.ok) {
         const code = (startSessionData as { code?: string }).code
@@ -165,6 +177,7 @@ export function useRealtimeTutor({
 
       startedSessionId = (startSessionData as { sessionId?: string }).sessionId ?? null
       sessionIdRef.current = startedSessionId
+      setCurrentSessionId(startedSessionId)
       if (!startedSessionId) {
         throw new Error('Something went wrong. Please try again.')
       }
@@ -401,6 +414,7 @@ export function useRealtimeTutor({
 
           if (completedTranscript) {
             setChatHistory((prev) => [...prev, { role: 'user', content: completedTranscript }])
+            onUserMessageLoggedRef.current?.({ content: completedTranscript, source: 'speech' })
           }
           break
         }
@@ -662,6 +676,7 @@ export function useRealtimeTutor({
     sendImage,
     sendTextWithImage,
     sendCanvasImage,
+    currentSessionId,
     mute,
     unmute,
     pause,

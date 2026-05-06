@@ -9,7 +9,7 @@ function getModelSnapshot() {
   return process.env.OPENAI_REALTIME_MODEL?.trim() || 'gpt-realtime-mini'
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const userId = await getSessionUserId()
     if (!userId) {
@@ -38,10 +38,32 @@ export async function POST() {
 
     const sessionId = randomUUID()
     const modelSnapshot = getModelSnapshot()
+    let language = 'en'
+    let gradeLevel = ''
+
+    try {
+      const body = (await request.json()) as { language?: unknown; gradeLevel?: unknown }
+      if (typeof body.language === 'string' && body.language.trim()) {
+        language = body.language.trim().slice(0, 16)
+      }
+      if (typeof body.gradeLevel === 'string' && body.gradeLevel.trim()) {
+        gradeLevel = body.gradeLevel.trim().slice(0, 40)
+      }
+    } catch {
+      // Empty body is allowed; defaults above remain.
+    }
 
     await sql`
-      INSERT INTO tutor_sessions (id, user_id, started_at, active_seconds, model_snapshot)
-      VALUES (${sessionId}, ${userId}, NOW(), 0, ${modelSnapshot})
+      INSERT INTO tutor_sessions (
+        id,
+        user_id,
+        started_at,
+        active_seconds,
+        model_snapshot,
+        language,
+        grade_level
+      )
+      VALUES (${sessionId}, ${userId}, NOW(), 0, ${modelSnapshot}, ${language}, ${gradeLevel})
     `
 
     return NextResponse.json({

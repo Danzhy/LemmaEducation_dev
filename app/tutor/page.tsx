@@ -20,11 +20,10 @@ import FileUpload from '@/components/FileUpload'
 import TextInput from '@/components/TextInput'
 import EmbeddedBoard, { type EmbeddedBoardRef } from '@/components/EmbeddedBoard'
 import GuidedTutorialOverlay, { type TutorialStep } from '@/components/GuidedTutorialOverlay'
-import { useRealtimeTutor } from '@/hooks/useRealtimeTutor'
+import { useRealtimeTutor, type TutorUserMessageSource } from '@/hooks/useRealtimeTutor'
 import { useCanvasChangeDetection } from '@/hooks/useCanvasChangeDetection'
 import { authClient } from '@/lib/auth/client'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 
 function ControlButton({
   label,
@@ -146,7 +145,6 @@ const GRADE_LEVEL_OPTIONS = [
 ]
 
 export default function TutorPage() {
-  const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [streamCanvas, setStreamCanvas] = useState(true)
   const [language, setLanguage] = useState<string>('en')
@@ -158,6 +156,7 @@ export default function TutorPage() {
   const embeddedBoardRef = useRef<EmbeddedBoardRef>(null)
   const sendCanvasToTutorRef = useRef<() => Promise<void>>(() => Promise.resolve())
   const lastSentCanvasHashRef = useRef<string | null>(null)
+  const currentSessionIdRef = useRef<string | null>(null)
 
   // Stores uploaded image/PDF (as base64) until user sends or removes it
   const [uploadedImage, setUploadedImage] = useState<{
@@ -165,12 +164,74 @@ export default function TutorPage() {
     mimeType: string
   } | null>(null)
 
+  const persistTutorMessage = useCallback(
+    async ({
+      role,
+      content,
+      source,
+    }: {
+      role: 'user' | 'assistant'
+      content: string
+      source: TutorUserMessageSource | 'assistant'
+    }) => {
+      const sessionId = currentSessionIdRef.current
+      if (!sessionId || !content.trim()) return
+
+      try {
+        await fetch('/api/tutor/log-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            role,
+            content,
+            source,
+          }),
+        })
+      } catch {
+        // Best-effort persistence. Session review should not interrupt tutoring.
+      }
+    },
+    []
+  )
+
+  const persistCanvasArtifact = useCallback(
+    async (base64: string, mimeType: string) => {
+      const sessionId = currentSessionIdRef.current
+      if (!sessionId) return
+
+      try {
+        await fetch('/api/tutor/session/artifact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            mimeType,
+            dataBase64: base64,
+          }),
+        })
+      } catch {
+        // Best-effort persistence only.
+      }
+    },
+    []
+  )
+
+  const captureAndPersistBoardSnapshot = useCallback(async () => {
+    if (!currentSessionIdRef.current || !editor) return false
+    const result = await embeddedBoardRef.current?.captureViewport()
+    if (!result) return false
+    await persistCanvasArtifact(result.base64, result.mimeType)
+    return true
+  }, [editor, persistCanvasArtifact])
+
   const {
     state,
     isConnected,
     isPaused,
     isMuted,
     isSpeakerMuted,
+    currentSessionId,
     currentUserTranscript,
     transcript,
     chatHistory,
@@ -189,6 +250,20 @@ export default function TutorPage() {
   } = useRealtimeTutor({
     onError: (userMsg) => setError(userMsg),
     onSpeechStarted: () => sendCanvasToTutorRef.current(),
+    onUserMessageLogged: (payload) => {
+      void persistTutorMessage({
+        role: 'user',
+        content: payload.content,
+        source: payload.source,
+      })
+    },
+    onAssistantFinalized: (content) => {
+      void persistTutorMessage({
+        role: 'assistant',
+        content,
+        source: 'assistant',
+      })
+    },
   })
 
   const sendCanvasToTutor = useCallback(
@@ -209,10 +284,11 @@ export default function TutorPage() {
       const result = await embeddedBoardRef.current?.captureViewport()
       if (result) {
         sendCanvasImage(result.base64, result.mimeType)
+        void persistCanvasArtifact(result.base64, result.mimeType)
         lastSentCanvasHashRef.current = hash
       }
     },
-    [sendCanvasImage, streamCanvas, editor]
+    [sendCanvasImage, streamCanvas, editor, persistCanvasArtifact]
   )
 
   sendCanvasToTutorRef.current = () => {
@@ -221,6 +297,10 @@ export default function TutorPage() {
     }
     return Promise.resolve()
   }
+
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId
+  }, [currentSessionId])
 
   useEffect(() => {
     if (!isConnected) lastSentCanvasHashRef.current = null
@@ -276,16 +356,25 @@ export default function TutorPage() {
     setIsStartingSession(true)
     await connect({ language, gradeLevel })
   }
+  const handleEndSession = useCallback(async () => {
+    if (isConnected) {
+      await captureAndPersistBoardSnapshot()
+    }
+    disconnect('user')
+  }, [captureAndPersistBoardSnapshot, disconnect, isConnected])
+
   const handleSignOut = useCallback(async () => {
     try {
+      if (isConnected) {
+        await captureAndPersistBoardSnapshot()
+      }
       disconnect('user')
       await authClient.signOut()
-      router.replace('/auth/sign-in')
-      router.refresh()
+      window.location.replace('/auth/sign-in')
     } catch {
       setError('Could not sign out. Please try again.')
     }
-  }, [disconnect, router])
+  }, [captureAndPersistBoardSnapshot, disconnect, isConnected])
   const openTutorial = () => {
     setTutorialStepIndex(0)
     setIsTutorialOpen(true)
@@ -392,6 +481,12 @@ export default function TutorPage() {
             <option value="en">English</option>
           </select>
           <Link
+            href="/dashboard"
+            className="text-xs uppercase tracking-widest text-[#3F524C] hover:text-[#16423C] transition-colors"
+          >
+            Dashboard
+          </Link>
+          <Link
             href="/"
             className="text-xs uppercase tracking-widest text-[#3F524C] hover:text-[#16423C] transition-colors"
           >
@@ -483,7 +578,7 @@ export default function TutorPage() {
                             <SpeakerIcon className="h-[18px] w-[18px]" />
                           )}
                         </ControlButton>
-                        <ControlButton label="End session" onClick={disconnect} tone="danger">
+                        <ControlButton label="End session" onClick={() => void handleEndSession()} tone="danger">
                           <EndIcon className="h-[18px] w-[18px]" />
                         </ControlButton>
                       </div>
