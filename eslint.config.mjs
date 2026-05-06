@@ -21,7 +21,9 @@ export default defineConfig([
     'out/**',
     'build/**',
     'next-env.d.ts',
+    'Lemma Education Documents/**',
     '.playwright-cli/**',
     'output/**',
+    'tmpdata/**',
   ]),
 ])
