@@ -1,3 +1,4 @@
+import '@neondatabase/neon-js/ui/css'
 import { authViewPaths } from '@neondatabase/auth/react/ui/server'
 import { AuthViewClient } from './auth-view-client'
 

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import '@neondatabase/neon-js/ui/css'
 import './globals.css'
 import { AuthProvider } from '@/app/auth-provider'
 
@@ -20,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
         <AuthProvider>{children}</AuthProvider>
       </body>

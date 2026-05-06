@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { authClient } from '@/lib/auth/client'
 import { AUTH_PASSWORD_MIN_LENGTH } from '@/lib/auth/password-policy'
@@ -170,7 +169,6 @@ async function postAuthRequest<T>(
 }
 
 export function AuthEmailForm({ mode }: { mode: AuthMode }) {
-  const router = useRouter()
   const session = authClient.useSession?.()
 
   const [values, setValues] = useState({
@@ -191,12 +189,17 @@ export function AuthEmailForm({ mode }: { mode: AuthMode }) {
     [mode, values]
   )
 
+  const navigateToTutor = () => {
+    // Use a hard navigation so route-scoped auth assets/styles fully unload
+    // before the tutor workspace renders.
+    window.location.replace(TUTOR_PATH)
+  }
+
   useEffect(() => {
     if (session?.data) {
-      router.replace(TUTOR_PATH)
-      router.refresh()
+      navigateToTutor()
     }
-  }, [router, session?.data])
+  }, [session?.data])
 
   const setFieldValue = (field: FormField, value: string) => {
     setValues((current) => ({ ...current, [field]: value }))
@@ -248,8 +251,7 @@ export function AuthEmailForm({ mode }: { mode: AuthMode }) {
         }
       }
 
-      router.replace(TUTOR_PATH)
-      router.refresh()
+      navigateToTutor()
     } catch (error) {
       const message = error instanceof Error ? error.message : null
       setFormError(
