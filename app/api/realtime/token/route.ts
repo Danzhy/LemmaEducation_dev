@@ -36,6 +36,10 @@ function getGradeLevelInstruction(gradeLevel: string): string {
   return `Student context: The student is working at ${normalized}. Match the level of explanation, vocabulary, examples, pacing, and question difficulty to ${normalized}. Keep the math accessible for that exact level, and do not jump to more advanced methods unless the student asks or it is clearly necessary.`
 }
 
+function isTutorAccessEnabled(): boolean {
+  return process.env.TUTOR_ACCESS_ENABLED?.trim().toLowerCase() === 'true'
+}
+
 /**
  * POST /api/realtime/token
  *
@@ -47,6 +51,13 @@ function getGradeLevelInstruction(gradeLevel: string): string {
  * @returns { value: string } - Ephemeral token (e.g. "ek_...") for Authorization header
  */
 export async function POST(request: Request) {
+  if (!isTutorAccessEnabled()) {
+    return NextResponse.json(
+      { error: 'Tutor access is currently disabled.' },
+      { status: 403 }
+    )
+  }
+
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     return NextResponse.json(
