@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import DashboardScaffold from '@/components/dashboard/DashboardScaffold'
+import { UnlinkGuardianButton } from '@/components/dashboard/AccessActionButtons'
 import { LinkStudentForm } from '@/components/dashboard/DashboardForms'
 import { getCurrentUserProfile, isOnboardingComplete } from '@/lib/school/profiles'
 import { getSessionUserId } from '@/lib/tutor/session-user'
@@ -84,9 +85,12 @@ export default async function ParentDashboardPage() {
                         {student.gradeLevel ?? 'Student'} · {student.sessionCount} saved session{student.sessionCount === 1 ? '' : 's'}
                       </p>
                     </div>
-                    <p className="text-sm text-[#5C7069]">
-                      Last activity: {student.lastSessionAt ? formatSessionDate(student.lastSessionAt) : 'No sessions yet'}
-                    </p>
+                    <div className="flex flex-col items-start gap-3 sm:items-end">
+                      <p className="text-sm text-[#5C7069]">
+                        Last activity: {student.lastSessionAt ? formatSessionDate(student.lastSessionAt) : 'No sessions yet'}
+                      </p>
+                      <UnlinkGuardianButton studentUserId={student.userId} mode="parent" />
+                    </div>
                   </div>
 
                   <div className="mt-5 space-y-3">

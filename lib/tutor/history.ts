@@ -221,15 +221,7 @@ export async function getTutorSessionDetailForUser(userId: string, sessionId: st
 }
 
 export async function getAccessibleTutorSessionDetail(viewerUserId: string, sessionId: string) {
-  const sql = getNeonSql()
-  const ownerRows = await sql`
-    SELECT user_id
-    FROM tutor_sessions
-    WHERE id = ${sessionId}::uuid
-    LIMIT 1
-  `
-
-  const ownerUserId = (ownerRows[0] as { user_id: string } | undefined)?.user_id
+  const ownerUserId = await getTutorSessionOwnerUserId(sessionId)
   if (!ownerUserId) {
     return null
   }
@@ -240,6 +232,18 @@ export async function getAccessibleTutorSessionDetail(viewerUserId: string, sess
   }
 
   return getTutorSessionDetailForUser(ownerUserId, sessionId)
+}
+
+export async function getTutorSessionOwnerUserId(sessionId: string) {
+  const sql = getNeonSql()
+  const ownerRows = await sql`
+    SELECT user_id
+    FROM tutor_sessions
+    WHERE id = ${sessionId}::uuid
+    LIMIT 1
+  `
+
+  return (ownerRows[0] as { user_id: string } | undefined)?.user_id ?? null
 }
 
 export async function listTutorSessionsForStudent(studentUserId: string) {

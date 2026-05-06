@@ -2,8 +2,9 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import DashboardScaffold from '@/components/dashboard/DashboardScaffold'
 import { getSessionUserId } from '@/lib/tutor/session-user'
-import { getAccessibleTutorSessionDetail } from '@/lib/tutor/history'
+import { getAccessibleTutorSessionDetail, getTutorSessionOwnerUserId } from '@/lib/tutor/history'
 import { getCurrentUserProfile, isOnboardingComplete } from '@/lib/school/profiles'
+import { recordSessionAccessAudit } from '@/lib/school/access'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,10 +80,23 @@ export default async function DashboardSessionDetailPage({
   }
 
   const { sessionId } = await params
+  const ownerUserId = await getTutorSessionOwnerUserId(sessionId)
   const session = await getAccessibleTutorSessionDetail(userId, sessionId)
 
-  if (!session) {
+  if (!session || !ownerUserId) {
     notFound()
+  }
+
+  if (
+    ownerUserId !== userId &&
+    (profile.role === 'teacher' || profile.role === 'parent' || profile.role === 'admin')
+  ) {
+    await recordSessionAccessAudit({
+      sessionId,
+      studentUserId: ownerUserId,
+      viewerUserId: userId,
+      viewerRole: profile.role,
+    })
   }
 
   return (
@@ -215,6 +229,9 @@ export default async function DashboardSessionDetailPage({
               <div className="mt-5 space-y-3 text-sm leading-relaxed text-[#4D625C]">
                 <p>This session stores the transcript, practice time, math level, language, and the latest saved board image.</p>
                 <p>Authorized teachers and parents can review the same saved record without changing the student workspace itself.</p>
+                {ownerUserId !== userId ? (
+                  <p>Review access is logged so students can see when saved work is opened by a teacher or parent.</p>
+                ) : null}
               </div>
             </section>
           </div>

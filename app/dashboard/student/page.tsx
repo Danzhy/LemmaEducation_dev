@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import DashboardScaffold from '@/components/dashboard/DashboardScaffold'
+import { UnlinkGuardianButton } from '@/components/dashboard/AccessActionButtons'
 import { JoinClassForm, StudentAccessCodeCard } from '@/components/dashboard/DashboardForms'
 import { getCurrentUserProfile, getActiveStudentAccessCode, isOnboardingComplete } from '@/lib/school/profiles'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { listTutorSessionsForUser } from '@/lib/tutor/history'
-import { getStudentClassrooms } from '@/lib/school/access'
+import { getLinkedGuardiansForStudent, getStudentClassrooms, listRecentSessionAccessForStudent } from '@/lib/school/access'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,15 @@ function formatSessionDate(date: Date) {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function formatReviewDate(date: Date) {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   }).format(date)
@@ -62,10 +72,12 @@ export default async function StudentDashboardPage() {
     redirect('/dashboard')
   }
 
-  const [{ sessions, summary }, classrooms, accessCode] = await Promise.all([
+  const [{ sessions, summary }, classrooms, accessCode, guardians, recentAccess] = await Promise.all([
     listTutorSessionsForUser(userId),
     getStudentClassrooms(userId),
     getActiveStudentAccessCode(userId),
+    getLinkedGuardiansForStudent(userId),
+    listRecentSessionAccessForStudent(userId),
   ])
 
   const remainingPercent =
@@ -187,6 +199,63 @@ export default async function StudentDashboardPage() {
                       {classroom.gradeLabel ?? 'Classroom'}{classroom.schoolName ? ` · ${classroom.schoolName}` : ''}
                     </p>
                   </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-[24px] border border-[#DCE7E2] bg-white/82 px-5 py-5">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Who can review</p>
+            <h3 className="mt-2 text-[1.15rem] font-light text-[#0F2922]">Linked parents</h3>
+            <div className="mt-4 space-y-3">
+              {guardians.length === 0 ? (
+                <p className="text-sm leading-relaxed text-[#5C7069]">
+                  No parent accounts are linked right now.
+                </p>
+              ) : (
+                guardians.map((guardian) => (
+                  <div key={guardian.guardianUserId} className="rounded-[18px] border border-[#E1EAE6] bg-[#F8FBF9] px-4 py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-base text-[#14312A]">{guardian.displayName}</p>
+                        <p className="mt-1 text-sm text-[#5C7069]">
+                          {guardian.email ?? 'Parent account'} · linked {formatReviewDate(guardian.linkedAt)}
+                        </p>
+                      </div>
+                      <UnlinkGuardianButton
+                        studentUserId={userId}
+                        guardianUserId={guardian.guardianUserId}
+                        mode="student"
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-[24px] border border-[#DCE7E2] bg-white/82 px-5 py-5">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Recent oversight</p>
+            <h3 className="mt-2 text-[1.15rem] font-light text-[#0F2922]">Who reviewed saved work</h3>
+            <div className="mt-4 space-y-3">
+              {recentAccess.length === 0 ? (
+                <p className="text-sm leading-relaxed text-[#5C7069]">
+                  No teacher or parent has opened a saved session yet.
+                </p>
+              ) : (
+                recentAccess.map((event) => (
+                  <Link
+                    key={event.id}
+                    href={`/dashboard/${event.sessionId}`}
+                    className="block rounded-[18px] border border-[#E1EAE6] bg-[#F8FBF9] px-4 py-4 transition-colors hover:border-[#B8C8C2]"
+                  >
+                    <p className="text-sm text-[#14312A]">
+                      {event.viewerDisplayName} reviewed a saved session
+                    </p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-[#6B7F79]">
+                      {event.viewerRole} · {formatReviewDate(event.createdAt)}
+                    </p>
+                  </Link>
                 ))
               )}
             </div>

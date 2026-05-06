@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import DashboardScaffold from '@/components/dashboard/DashboardScaffold'
 import { CreateClassForm } from '@/components/dashboard/DashboardForms'
+import { RemoveStudentButton } from '@/components/dashboard/AccessActionButtons'
 import { getCurrentUserProfile, isOnboardingComplete } from '@/lib/school/profiles'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { getTeacherDashboardData } from '@/lib/school/access'
@@ -110,7 +111,10 @@ export default async function TeacherDashboardPage() {
                                 {student.gradeLevel ?? 'Student'} · {student.sessionCount} saved session{student.sessionCount === 1 ? '' : 's'}
                               </p>
                             </div>
-                            <p className="text-sm text-[#5C7069]">Last activity: {formatSessionDate(student.lastSessionAt)}</p>
+                            <div className="flex flex-col items-start gap-3 sm:items-end">
+                              <p className="text-sm text-[#5C7069]">Last activity: {formatSessionDate(student.lastSessionAt)}</p>
+                              <RemoveStudentButton classroomId={classroom.id} studentUserId={student.userId} />
+                            </div>
                           </div>
                           {student.recentSessions.length > 0 ? (
                             <div className="mt-4 space-y-2">

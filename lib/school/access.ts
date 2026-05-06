@@ -54,6 +54,22 @@ export type ParentStudentSummary = {
   }>
 }
 
+export type LinkedGuardianSummary = {
+  guardianUserId: string
+  displayName: string
+  email: string | null
+  linkedAt: Date
+}
+
+export type SessionAccessAuditSummary = {
+  id: string
+  sessionId: string
+  viewerUserId: string
+  viewerRole: 'teacher' | 'parent' | 'admin'
+  viewerDisplayName: string
+  createdAt: Date
+}
+
 function asDate(value: Date | string | null): Date | null {
   if (!value) return null
   return value instanceof Date ? value : new Date(value)
@@ -274,6 +290,71 @@ export async function getStudentClassrooms(studentUserId: string) {
   }))
 }
 
+export async function getLinkedGuardiansForStudent(studentUserId: string) {
+  const sql = getNeonSql()
+  const rows = await sql`
+    SELECT
+      link.guardian_user_id,
+      profile.display_name,
+      profile.email,
+      link.linked_at
+    FROM guardian_student_links link
+    LEFT JOIN user_profiles profile ON profile.user_id = link.guardian_user_id
+    WHERE link.student_user_id = ${studentUserId}
+    ORDER BY link.linked_at DESC
+  `
+
+  return (
+    rows as Array<{
+      guardian_user_id: string
+      display_name: string | null
+      email: string | null
+      linked_at: Date | string
+    }>
+  ).map((row) => ({
+    guardianUserId: row.guardian_user_id,
+    displayName: row.display_name?.trim() || 'Parent',
+    email: row.email,
+    linkedAt: asDate(row.linked_at)!,
+  }))
+}
+
+export async function listRecentSessionAccessForStudent(studentUserId: string, limit = 8) {
+  const sql = getNeonSql()
+  const rows = await sql`
+    SELECT
+      audit.id,
+      audit.session_id,
+      audit.viewer_user_id,
+      audit.viewer_role,
+      audit.created_at,
+      profile.display_name
+    FROM session_access_audits audit
+    LEFT JOIN user_profiles profile ON profile.user_id = audit.viewer_user_id
+    WHERE audit.student_user_id = ${studentUserId}
+    ORDER BY audit.created_at DESC
+    LIMIT ${limit}
+  `
+
+  return (
+    rows as Array<{
+      id: string
+      session_id: string
+      viewer_user_id: string
+      viewer_role: 'teacher' | 'parent' | 'admin'
+      created_at: Date | string
+      display_name: string | null
+    }>
+  ).map((row) => ({
+    id: row.id,
+    sessionId: row.session_id,
+    viewerUserId: row.viewer_user_id,
+    viewerRole: row.viewer_role,
+    viewerDisplayName: row.display_name?.trim() || row.viewer_role,
+    createdAt: asDate(row.created_at)!,
+  }))
+}
+
 export async function getTeacherDashboardData(teacherUserId: string) {
   const sql = getNeonSql()
   const classroomRows = await sql`
@@ -428,6 +509,110 @@ export async function getParentDashboardData(guardianUserId: string) {
     students,
     totalSessions: students.reduce((sum, student) => sum + student.sessionCount, 0),
   }
+}
+
+export async function removeStudentFromClassroom(input: {
+  teacherUserId: string
+  classroomId: string
+  studentUserId: string
+}) {
+  const sql = getNeonSql()
+  const classroomRows = await sql`
+    SELECT id
+    FROM classrooms
+    WHERE id = ${input.classroomId}::uuid
+      AND teacher_user_id = ${input.teacherUserId}
+      AND archived_at IS NULL
+    LIMIT 1
+  `
+
+  if (!classroomRows[0]) {
+    return { ok: false as const, code: 'CLASSROOM_NOT_FOUND' as const }
+  }
+
+  const removedRows = await sql`
+    DELETE FROM classroom_memberships
+    WHERE classroom_id = ${input.classroomId}::uuid
+      AND user_id = ${input.studentUserId}
+      AND membership_role = 'student'
+    RETURNING id
+  `
+
+  if (!removedRows[0]) {
+    return { ok: false as const, code: 'STUDENT_NOT_FOUND' as const }
+  }
+
+  return { ok: true as const }
+}
+
+export async function unlinkGuardianFromStudent(input: {
+  actorUserId: string
+  studentUserId: string
+  guardianUserId?: string
+}) {
+  const sql = getNeonSql()
+
+  const guardianUserId = input.guardianUserId?.trim() || input.actorUserId
+  const allowedRows = await sql`
+    SELECT 1
+    FROM guardian_student_links
+    WHERE student_user_id = ${input.studentUserId}
+      AND guardian_user_id = ${guardianUserId}
+      AND (
+        guardian_user_id = ${input.actorUserId}
+        OR student_user_id = ${input.actorUserId}
+      )
+    LIMIT 1
+  `
+
+  if (!allowedRows[0]) {
+    return { ok: false as const, code: 'LINK_NOT_FOUND' as const }
+  }
+
+  await sql`
+    DELETE FROM guardian_student_links
+    WHERE student_user_id = ${input.studentUserId}
+      AND guardian_user_id = ${guardianUserId}
+  `
+
+  await sql`
+    DELETE FROM student_access_codes
+    WHERE student_user_id = ${input.studentUserId}
+      AND claimed_by_user_id = ${guardianUserId}
+  `
+
+  return { ok: true as const }
+}
+
+export async function recordSessionAccessAudit(input: {
+  sessionId: string
+  studentUserId: string
+  viewerUserId: string
+  viewerRole: 'teacher' | 'parent' | 'admin'
+}) {
+  if (input.viewerUserId === input.studentUserId) return
+
+  const sql = getNeonSql()
+  await sql`
+    INSERT INTO session_access_audits (
+      id,
+      session_id,
+      student_user_id,
+      viewer_user_id,
+      viewer_role,
+      access_type,
+      created_at
+    )
+    VALUES (
+      ${randomUUID()}::uuid,
+      ${input.sessionId}::uuid,
+      ${input.studentUserId},
+      ${input.viewerUserId},
+      ${input.viewerRole},
+      'session_review',
+      NOW()
+    )
+  `
 }
 
 export async function getAccessibleStudentIds(viewerUserId: string, viewerRole: UserRole | null) {
