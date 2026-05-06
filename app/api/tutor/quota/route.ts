@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getNeonSql } from '@/lib/tutor/db'
-import { TUTOR_QUOTA_SECONDS } from '@/lib/tutor/constants'
 import { getSessionUserId } from '@/lib/tutor/session-user'
-import { ensureTutorUsageRow } from '@/lib/tutor/ensure-usage'
+import { finalizeSessionById, getQuotaSnapshot } from '@/lib/tutor/quota'
 
 export async function GET() {
   try {
@@ -15,20 +14,18 @@ export async function GET() {
     }
 
     const sql = getNeonSql()
-    await ensureTutorUsageRow(userId)
-    const rows = await sql`
-      SELECT COALESCE(total_active_seconds, 0)::bigint AS total
-      FROM tutor_usage
-      WHERE user_id = ${userId}
-    `
-    const total = Number((rows[0] as { total: string | bigint } | undefined)?.total ?? 0)
-    const remainingSeconds = Math.max(0, TUTOR_QUOTA_SECONDS - total)
+    let quota = await getQuotaSnapshot(sql, userId)
+    if (quota.activeSessionId && quota.remainingSeconds <= 0) {
+      await finalizeSessionById(sql, userId, quota.activeSessionId, 'quota')
+      quota = await getQuotaSnapshot(sql, userId)
+    }
 
     return NextResponse.json({
       ok: true,
-      totalActiveSeconds: total,
-      remainingSeconds,
-      quotaSeconds: TUTOR_QUOTA_SECONDS,
+      totalActiveSeconds: quota.totalActiveSeconds,
+      remainingSeconds: quota.remainingSeconds,
+      quotaSeconds: quota.quotaSeconds,
+      activeSessionId: quota.activeSessionId,
     })
   } catch (e) {
     console.error('[tutor/quota]', e)

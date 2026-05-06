@@ -23,7 +23,7 @@ import GuidedTutorialOverlay, { type TutorialStep } from '@/components/GuidedTut
 import { useRealtimeTutor, type TutorUserMessageSource } from '@/hooks/useRealtimeTutor'
 import { useCanvasChangeDetection } from '@/hooks/useCanvasChangeDetection'
 import Link from 'next/link'
-import { TUTOR_QUOTA_SECONDS, TUTOR_RECONCILE_MAX_SECONDS_PER_REQUEST } from '@/lib/tutor/constants'
+import { TUTOR_QUOTA_SECONDS } from '@/lib/tutor/constants'
 
 function formatRemain(seconds: number) {
   const m = Math.floor(seconds / 60)
@@ -87,9 +87,7 @@ export default function TutorPage() {
   const sendCanvasToTutorRef = useRef<() => Promise<void>>(() => Promise.resolve())
   const lastSentCanvasHashRef = useRef<string | null>(null)
   const sessionIdRef = useRef<string | null>(null)
-  const lastActiveAnchorRef = useRef<number | null>(null)
   const prevConnectedRef = useRef(false)
-  const wasPausedRef = useRef(false)
   /** Last authoritative remaining seconds from the server, with local sync time for smooth countdown. */
   const lastQuotaServerRef = useRef<{ rem: number; at: number } | null>(null)
   /** Prevents double-submit: two /session/start calls before React disables the button. */
@@ -158,13 +156,12 @@ export default function TutorPage() {
     }).catch(() => setUsageLogWarning(true))
   }, [])
 
-  const postUsageTick = useCallback(async (sid: string, delta: number) => {
-    if (delta < 1) return { ok: true as const }
+  const postUsageTick = useCallback(async (sid: string) => {
     const run = async () => {
       const res = await fetch('/api/tutor/usage/tick', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: sid, activeDeltaSeconds: delta }),
+        body: JSON.stringify({ sessionId: sid }),
       })
       const data = await res.json().catch(() => ({}))
       return { res, data }
@@ -213,14 +210,6 @@ export default function TutorPage() {
   })
 
   const disconnectTutor = useCallback(() => {
-    let delta = 0
-    if (lastActiveAnchorRef.current != null) {
-      delta = Math.min(
-        TUTOR_RECONCILE_MAX_SECONDS_PER_REQUEST,
-        Math.floor((Date.now() - lastActiveAnchorRef.current) / 1000)
-      )
-      lastActiveAnchorRef.current = null
-    }
     const sid = sessionIdRef.current
     sessionIdRef.current = null
     setActiveSessionId(null)
@@ -229,7 +218,7 @@ export default function TutorPage() {
       void fetch('/api/tutor/session/end', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: sid, endedReason: 'user', reconcileDeltaSeconds: delta }),
+        body: JSON.stringify({ sessionId: sid, endedReason: 'user' }),
       })
         .catch(() => {})
         .finally(() => void refreshQuota())
@@ -275,7 +264,7 @@ export default function TutorPage() {
         void fetch('/api/tutor/session/end', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: sid, endedReason: 'error', reconcileDeltaSeconds: 0 }),
+          body: JSON.stringify({ sessionId: sid, endedReason: 'error' }),
         }).catch(() => {})
         await refreshQuota()
       }
@@ -289,21 +278,13 @@ export default function TutorPage() {
 
   useEffect(() => {
     if (prevConnectedRef.current && !isConnected && sessionIdRef.current) {
-      let delta = 0
-      if (lastActiveAnchorRef.current != null) {
-        delta = Math.min(
-          TUTOR_RECONCILE_MAX_SECONDS_PER_REQUEST,
-          Math.floor((Date.now() - lastActiveAnchorRef.current) / 1000)
-        )
-        lastActiveAnchorRef.current = null
-      }
       const sid = sessionIdRef.current
       sessionIdRef.current = null
       setActiveSessionId(null)
       void fetch('/api/tutor/session/end', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: sid, endedReason: 'error', reconcileDeltaSeconds: delta }),
+        body: JSON.stringify({ sessionId: sid, endedReason: 'error' }),
       })
         .catch(() => {})
         .finally(() => void refreshQuota())
@@ -312,110 +293,49 @@ export default function TutorPage() {
   }, [isConnected, refreshQuota])
 
   useEffect(() => {
-    if (isConnected && activeSessionId && !wasPausedRef.current && isPaused) {
-      const sid = sessionIdRef.current
-      if (sid && lastActiveAnchorRef.current != null) {
-        const delta = Math.min(120, Math.floor((Date.now() - lastActiveAnchorRef.current) / 1000))
-        lastActiveAnchorRef.current = null
-        if (delta >= 1) {
-          void postUsageTick(sid, delta).then((r) => {
-            if (!r.ok && r.quotaExceeded) {
-              setError('Your tutoring time limit has been reached.')
-              applyServerRemaining(0)
-              const s = sessionIdRef.current
-              sessionIdRef.current = null
-              setActiveSessionId(null)
-              disconnect()
-              if (s) {
-                void fetch('/api/tutor/session/end', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ sessionId: s, endedReason: 'quota', reconcileDeltaSeconds: 0 }),
-                }).finally(() => void refreshQuota())
-              }
-              return
-            }
-            if (!r.ok) setUsageLogWarning(true)
-          })
-        }
-      }
-    }
-    wasPausedRef.current = isPaused
-  }, [applyServerRemaining, isConnected, activeSessionId, isPaused, postUsageTick, disconnect, refreshQuota])
-
-  useEffect(() => {
-    if (isConnected && activeSessionId && !isPaused) {
-      lastActiveAnchorRef.current = Date.now()
-    }
-  }, [isConnected, activeSessionId, isPaused])
-
-  useEffect(() => {
-    if (!isConnected || !activeSessionId || isPaused) return
+    if (!activeSessionId) return
     const tick = async () => {
       const sid = sessionIdRef.current
-      if (!sid || lastActiveAnchorRef.current == null) return
-      const delta = Math.min(120, Math.floor((Date.now() - lastActiveAnchorRef.current) / 1000))
-      if (delta < 1) return
-      const r = await postUsageTick(sid, delta)
+      if (!sid) return
+      const r = await postUsageTick(sid)
       if (!r.ok && r.quotaExceeded) {
         setError('Your tutoring time limit has been reached.')
         applyServerRemaining(0)
         const s = sessionIdRef.current
         sessionIdRef.current = null
         setActiveSessionId(null)
-        lastActiveAnchorRef.current = null
         disconnect()
         if (s) {
           void fetch('/api/tutor/session/end', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId: s, endedReason: 'quota', reconcileDeltaSeconds: 0 }),
+            body: JSON.stringify({ sessionId: s, endedReason: 'quota' }),
           }).finally(() => void refreshQuota())
         }
         return
       }
-      if (r.ok) {
-        lastActiveAnchorRef.current = Date.now()
-      } else {
+      if (!r.ok) {
         setUsageLogWarning(true)
       }
     }
     const id = setInterval(() => void tick(), 25000)
     return () => clearInterval(id)
-  }, [applyServerRemaining, isConnected, activeSessionId, isPaused, postUsageTick, disconnect, refreshQuota])
+  }, [applyServerRemaining, activeSessionId, postUsageTick, disconnect, refreshQuota])
 
   useEffect(() => {
-    if (!isConnected || !activeSessionId || isPaused) return
+    if (!activeSessionId) return
     const id = setInterval(() => setRemainClock((n) => n + 1), 1000)
     return () => clearInterval(id)
-  }, [isConnected, activeSessionId, isPaused])
-
-  const prevPausedForQuotaRef = useRef(false)
-  useEffect(() => {
-    if (!isConnected || !activeSessionId) {
-      prevPausedForQuotaRef.current = isPaused
-      return
-    }
-    const s = lastQuotaServerRef.current
-    if (isPaused && !prevPausedForQuotaRef.current && s) {
-      const shown = Math.max(0, s.rem - Math.floor((Date.now() - s.at) / 1000))
-      lastQuotaServerRef.current = { rem: shown, at: Date.now() }
-    }
-    if (!isPaused && prevPausedForQuotaRef.current && s) {
-      lastQuotaServerRef.current = { rem: s.rem, at: Date.now() }
-    }
-    prevPausedForQuotaRef.current = isPaused
-  }, [isPaused, isConnected, activeSessionId])
+  }, [activeSessionId])
 
   const shownRemainingSeconds = useMemo(() => {
     void remainClock
     if (remainingSeconds === null) return null
-    if (!isConnected || !activeSessionId) return remainingSeconds
+    if (!activeSessionId) return remainingSeconds
     const s = lastQuotaServerRef.current
     if (!s) return remainingSeconds
-    if (isPaused) return s.rem
     return Math.max(0, s.rem - Math.floor((Date.now() - s.at) / 1000))
-  }, [remainClock, remainingSeconds, isConnected, activeSessionId, isPaused])
+  }, [remainClock, remainingSeconds, activeSessionId])
 
   const quotaExceeded =
     quotaLoaded && remainingSeconds !== null && remainingSeconds <= 0

@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { getNeonSql } from '@/lib/tutor/db'
 import { TUTOR_QUOTA_SECONDS } from '@/lib/tutor/constants'
 import { getSessionUserId } from '@/lib/tutor/session-user'
+import { getQuotaSnapshot, reconcileOpenSessions } from '@/lib/tutor/quota'
 
 function getModelSnapshot() {
   return process.env.OPENAI_REALTIME_MODEL?.trim() || 'gpt-realtime-mini'
@@ -19,27 +20,10 @@ export async function POST() {
     }
 
     const sql = getNeonSql()
+    await reconcileOpenSessions(sql, userId, 'unknown')
+    const quota = await getQuotaSnapshot(sql, userId)
 
-    await sql`
-      UPDATE tutor_sessions
-      SET ended_at = NOW(), ended_reason = 'unknown'
-      WHERE user_id = ${userId} AND ended_at IS NULL
-    `
-
-    await sql`
-      INSERT INTO tutor_usage (user_id, total_active_seconds, updated_at)
-      VALUES (${userId}, 0, NOW())
-      ON CONFLICT (user_id) DO NOTHING
-    `
-
-    const usageRows = await sql`
-      SELECT total_active_seconds::bigint AS total
-      FROM tutor_usage
-      WHERE user_id = ${userId}
-    `
-    const total = Number((usageRows[0] as { total: string | bigint } | undefined)?.total ?? 0)
-
-    if (total >= TUTOR_QUOTA_SECONDS) {
+    if (quota.remainingSeconds <= 0) {
       return NextResponse.json(
         {
           ok: false,
@@ -63,7 +47,7 @@ export async function POST() {
     return NextResponse.json({
       ok: true,
       sessionId,
-      remainingSeconds: Math.max(0, TUTOR_QUOTA_SECONDS - total),
+      remainingSeconds: quota.remainingSeconds,
       quotaSeconds: TUTOR_QUOTA_SECONDS,
     })
   } catch (e) {

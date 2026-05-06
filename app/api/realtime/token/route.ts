@@ -13,9 +13,8 @@
 import { NextResponse } from 'next/server'
 import { getLanguageRestrictionInstruction } from '@/lib/languageInstructions'
 import { getNeonSql } from '@/lib/tutor/db'
-import { TUTOR_QUOTA_SECONDS } from '@/lib/tutor/constants'
 import { getSessionUserId } from '@/lib/tutor/session-user'
-import { ensureTutorUsageRow } from '@/lib/tutor/ensure-usage'
+import { finalizeSessionById, getQuotaSnapshot } from '@/lib/tutor/quota'
 
 function getRequiredEnv(value: string | undefined): string | null {
   const normalized = value?.trim()
@@ -68,14 +67,24 @@ export async function POST(request: Request) {
 
   try {
     const sql = getNeonSql()
-    await ensureTutorUsageRow(userId)
-    const rows = await sql`
-      SELECT total_active_seconds FROM tutor_usage WHERE user_id = ${userId}
-    `
-    const row = rows[0] as { total_active_seconds: string | bigint } | undefined
-    const total = row ? Number(row.total_active_seconds) || 0 : 0
+    let quota = await getQuotaSnapshot(sql, userId)
+    if (quota.activeSessionId && quota.remainingSeconds <= 0) {
+      await finalizeSessionById(sql, userId, quota.activeSessionId, 'quota')
+      quota = await getQuotaSnapshot(sql, userId)
+    }
 
-    if (total >= TUTOR_QUOTA_SECONDS) {
+    if (!quota.activeSessionId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'SESSION_REQUIRED',
+          message: 'Start a tutor session before connecting.',
+        },
+        { status: 400 }
+      )
+    }
+
+    if (quota.remainingSeconds <= 0) {
       return NextResponse.json(
         {
           ok: false,

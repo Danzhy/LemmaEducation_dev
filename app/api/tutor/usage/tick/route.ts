@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server'
 import { getNeonSql } from '@/lib/tutor/db'
 import { TUTOR_QUOTA_SECONDS } from '@/lib/tutor/constants'
 import { getSessionUserId } from '@/lib/tutor/session-user'
-import { ensureTutorUsageRow } from '@/lib/tutor/ensure-usage'
-
-const MAX_DELTA_PER_TICK = 120
+import { finalizeSessionById, getOpenSessionById, getPersistedUsageTotal } from '@/lib/tutor/quota'
 
 export async function POST(request: Request) {
   try {
@@ -24,45 +22,36 @@ export async function POST(request: Request) {
     }
 
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : ''
-    const rawDelta =
-      typeof body.activeDeltaSeconds === 'number' && Number.isFinite(body.activeDeltaSeconds)
-        ? Math.floor(body.activeDeltaSeconds)
-        : NaN
-
-    if (!sessionId || rawDelta < 1) {
+    if (!sessionId) {
       return NextResponse.json(
-        { ok: false, code: 'BAD_REQUEST', message: 'sessionId and positive activeDeltaSeconds required' },
+        { ok: false, code: 'BAD_REQUEST', message: 'sessionId required' },
         { status: 400 }
       )
     }
 
-    const delta = Math.min(rawDelta, MAX_DELTA_PER_TICK)
     const sql = getNeonSql()
 
-    const sessionRows = await sql`
-      SELECT id, ended_at
-      FROM tutor_sessions
-      WHERE id = ${sessionId}::uuid AND user_id = ${userId}
-      LIMIT 1
-    `
-    const sess = sessionRows[0] as { id: string; ended_at: Date | null } | undefined
-    if (!sess) {
+    const session = await getOpenSessionById(sql, userId, sessionId)
+    if (!session) {
       return NextResponse.json({ ok: false, code: 'NOT_FOUND', message: 'Session not found' }, { status: 404 })
     }
-    if (sess.ended_at) {
+    if (session.ended_at) {
       return NextResponse.json({ ok: false, code: 'SESSION_ENDED', message: 'Session already ended' }, { status: 400 })
     }
 
-    await ensureTutorUsageRow(userId)
+    const persistedActiveSeconds = await getPersistedUsageTotal(sql, userId)
+    const elapsedSeconds = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(session.started_at).getTime()) / 1000)
+    )
+    const totalActiveSeconds = Math.min(
+      TUTOR_QUOTA_SECONDS,
+      persistedActiveSeconds + elapsedSeconds
+    )
+    const remainingSeconds = Math.max(0, TUTOR_QUOTA_SECONDS - totalActiveSeconds)
 
-    const usageRows = await sql`
-      SELECT COALESCE(total_active_seconds, 0)::bigint AS total
-      FROM tutor_usage
-      WHERE user_id = ${userId}
-    `
-    const totalBefore = Number((usageRows[0] as { total: string | bigint } | undefined)?.total ?? 0)
-
-    if (totalBefore >= TUTOR_QUOTA_SECONDS) {
+    if (remainingSeconds <= 0) {
+      await finalizeSessionById(sql, userId, sessionId, 'quota')
       return NextResponse.json(
         {
           ok: false,
@@ -75,44 +64,14 @@ export async function POST(request: Request) {
         { status: 403 }
       )
     }
-
-    const remaining = TUTOR_QUOTA_SECONDS - totalBefore
-    const apply = Math.min(delta, remaining)
-
-    if (apply <= 0) {
-      return NextResponse.json(
-        {
-          ok: false,
-          code: 'QUOTA_EXCEEDED',
-          quotaExceeded: true,
-          message: 'Your tutoring time limit has been reached.',
-          remainingSeconds: 0,
-          quotaSeconds: TUTOR_QUOTA_SECONDS,
-        },
-        { status: 403 }
-      )
-    }
-
-    await sql`
-      UPDATE tutor_sessions
-      SET active_seconds = active_seconds + ${apply}
-      WHERE id = ${sessionId}::uuid AND user_id = ${userId} AND ended_at IS NULL
-    `
-
-    await sql`
-      UPDATE tutor_usage
-      SET total_active_seconds = total_active_seconds + ${apply}, updated_at = NOW()
-      WHERE user_id = ${userId}
-    `
-
-    const newTotal = totalBefore + apply
 
     return NextResponse.json({
       ok: true,
-      appliedSeconds: apply,
-      totalActiveSeconds: newTotal,
-      remainingSeconds: Math.max(0, TUTOR_QUOTA_SECONDS - newTotal),
+      appliedSeconds: 0,
+      totalActiveSeconds,
+      remainingSeconds,
       quotaSeconds: TUTOR_QUOTA_SECONDS,
+      sessionActiveSeconds: elapsedSeconds,
     })
   } catch (e) {
     console.error('[tutor/usage/tick]', e)
