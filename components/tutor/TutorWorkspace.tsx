@@ -141,8 +141,24 @@ const LAB_TOOL_RECIPES = [
     prompt: 'A student says 1/2 + 1/3 = 2/5. Diagnose the misconception and guide them with a visual.',
   },
   {
+    label: 'Simplify fraction',
+    prompt: 'Simplify 18/24, explain the common factor idea, and ask me one question before moving on.',
+  },
+  {
+    label: 'Percent of number',
+    prompt: 'Find 30% of 60 using the deterministic percent tool, then show a percent bar.',
+  },
+  {
     label: 'Ratio line',
     prompt: 'Use a double number line for 3 notebooks costing $12 and help find the cost of 7 notebooks.',
+  },
+  {
+    label: 'Unit rate',
+    prompt: 'Find the unit rate for 3 notebooks costing $12, then use a double number line for 7 notebooks.',
+  },
+  {
+    label: 'Word plan',
+    prompt: 'Plan this word problem before solving: A recipe uses 3 cups of flour for 12 muffins. How many cups are needed for 20 muffins?',
   },
   {
     label: 'Graph',
