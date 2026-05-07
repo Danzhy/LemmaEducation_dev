@@ -1,0 +1,153 @@
+import {
+  angleDiagramScene,
+  areaPerimeterModelScene,
+  arrayModelScene,
+  barModelScene,
+  dataDisplayScene,
+  decimalGridScene,
+  equationBalanceScene,
+  factorTreeScene,
+  fractionCompareScene,
+  fractionOperationScene,
+  fractionStripScene,
+  graphFunction,
+  integerChipsScene,
+  longDivisionScene,
+  mathCheckAnswer,
+  numberLineScene,
+  orderOfOperationsScene,
+  placeValueChartScene,
+  plotPointsOnPlane,
+  probabilityModelScene,
+  ratioTableScene,
+  slopeTriangleScene,
+  statisticsSummaryScene,
+  tableOfValues,
+  unitConversionScene,
+} from '../lib/voice-agent/math-engine'
+
+type SmokeCase = {
+  name: string
+  run: () => unknown
+}
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message)
+  }
+}
+
+function assertCanvasResult(name: string, result: unknown) {
+  assert(result && typeof result === 'object', `${name} did not return an object.`)
+  const maybeResult = result as { canvasActions?: unknown }
+  assert(Array.isArray(maybeResult.canvasActions), `${name} did not return canvasActions.`)
+  assert(maybeResult.canvasActions.length > 0, `${name} returned no canvas actions.`)
+}
+
+const smokeCases: SmokeCase[] = [
+  {
+    name: 'graph_function',
+    run: () => graphFunction({ expression: 'x^2-4', showXIntercepts: true, showYIntercept: true, showVertex: true }),
+  },
+  {
+    name: 'plot_points_on_plane',
+    run: () => plotPointsOnPlane({ points: [{ x: 0, y: 1 }, { x: 2, y: 5 }], connectPoints: true }),
+  },
+  {
+    name: 'table_of_values',
+    run: () => tableOfValues({ expression: '2*x+1', xValues: [0, 1, 2] }),
+  },
+  {
+    name: 'number_line',
+    run: () => numberLineScene({ start: -5, end: 5, highlightValues: [-3, 2], hopPairs: [{ from: -3, to: 2 }] }),
+  },
+  {
+    name: 'fraction_strip',
+    run: () => fractionStripScene({ numerator: 5, denominator: 4 }),
+  },
+  {
+    name: 'fraction_compare',
+    run: () => fractionCompareScene({ leftNumerator: 3, leftDenominator: 4, rightNumerator: 5, rightDenominator: 8 }),
+  },
+  {
+    name: 'fraction_operation',
+    run: () => fractionOperationScene({ operation: 'add', leftNumerator: 2, leftDenominator: 3, rightNumerator: 1, rightDenominator: 4 }),
+  },
+  {
+    name: 'decimal_grid',
+    run: () => decimalGridScene({ shadedParts: 37, totalParts: 100 }),
+  },
+  {
+    name: 'array_model',
+    run: () => arrayModelScene({ rows: 4, columns: 6 }),
+  },
+  {
+    name: 'long_division',
+    run: () => longDivisionScene({ dividend: 847, divisor: 6 }),
+  },
+  {
+    name: 'integer_chips',
+    run: () => integerChipsScene({ positiveCount: 5, negativeCount: 3 }),
+  },
+  {
+    name: 'ratio_table',
+    run: () => ratioTableScene({ leftLabel: 'cups', rightLabel: 'people', rows: [{ left: 2, right: 4 }, { left: 3, right: 6 }] }),
+  },
+  {
+    name: 'data_display',
+    run: () => dataDisplayScene({ displayType: 'bar_chart', data: [{ label: 'A', value: 4 }, { label: 'B', value: 7 }] }),
+  },
+  {
+    name: 'statistics_summary',
+    run: () => statisticsSummaryScene({ values: [4, 7, 3, 7, 9] }),
+  },
+  {
+    name: 'probability_model',
+    run: () => probabilityModelScene({ favorableOutcomes: 3, totalOutcomes: 8 }),
+  },
+  {
+    name: 'unit_conversion',
+    run: () => unitConversionScene({ value: 2.5, fromUnit: 'm', toUnit: 'cm', measurementType: 'length' }),
+  },
+  {
+    name: 'bar_model',
+    run: () => barModelScene({ bars: [{ label: 'Total', segments: [{ label: 'Known', value: 5, shaded: true }, { label: '?', value: 7, shaded: false }] }] }),
+  },
+  {
+    name: 'place_value_chart',
+    run: () => placeValueChartScene({ columns: ['ones', 'tenths', 'hundredths'], rows: [{ label: '3.47', values: [3, 4, 7] }] }),
+  },
+  {
+    name: 'factor_tree',
+    run: () => factorTreeScene({ value: 84 }),
+  },
+  {
+    name: 'area_perimeter_model',
+    run: () => areaPerimeterModelScene({ widthUnits: 7, heightUnits: 4, unitLabel: 'cm' }),
+  },
+  {
+    name: 'order_of_operations',
+    run: () => orderOfOperationsScene({ expression: '3+4*2' }),
+  },
+  {
+    name: 'slope_triangle',
+    run: () => slopeTriangleScene({ pointA: { x: 1, y: 2 }, pointB: { x: 5, y: 6 } }),
+  },
+  {
+    name: 'angle_diagram',
+    run: () => angleDiagramScene({ degrees: 75 }),
+  },
+  {
+    name: 'equation_balance',
+    run: () => equationBalanceScene({ leftExpression: 'x+3', rightExpression: '10' }),
+  },
+]
+
+for (const smokeCase of smokeCases) {
+  assertCanvasResult(smokeCase.name, smokeCase.run())
+}
+
+const correctAnswer = mathCheckAnswer({ problemExpression: '3/4+2/3', studentAnswer: '17/12' })
+assert(correctAnswer.verdict === 'correct', 'math_check_answer should mark 17/12 as correct.')
+
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 1} checks).`)
