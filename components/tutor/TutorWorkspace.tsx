@@ -145,6 +145,18 @@ const LAB_TOOL_RECIPES = [
     prompt: 'Simplify 18/24, explain the common factor idea, and ask me one question before moving on.',
   },
   {
+    label: 'Common denominator',
+    prompt: 'Find a common denominator for 1/2 and 1/3, then use a fraction visual to explain why it helps.',
+  },
+  {
+    label: 'Decimal compare',
+    prompt: 'Compare 0.8 and 0.75 using place value. Do not just say the answer.',
+  },
+  {
+    label: 'Round number',
+    prompt: 'Round 8,649 to the nearest hundred and explain which digit decides the direction.',
+  },
+  {
     label: 'Percent of number',
     prompt: 'Find 30% of 60 using the deterministic percent tool, then show a percent bar.',
   },
