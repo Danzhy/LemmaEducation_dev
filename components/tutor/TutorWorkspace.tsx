@@ -199,6 +199,36 @@ function summarizeToolValue(value: unknown) {
   return null
 }
 
+function getToolEventCallId(toolEvent: TutorToolEvent) {
+  const callId = toolEvent.metadata?.callId
+  return typeof callId === 'string' && callId.trim() ? callId : null
+}
+
+function collapseToolEvents(toolEvents: TutorToolEvent[]) {
+  const collapsed: TutorToolEvent[] = []
+  const indexByCall = new Map<string, number>()
+
+  toolEvents.forEach((toolEvent) => {
+    const callId = getToolEventCallId(toolEvent)
+    if (!callId || toolEvent.type === 'canvas_action') {
+      collapsed.push(toolEvent)
+      return
+    }
+
+    const key = `${toolEvent.toolName}:${callId}`
+    const existingIndex = indexByCall.get(key)
+    if (existingIndex === undefined) {
+      indexByCall.set(key, collapsed.length)
+      collapsed.push(toolEvent)
+      return
+    }
+
+    collapsed[existingIndex] = toolEvent
+  })
+
+  return collapsed
+}
+
 type TutorWorkspaceProps = {
   mode: 'stable' | 'agent-lab'
   error: string | null
@@ -548,7 +578,7 @@ export default function TutorWorkspace({
   const supportsLiveMic = session.supportsLiveMic ?? true
   const isTypedLabSession = mode === 'agent-lab' && session.connectionMode === 'typed'
   const latestToolEvents = useMemo(
-    () => (mode === 'agent-lab' ? session.toolEvents.slice(-4).reverse() : []),
+    () => (mode === 'agent-lab' ? collapseToolEvents(session.toolEvents).slice(-4).reverse() : []),
     [mode, session.toolEvents]
   )
 
