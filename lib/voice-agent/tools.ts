@@ -16,6 +16,7 @@ import {
   factorTreeScene,
   fractionCompareScene,
   fractionOperationScene,
+  fractionSimplify,
   fractionStripScene,
   geometryFigure,
   graphFunction,
@@ -33,6 +34,7 @@ import {
   plotPointsOnPlane,
   practiceSetGenerator,
   percentBarScene,
+  percentOfNumber,
   probabilityModelScene,
   ratioTableScene,
   socraticMovePlanner,
@@ -40,6 +42,7 @@ import {
   solveLinearOnCanvas,
   statisticsSummaryScene,
   tableOfValues,
+  unitRate,
   unitConversionScene,
   wordProblemPlan,
   writeOnCanvas,
@@ -366,6 +369,70 @@ export function createVoiceAgentTools() {
       async execute(input) {
         const params = input as { problem: string }
         return stringifyResult(mathSolveLinear(params.problem))
+      },
+    }),
+    tool({
+      name: 'fraction_simplify',
+      description:
+        'Simplify a fraction exactly and return its decimal and mixed-number form when useful. Use for fraction reduction or equivalent fraction checks.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          numerator: { type: 'number' },
+          denominator: { type: 'number' },
+        },
+        required: ['numerator', 'denominator'],
+      },
+      async execute(input) {
+        const params = input as { numerator: number; denominator: number }
+        return stringifyResult(fractionSimplify(params))
+      },
+    }),
+    tool({
+      name: 'percent_of_number',
+      description:
+        'Compute a percent of a whole with a simple schema. Use this instead of mental arithmetic for percent-of-number, discount, tax, or tip reasoning.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          percent: { type: 'number' },
+          whole: { type: 'number' },
+        },
+        required: ['percent', 'whole'],
+      },
+      async execute(input) {
+        const params = input as { percent: number; whole: number }
+        return stringifyResult(percentOfNumber(params))
+      },
+    }),
+    tool({
+      name: 'unit_rate',
+      description:
+        'Compute the value per 1 unit for ratio and rate problems. Use before explaining costs per item, speed, price, or constant rate.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          quantity: { type: 'number' },
+          value: { type: 'number' },
+          quantityLabel: { type: 'string' },
+          valueLabel: { type: 'string' },
+        },
+        required: ['quantity', 'value'],
+      },
+      async execute(input) {
+        const params = input as {
+          quantity: number
+          value: number
+          quantityLabel?: string
+          valueLabel?: string
+        }
+        return stringifyResult(unitRate(params))
       },
     }),
     tool({

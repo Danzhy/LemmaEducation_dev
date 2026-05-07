@@ -132,3 +132,32 @@ export type SocraticMoveResult = {
   askThis: string
   waitFor: string
 }
+
+export type FractionSimplifyResult = {
+  original: string
+  simplified: string
+  decimal: number
+  mixedNumber: string | null
+  explanation: string
+  suggestedQuestion: string
+}
+
+export type PercentOfNumberResult = {
+  percent: number
+  whole: number
+  part: number
+  equation: string
+  fractionForm: string
+  suggestedTool: 'percent_bar'
+  suggestedQuestion: string
+}
+
+export type UnitRateResult = {
+  quantity: number
+  value: number
+  ratePerOne: number
+  rateLabel: string
+  equation: string
+  suggestedTool: 'double_number_line' | 'ratio_table'
+  suggestedQuestion: string
+}

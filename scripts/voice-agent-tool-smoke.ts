@@ -13,6 +13,7 @@ import {
   factorTreeScene,
   fractionCompareScene,
   fractionOperationScene,
+  fractionSimplify,
   fractionStripScene,
   graphFunction,
   integerChipsScene,
@@ -25,12 +26,14 @@ import {
   plotPointsOnPlane,
   practiceSetGenerator,
   percentBarScene,
+  percentOfNumber,
   probabilityModelScene,
   ratioTableScene,
   socraticMovePlanner,
   slopeTriangleScene,
   statisticsSummaryScene,
   tableOfValues,
+  unitRate,
   unitConversionScene,
   wordProblemPlan,
 } from '../lib/voice-agent/math-engine'
@@ -202,4 +205,13 @@ assert(
   'socratic_move_planner should recommend misconception_diagnosis when student work is present.'
 )
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 6} checks).`)
+const simplifiedFraction = fractionSimplify({ numerator: 18, denominator: 24 })
+assert(simplifiedFraction.simplified === '3/4', 'fraction_simplify should reduce 18/24 to 3/4.')
+
+const percentResult = percentOfNumber({ percent: 30, whole: 60 })
+assert(percentResult.part === 18, 'percent_of_number should compute 30% of 60 as 18.')
+
+const rate = unitRate({ quantity: 3, value: 12, quantityLabel: 'notebook', valueLabel: 'dollars' })
+assert(rate.ratePerOne === 4, 'unit_rate should compute 12 dollars for 3 notebooks as 4 per notebook.')
+
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 9} checks).`)

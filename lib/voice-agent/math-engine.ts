@@ -16,6 +16,9 @@ import type {
   ValueTableResult,
   SocraticMoveResult,
   WordProblemPlanResult,
+  FractionSimplifyResult,
+  PercentOfNumberResult,
+  UnitRateResult,
 } from '@/lib/voice-agent/types'
 import type {
   TutorCanvasAction,
@@ -3959,6 +3962,88 @@ function leastCommonMultiple(a: number, b: number) {
 function formatFraction(numerator: number, denominator: number) {
   if (denominator === 1) return String(numerator)
   return `${numerator}/${denominator}`
+}
+
+export function fractionSimplify(input: {
+  numerator: number
+  denominator: number
+}): FractionSimplifyResult {
+  const numerator = Math.trunc(coerceFiniteNumber(input.numerator))
+  const denominator = Math.trunc(coerceFiniteNumber(input.denominator))
+  if (denominator === 0) {
+    throw new Error('A fraction denominator cannot be 0.')
+  }
+
+  const sign = denominator < 0 ? -1 : 1
+  const normalizedNumerator = numerator * sign
+  const normalizedDenominator = Math.abs(denominator)
+  const simplified = simplifyFractionParts(normalizedNumerator, normalizedDenominator)
+  const whole = Math.trunc(simplified.numerator / simplified.denominator)
+  const remainder = Math.abs(simplified.numerator % simplified.denominator)
+  const mixedNumber =
+    Math.abs(simplified.numerator) > simplified.denominator && remainder > 0
+      ? `${whole} ${remainder}/${simplified.denominator}`
+      : null
+
+  return {
+    original: formatFraction(normalizedNumerator, normalizedDenominator),
+    simplified: formatFraction(simplified.numerator, simplified.denominator),
+    decimal: roundPoint(normalizedNumerator / normalizedDenominator, 6),
+    mixedNumber,
+    explanation:
+      'Divide the numerator and denominator by their greatest common factor so the fraction keeps the same value.',
+    suggestedQuestion: 'What common factor can divide both the numerator and denominator?',
+  }
+}
+
+export function percentOfNumber(input: {
+  percent: number
+  whole: number
+}): PercentOfNumberResult {
+  const percent = coerceFiniteNumber(input.percent)
+  const whole = coerceFiniteNumber(input.whole)
+  const part = (percent / 100) * whole
+  const percentText = String(percent)
+  const decimalPlaces = percentText.includes('.') ? percentText.split('.')[1]?.length ?? 0 : 0
+  const scale = 10 ** Math.min(decimalPlaces, 6)
+  const simplifiedPercentFraction = simplifyFractionParts(Math.round(percent * scale), 100 * scale)
+
+  return {
+    percent,
+    whole,
+    part: roundPoint(part, 6),
+    equation: `${formatNumber(percent)}% of ${formatNumber(whole)} = ${formatNumber(part, 4)}`,
+    fractionForm: formatFraction(simplifiedPercentFraction.numerator, simplifiedPercentFraction.denominator),
+    suggestedTool: 'percent_bar',
+    suggestedQuestion: `What does ${formatNumber(percent)}% mean out of 100?`,
+  }
+}
+
+export function unitRate(input: {
+  quantity: number
+  value: number
+  quantityLabel?: string
+  valueLabel?: string
+}): UnitRateResult {
+  const quantity = coerceFiniteNumber(input.quantity)
+  const value = coerceFiniteNumber(input.value)
+  if (isNearlyEqual(quantity, 0)) {
+    throw new Error('Unit rate needs a nonzero quantity.')
+  }
+
+  const quantityLabel = input.quantityLabel?.trim() || 'unit'
+  const valueLabel = input.valueLabel?.trim() || 'value'
+  const ratePerOne = value / quantity
+
+  return {
+    quantity,
+    value,
+    ratePerOne: roundPoint(ratePerOne, 6),
+    rateLabel: `${formatNumber(ratePerOne, 4)} ${formatUnitLabel(valueLabel, ratePerOne)} per ${quantityLabel}`,
+    equation: `${formatNumber(value, 4)} ÷ ${formatNumber(quantity, 4)} = ${formatNumber(ratePerOne, 4)}`,
+    suggestedTool: 'double_number_line',
+    suggestedQuestion: `If ${formatNumber(quantity)} ${formatUnitLabel(quantityLabel, quantity)} match ${formatNumber(value)} ${formatUnitLabel(valueLabel, value)}, what matches 1 ${quantityLabel}?`,
+  }
 }
 
 export function fractionCompareScene(input: {
