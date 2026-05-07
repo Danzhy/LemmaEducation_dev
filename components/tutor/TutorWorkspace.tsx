@@ -207,6 +207,9 @@ function summarizeToolValue(value: unknown) {
     if (typeof record.rateLabel === 'string') return record.rateLabel
     if (typeof record.simplified === 'string') return `Simplified: ${record.simplified}`
     if (typeof record.likelyOperation === 'string') return `Plan: ${record.likelyOperation}`
+    if (typeof record.rounded === 'number') return `Rounded: ${record.rounded}`
+    if (typeof record.commonDenominator === 'number') return `Common denominator: ${record.commonDenominator}`
+    if (typeof record.comparison === 'string') return `Comparison: ${record.comparison.replace(/_/g, ' ')}`
     if (typeof record.suggestedQuestion === 'string') return record.suggestedQuestion
     if (Array.isArray(record.canvasActions)) {
       return `${record.canvasActions.length} board action${record.canvasActions.length === 1 ? '' : 's'} ready`
