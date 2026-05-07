@@ -1,0 +1,100 @@
+import type { TutorCanvasAction } from '@/lib/tutor/session-adapter'
+
+export type MathStepCheckResult = {
+  verdict: 'valid' | 'invalid' | 'unclear'
+  reason: string
+  hintTarget: string
+}
+
+export type LinearSolveResult = {
+  variable: string
+  solution: number
+  steps: string[]
+}
+
+export type LinearCanvasResult = {
+  title: string
+  spokenSummary: string
+  suggestedQuestion: string
+  mathExpressions: string[]
+  textLines: string[]
+  canvasActions: TutorCanvasAction[]
+}
+
+export type CanvasWriteResult = {
+  title: string
+  textLines: string[]
+  mathExpressions: string[]
+  canvasActions: TutorCanvasAction[]
+}
+
+export type CanvasActionResult = {
+  summary: string
+  canvasActions: TutorCanvasAction[]
+}
+
+export type GraphFeaturePoint = {
+  x: number
+  y: number
+  canvasX: number
+  canvasY: number
+  label: string
+}
+
+export type GraphFeatureCoordinates = {
+  xIntercepts: GraphFeaturePoint[]
+  yIntercept: GraphFeaturePoint | null
+  vertex: GraphFeaturePoint | null
+  axisOfSymmetryX: number | null
+}
+
+export type GraphFunctionResult = {
+  expression: string
+  domain: [number, number]
+  yDomain: [number, number]
+  points: Array<{ x: number; y: number }>
+  features: string[]
+  noteLines: string[]
+  featureCoordinates: GraphFeatureCoordinates
+  canvasActions: TutorCanvasAction[]
+}
+
+export type GraphAnnotationResult = {
+  expression: string
+  domain: [number, number]
+  yDomain: [number, number]
+  requestedFeatures: Array<'x-intercepts' | 'y-intercept' | 'vertex' | 'axis-of-symmetry'>
+  featureCoordinates: GraphFeatureCoordinates
+  canvasActions: TutorCanvasAction[]
+  summary: string
+}
+
+export type GeometryFigureResult = {
+  figureType: 'triangle' | 'rectangle' | 'axes'
+  summary: string
+  canvasActions: TutorCanvasAction[]
+}
+
+export type ValueTableResult = {
+  expression: string
+  rows: Array<{ x: number; y: number }>
+  summary: string
+  canvasActions: TutorCanvasAction[]
+}
+
+export type PlotPointsResult = {
+  summary: string
+  points: Array<{ x: number; y: number }>
+  domain: {
+    x: [number, number]
+    y: [number, number]
+  }
+  noteLines: string[]
+  canvasActions: TutorCanvasAction[]
+}
+
+export type HintGeneratorResult = {
+  hintTarget: string
+  why: string
+  suggestedQuestion: string
+}

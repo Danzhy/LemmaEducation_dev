@@ -64,6 +64,21 @@ function formatMessageSource(source: string | null) {
   }
 }
 
+function formatToolEventLabel(eventType: string) {
+  switch (eventType) {
+    case 'tool_started':
+      return 'Tool started'
+    case 'tool_completed':
+      return 'Tool completed'
+    case 'tool_failed':
+      return 'Tool failed'
+    case 'canvas_action':
+      return 'Canvas action'
+    default:
+      return eventType.replace(/_/g, ' ')
+  }
+}
+
 export default async function DashboardSessionDetailPage({
   params,
 }: {
@@ -221,13 +236,50 @@ export default async function DashboardSessionDetailPage({
 
             <section className="rounded-[30px] border border-[#D8E4DF] bg-white/84 px-5 py-5 shadow-[0_22px_60px_-46px_rgba(15,41,34,0.45)] md:px-6">
               <div className="border-b border-[#E2EBE7] pb-4">
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Tool activity</p>
+                <h2 className="mt-2 text-[1.45rem] font-light tracking-[-0.03em] text-[#0F2922] serif">
+                  Structured tutor actions
+                </h2>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {session.toolEvents.length === 0 ? (
+                  <div className="rounded-[22px] border border-dashed border-[#D5E1DD] bg-[#F8FBF9] px-4 py-6 text-sm leading-relaxed text-[#5C7069]">
+                    No lab tool activity was saved for this session.
+                  </div>
+                ) : (
+                  session.toolEvents.map((toolEvent) => (
+                    <div
+                      key={toolEvent.id}
+                      className="rounded-[22px] border border-[#DCE7E2] bg-[#FCFDFC] px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-[#6B7F79]">
+                        <span>{formatToolEventLabel(toolEvent.eventType)}</span>
+                        <span>{toolEvent.toolName}</span>
+                        <span>{formatMessageTime(toolEvent.createdAt)}</span>
+                      </div>
+                      {toolEvent.output ? (
+                        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-[#41544E]">
+                          {JSON.stringify(toolEvent.output, null, 2)}
+                        </pre>
+                      ) : (
+                        <p className="mt-3 text-sm text-[#5C7069]">No output payload saved.</p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-[30px] border border-[#D8E4DF] bg-white/84 px-5 py-5 shadow-[0_22px_60px_-46px_rgba(15,41,34,0.45)] md:px-6">
+              <div className="border-b border-[#E2EBE7] pb-4">
                 <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Session notes</p>
                 <h2 className="mt-2 text-[1.45rem] font-light tracking-[-0.03em] text-[#0F2922] serif">
                   What was saved
                 </h2>
               </div>
               <div className="mt-5 space-y-3 text-sm leading-relaxed text-[#4D625C]">
-                <p>This session stores the transcript, practice time, math level, language, and the latest saved board image.</p>
+                <p>This session stores the transcript, practice time, math level, language, the latest saved board image, and any saved tool activity from the agent lab.</p>
                 <p>Authorized teachers and parents can review the same saved record without changing the student workspace itself.</p>
                 {ownerUserId !== userId ? (
                   <p>Review access is logged so students can see when saved work is opened by a teacher or parent.</p>

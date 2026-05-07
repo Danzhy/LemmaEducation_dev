@@ -32,6 +32,17 @@ type MessageRow = {
   created_at: Date | string
 }
 
+type ToolEventRow = {
+  id: string
+  event_type: string
+  tool_name: string
+  status: string
+  input_json: unknown
+  output_json: unknown
+  metadata_json: unknown
+  created_at: Date | string
+}
+
 export type TutorSessionListItem = {
   id: string
   startedAt: Date
@@ -54,6 +65,16 @@ export type TutorSessionDetail = TutorSessionListItem & {
     role: 'user' | 'assistant'
     content: string
     source: string | null
+    createdAt: Date
+  }>
+  toolEvents: Array<{
+    id: string
+    eventType: string
+    toolName: string
+    status: string
+    input: unknown
+    output: unknown
+    metadata: unknown
     createdAt: Date
   }>
   canvasSnapshot: {
@@ -199,6 +220,14 @@ export async function getTutorSessionDetailForUser(userId: string, sessionId: st
     LIMIT 1
   `
 
+  const toolEventRows = await sql`
+    SELECT id, event_type, tool_name, status, input_json, output_json, metadata_json, created_at
+    FROM tutor_tool_events
+    WHERE user_id = ${userId}
+      AND session_id = ${sessionId}::uuid
+    ORDER BY created_at ASC, id ASC
+  `
+
   const artifact = artifactRows[0] as ArtifactRow | undefined
 
   return {
@@ -208,6 +237,16 @@ export async function getTutorSessionDetailForUser(userId: string, sessionId: st
       role: row.role,
       content: row.content,
       source: row.source,
+      createdAt: asDate(row.created_at)!,
+    })),
+    toolEvents: (toolEventRows as ToolEventRow[]).map((row) => ({
+      id: row.id,
+      eventType: row.event_type,
+      toolName: row.tool_name,
+      status: row.status,
+      input: row.input_json,
+      output: row.output_json,
+      metadata: row.metadata_json,
       createdAt: asDate(row.created_at)!,
     })),
     canvasSnapshot: artifact

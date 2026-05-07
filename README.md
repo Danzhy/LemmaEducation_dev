@@ -12,6 +12,7 @@ Lemma is an educational platform that captures the complete picture of a student
 - **Interactive Demo** - Experience the difference with our live demo
 - **Saved Session Review** - Revisit transcripts and board snapshots after each tutor session
 - **Role-Based Access** - Separate student, teacher, and parent dashboards with scoped visibility
+- **Voice Agent Lab** - Hidden `/tutor-agent-lab` route for testing a tool-enabled realtime tutor
 
 ## Pilot Readiness
 
@@ -26,10 +27,11 @@ The dev app now includes the core guardrails needed for a limited pilot with rea
 - **Pilot tutor limits** of up to 4 sessions per student, with each session capped at 1 hour
 - **Automatic inactivity pause** after 5 minutes without activity
 - **Server-backed tutor API rate limits** to reduce abuse and accidental spend
+- **Tool activity logging** so experimental agent tool calls can be reviewed alongside saved sessions
 
 ## Tech Stack
 
-- **Next.js 14** - React framework with App Router
+- **Next.js 16** - React framework with App Router
 - **TypeScript** - Type-safe development
 - **Tailwind CSS** - Utility-first styling
 - **Canvas API** - Animated background effects
@@ -83,7 +85,7 @@ This updates the `public.waitlist_signups` table with the extra waitlist fields 
 
 ### Tutor / Dashboard Migrations
 
-If you are setting up a fresh pilot database, apply the tutor migrations in `migrations/` so the role dashboards, session history, and pilot guardrails are available.
+If you are setting up a fresh pilot database, apply the tutor migrations in `migrations/` so the role dashboards, session history, pilot guardrails, and voice-agent tool logging are available.
 
 ## Project Structure
 

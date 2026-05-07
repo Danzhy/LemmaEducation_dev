@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { AuthProvider } from '@/app/auth-provider'
 
 export const metadata: Metadata = {
   title: 'Lemma Education | AI Math Tutor That Listens',
@@ -20,9 +19,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
-        <AuthProvider>{children}</AuthProvider>
-      </body>
+      <body>{children}</body>
     </html>
   )
 }

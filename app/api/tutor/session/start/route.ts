@@ -69,17 +69,24 @@ export async function POST(request: Request) {
     }
 
     const sessionId = randomUUID()
-    const modelSnapshot = getModelSnapshot()
     let language = 'en'
     let gradeLevel = ''
+    let modelSnapshot = getModelSnapshot()
 
     try {
-      const body = (await request.json()) as { language?: unknown; gradeLevel?: unknown }
+      const body = (await request.json()) as {
+        language?: unknown
+        gradeLevel?: unknown
+        modelSnapshot?: unknown
+      }
       if (typeof body.language === 'string' && body.language.trim()) {
         language = body.language.trim().slice(0, 16)
       }
       if (typeof body.gradeLevel === 'string' && body.gradeLevel.trim()) {
         gradeLevel = body.gradeLevel.trim().slice(0, 40)
+      }
+      if (typeof body.modelSnapshot === 'string' && body.modelSnapshot.trim()) {
+        modelSnapshot = body.modelSnapshot.trim().slice(0, 80)
       }
     } catch {
       // Empty body is allowed; defaults above remain.

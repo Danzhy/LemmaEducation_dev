@@ -16,8 +16,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TutorState } from '@/components/TutorAvatar'
 import { TUTOR_INACTIVITY_PAUSE_SECONDS } from '@/lib/tutor/constants'
-
-export type TutorUserMessageSource = 'text' | 'text_with_image' | 'image_only' | 'speech'
+import type {
+  TutorChatMessage,
+  TutorCanvasAction,
+  TutorConnectOptions,
+  TutorSessionAdapter,
+  TutorToolEvent,
+  TutorUserMessageSource,
+} from '@/lib/tutor/session-adapter'
 
 type UseRealtimeTutorOptions = {
   /** Called with user-friendly message (raw error logged to console) */
@@ -51,7 +57,7 @@ export function useRealtimeTutor({
   onSpeechStarted,
   onUserMessageLogged,
   onAssistantFinalized,
-}: UseRealtimeTutorOptions = {}) {
+}: UseRealtimeTutorOptions = {}): TutorSessionAdapter {
   const onUserMessageLoggedRef = useRef(onUserMessageLogged)
   const onAssistantFinalizedRef = useRef(onAssistantFinalized)
   onUserMessageLoggedRef.current = onUserMessageLogged
@@ -65,7 +71,9 @@ export function useRealtimeTutor({
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [currentUserTranscript, setCurrentUserTranscript] = useState<string>('')
   const [transcript, setTranscript] = useState<string>('')
-  const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
+  const [chatHistory, setChatHistory] = useState<TutorChatMessage[]>([])
+  const [toolEvents] = useState<TutorToolEvent[]>([])
+  const [pendingCanvasActions] = useState<TutorCanvasAction[]>([])
   const transcriptRef = useRef<string>('')
   const currentUserTranscriptRef = useRef<string>('')
   const pendingInputAudioItemIdRef = useRef<string | null>(null)
@@ -193,7 +201,7 @@ export function useRealtimeTutor({
    * 4. POST SDP offer directly to OpenAI (avoids server timeout)
    * 5. Set remote description with OpenAI's SDP answer
    */
-  const connect = useCallback(async (options?: { language?: string; gradeLevel?: string }) => {
+  const connect = useCallback(async (options?: TutorConnectOptions) => {
     let startedSessionId: string | null = null
     try {
       setChatHistory([])
@@ -493,7 +501,10 @@ export function useRealtimeTutor({
           }
 
           if (completedTranscript) {
-            setChatHistory((prev) => [...prev, { role: 'user', content: completedTranscript }])
+            setChatHistory((prev) => [
+              ...prev,
+              { role: 'user', content: completedTranscript, source: 'speech' },
+            ])
             onUserMessageLoggedRef.current?.({ content: completedTranscript, source: 'speech' })
           }
           break
@@ -530,7 +541,7 @@ export function useRealtimeTutor({
         case 'response.done': {
           const content = transcriptRef.current.trim()
           if (content) {
-            setChatHistory((prev) => [...prev, { role: 'assistant', content }])
+            setChatHistory((prev) => [...prev, { role: 'assistant', content, source: 'assistant' }])
             onAssistantFinalizedRef.current?.(content)
           }
           isResponseActiveRef.current = false
@@ -542,7 +553,7 @@ export function useRealtimeTutor({
         case 'response.cancelled': {
           const content = transcriptRef.current.trim()
           if (content) {
-            setChatHistory((prev) => [...prev, { role: 'assistant', content }])
+            setChatHistory((prev) => [...prev, { role: 'assistant', content, source: 'assistant' }])
             onAssistantFinalizedRef.current?.(content)
           }
           isResponseActiveRef.current = false
@@ -579,7 +590,7 @@ export function useRealtimeTutor({
     if (!dc || dc.readyState !== 'open') return
 
     registerLocalActivity(false)
-    setChatHistory((prev) => [...prev, { role: 'user', content: text }])
+    setChatHistory((prev) => [...prev, { role: 'user', content: text, source: 'text' }])
     onUserMessageLoggedRef.current?.({ content: text, source: 'text' })
     dc.send(
       JSON.stringify({
@@ -605,7 +616,7 @@ export function useRealtimeTutor({
     if (!dc || dc.readyState !== 'open') return
 
     registerLocalActivity(false)
-    setChatHistory((prev) => [...prev, { role: 'user', content: '[Sent an image]' }])
+    setChatHistory((prev) => [...prev, { role: 'user', content: '[Sent an image]', source: 'image_only' }])
     onUserMessageLoggedRef.current?.({ content: '[Sent an image]', source: 'image_only' })
     const format = mimeType.replace('image/', '')
     dc.send(
@@ -638,7 +649,7 @@ export function useRealtimeTutor({
       if (!dc || dc.readyState !== 'open') return
 
       registerLocalActivity(false)
-      setChatHistory((prev) => [...prev, { role: 'user', content: text }])
+      setChatHistory((prev) => [...prev, { role: 'user', content: text, source: 'text_with_image' }])
       onUserMessageLoggedRef.current?.({ content: text, source: 'text_with_image' })
       const format = mimeType.replace('image/', '')
       dc.send(
@@ -834,9 +845,13 @@ export function useRealtimeTutor({
     lastPauseReason,
     isMuted,
     isSpeakerMuted,
+    supportsLiveMic: true,
+    connectionMode: 'voice',
     currentUserTranscript,
     transcript,
     chatHistory,
+    toolEvents,
+    pendingCanvasActions,
     connect,
     disconnect,
     sendText,
@@ -850,5 +865,6 @@ export function useRealtimeTutor({
     resume,
     muteSpeaker,
     unmuteSpeaker,
+    acknowledgeCanvasAction: () => {},
   }
 }
