@@ -131,6 +131,51 @@ function EndIcon(props: SVGProps<SVGSVGElement>) {
 
 const GRADE_LEVEL_OPTIONS = ['Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7']
 
+function formatToolName(name: string) {
+  return name.replace(/_/g, ' ')
+}
+
+function formatToolEventStatus(type: TutorToolEvent['type']) {
+  if (type === 'tool_started') return 'running'
+  if (type === 'tool_failed') return 'failed'
+  if (type === 'canvas_action') return 'board'
+  return 'done'
+}
+
+function getToolEventTone(type: TutorToolEvent['type']) {
+  if (type === 'tool_failed') return 'border-[#E8C6C0] bg-[#FFF4F1] text-[#8B3A2E]'
+  if (type === 'canvas_action') return 'border-[#BFD6CF] bg-[#EDF6F3] text-[#16423C]'
+  if (type === 'tool_started') return 'border-[#D6E0DC] bg-white/72 text-[#5C7069]'
+  return 'border-[#D6E0DC] bg-white/78 text-[#3F524C]'
+}
+
+function summarizeToolValue(value: unknown) {
+  if (value == null) return null
+
+  if (typeof value === 'string') {
+    return value.length > 92 ? `${value.slice(0, 89)}...` : value
+  }
+
+  if (Array.isArray(value)) {
+    return `${value.length} board action${value.length === 1 ? '' : 's'} queued`
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    if (typeof record.summary === 'string') return record.summary
+    if (typeof record.spokenSummary === 'string') return record.spokenSummary
+    if (typeof record.suggestedQuestion === 'string') return record.suggestedQuestion
+    if (Array.isArray(record.canvasActions)) {
+      return `${record.canvasActions.length} board action${record.canvasActions.length === 1 ? '' : 's'} ready`
+    }
+    if (typeof record.reason === 'string') return record.reason
+    if (typeof record.hintTarget === 'string') return `Hint target: ${record.hintTarget}`
+    if (typeof record.title === 'string') return record.title
+  }
+
+  return null
+}
+
 type TutorWorkspaceProps = {
   mode: 'stable' | 'agent-lab'
   error: string | null
@@ -479,6 +524,10 @@ export default function TutorWorkspace({
   const showCanvasStreamControl = session.isConnected || isTutorialOpen
   const supportsLiveMic = session.supportsLiveMic ?? true
   const isTypedLabSession = mode === 'agent-lab' && session.connectionMode === 'typed'
+  const latestToolEvents = useMemo(
+    () => (mode === 'agent-lab' ? session.toolEvents.slice(-4).reverse() : []),
+    [mode, session.toolEvents]
+  )
 
   const tutorialSteps = useMemo<TutorialStep[]>(
     () => [
@@ -806,6 +855,44 @@ export default function TutorWorkspace({
                       {error}
                     </div>
                   )}
+
+                  {mode === 'agent-lab' && latestToolEvents.length > 0 ? (
+                    <div className="mb-3 rounded-[22px] border border-[#DCE7E2] bg-white/64 px-4 py-3">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">
+                          Tool trace
+                        </p>
+                        <span className="text-[11px] text-[#7A8C86]">latest {latestToolEvents.length}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {latestToolEvents.map((toolEvent) => {
+                          const summary =
+                            summarizeToolValue(toolEvent.output) ?? summarizeToolValue(toolEvent.input)
+
+                          return (
+                            <div
+                              key={toolEvent.id}
+                              className={`rounded-[16px] border px-3 py-2 ${getToolEventTone(toolEvent.type)}`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="truncate text-[12px] font-medium capitalize">
+                                  {formatToolName(toolEvent.toolName)}
+                                </p>
+                                <span className="shrink-0 text-[10px] uppercase tracking-[0.16em] opacity-75">
+                                  {formatToolEventStatus(toolEvent.type)}
+                                </span>
+                              </div>
+                              {summary ? (
+                                <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed opacity-80">
+                                  {summary}
+                                </p>
+                              ) : null}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <TutorChatWindow
                     messages={session.chatHistory}
