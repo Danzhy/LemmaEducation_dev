@@ -1,0 +1,83 @@
+import { readFileSync } from 'node:fs'
+import { createVoiceAgentTools } from '../lib/voice-agent/tools'
+
+type ToolLike = {
+  name?: unknown
+  description?: unknown
+  strict?: unknown
+  parameters?: {
+    type?: unknown
+    additionalProperties?: unknown
+    properties?: Record<string, unknown>
+    required?: unknown
+  }
+}
+
+const REQUIRED_TOOL_NAMES = [
+  'curriculum_coach',
+  'socratic_move_planner',
+  'word_problem_plan',
+  'misconception_diagnosis',
+  'practice_set_generator',
+  'math_calculate',
+  'math_check_step',
+  'math_check_answer',
+  'math_solve_linear',
+  'graph_function',
+  'percent_bar',
+  'double_number_line',
+  'fraction_operation',
+  'coordinate_distance',
+  'write_on_canvas',
+] as const
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message)
+  }
+}
+
+function getToolName(tool: ToolLike) {
+  assert(typeof tool.name === 'string' && tool.name.length > 0, 'Every tool needs a name.')
+  return tool.name
+}
+
+const tools = createVoiceAgentTools() as ToolLike[]
+const names = tools.map(getToolName)
+const uniqueNames = new Set(names)
+
+assert(tools.length >= 40, `Expected a broad grade 3 to 7 tool suite. Found only ${tools.length} tools.`)
+assert(uniqueNames.size === names.length, 'Voice agent tool names must be unique.')
+
+for (const requiredTool of REQUIRED_TOOL_NAMES) {
+  assert(uniqueNames.has(requiredTool), `Missing required voice agent tool: ${requiredTool}`)
+}
+
+for (const tool of tools) {
+  const name = getToolName(tool)
+  assert(/^[a-z][a-z0-9_]*$/.test(name), `Tool name must be snake_case: ${name}`)
+  assert(tool.strict === true, `${name} must use strict schema mode.`)
+  assert(
+    typeof tool.description === 'string' && tool.description.trim().length >= 32,
+    `${name} needs a useful description for tool routing.`
+  )
+  assert(tool.parameters?.type === 'object', `${name} parameters must be an object schema.`)
+  assert(tool.parameters.additionalProperties === false, `${name} must reject extra top-level fields.`)
+  assert(tool.parameters.properties && typeof tool.parameters.properties === 'object', `${name} must define properties.`)
+
+  const propertyNames = Object.keys(tool.parameters.properties)
+  const required = Array.isArray(tool.parameters.required) ? tool.parameters.required : []
+  for (const propertyName of propertyNames) {
+    assert(required.includes(propertyName), `${name}.${propertyName} must be required in strict mode.`)
+  }
+}
+
+const instructionSource = readFileSync(new URL('../app/api/voice-agent/session/route.ts', import.meta.url), 'utf8')
+for (const toolName of names) {
+  assert(
+    instructionSource.includes(toolName),
+    `Lab instructions should mention ${toolName} so routing stays discoverable.`
+  )
+}
+
+console.log(`Voice agent tool registry check passed (${tools.length} tools).`)
