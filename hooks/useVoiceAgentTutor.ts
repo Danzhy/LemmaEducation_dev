@@ -24,6 +24,7 @@ type UseVoiceAgentTutorOptions = {
 
 const CANVAS_CONTEXT_MARKER = 'LEMMA_CANVAS_CONTEXT'
 const MAX_TOOL_EVENTS = 80
+const MAX_PENDING_CANVAS_ACTIONS = 160
 
 const CANVAS_COLORS = [
   'black',
@@ -845,7 +846,10 @@ export function useVoiceAgentTutor({
           const actions = extractCanvasActionsFromToolResult(toolDef.name, parsedResult)
           if (actions.length > 0) {
             const shouldReplaceQueue = actions.some((action) => action.type === 'clear_tool_layer')
-            setPendingCanvasActions((prev) => (shouldReplaceQueue ? actions : [...prev, ...actions]))
+            setPendingCanvasActions((prev) => {
+              const nextActions = shouldReplaceQueue ? actions : [...prev, ...actions]
+              return nextActions.slice(-MAX_PENDING_CANVAS_ACTIONS)
+            })
             appendToolEvent({
               type: 'canvas_action',
               toolName: toolDef.name,
