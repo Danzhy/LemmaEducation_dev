@@ -29,6 +29,24 @@ The dev app now includes the core guardrails needed for a limited pilot with rea
 - **Server-backed tutor API rate limits** to reduce abuse and accidental spend
 - **Tool activity logging** so experimental agent tool calls can be reviewed alongside saved sessions
 
+## Voice Agent Lab
+
+The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched while testing a tool-enabled realtime tutor. The lab currently includes:
+
+- A shared tutor workspace with typed or microphone startup
+- Structured canvas actions for graphs, fraction models, number lines, ratios, percents, geometry, data, and short board notes
+- Deterministic math tools for calculation checks, linear equations, fraction simplification, common denominators, percent-of-number, unit rates, rounding, and decimal comparison
+- Tutoring planner tools for word problems, misconceptions, curriculum moves, Socratic next steps, and targeted practice
+- A lab-only tool trace and recipe chips for fast local QA
+
+Run the voice-agent checks with:
+
+```bash
+npm run test:voice-agent
+```
+
+This runs smoke checks, registry/schema checks, and curriculum coverage checks for the experimental tool suite.
+
 ## Tech Stack
 
 - **Next.js 16** - React framework with App Router
