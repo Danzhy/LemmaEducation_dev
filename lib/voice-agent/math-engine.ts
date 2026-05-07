@@ -103,6 +103,19 @@ function formatPercent(value: number) {
   return `${formatNumber(value, 1)}%`
 }
 
+function formatUnitLabel(unitLabel: string, count: number) {
+  const unit = unitLabel.trim() || 'unit'
+  if (isNearlyEqual(count, 1)) return unit
+  if (/^(mm|cm|m|km|g|kg|ml|mL|L)$/i.test(unit) || unit.endsWith('s')) return unit
+  return `${unit}s`
+}
+
+function formatSquareUnitLabel(unitLabel: string) {
+  const unit = unitLabel.trim() || 'unit'
+  if (/^(mm|cm|m|km)$/i.test(unit)) return `square ${unit}`
+  return `square ${formatUnitLabel(unit, 2)}`
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
@@ -4097,11 +4110,11 @@ export function areaPerimeterModelScene(input: {
       dash: 'solid',
       size: 'm',
     }),
-    textLabel(x + rectWidth / 2 - 70, y + rectHeight + 20, `${widthUnits} ${unitLabel}${widthUnits === 1 ? '' : 's'}`, {
+    textLabel(x + rectWidth / 2 - 70, y + rectHeight + 20, `${widthUnits} ${formatUnitLabel(unitLabel, widthUnits)}`, {
       width: 140,
       color: 'green',
     }),
-    textLabel(x + rectWidth + 18, y + rectHeight / 2 - 14, `${heightUnits} ${unitLabel}${heightUnits === 1 ? '' : 's'}`, {
+    textLabel(x + rectWidth + 18, y + rectHeight / 2 - 14, `${heightUnits} ${formatUnitLabel(unitLabel, heightUnits)}`, {
       width: 150,
       color: 'green',
     }),
@@ -4146,8 +4159,8 @@ export function areaPerimeterModelScene(input: {
       NOTE_FRAME.x + 16,
       NOTE_FRAME.y + 52,
       [
-        `Area = ${widthUnits} x ${heightUnits} = ${area} square ${unitLabel}s.`,
-        `Perimeter = 2(${widthUnits} + ${heightUnits}) = ${perimeter} ${unitLabel}s.`,
+        `Area = ${widthUnits} x ${heightUnits} = ${area} ${formatSquareUnitLabel(unitLabel)}.`,
+        `Perimeter = 2(${widthUnits} + ${heightUnits}) = ${perimeter} ${formatUnitLabel(unitLabel, perimeter)}.`,
       ],
       {
         width: NOTE_FRAME.width - 32,
@@ -5187,7 +5200,7 @@ export function compositeAreaModelScene(input: {
       NOTE_FRAME.y + 52,
       [
         ...pieces.slice(0, 4).map((piece, index) => `Part ${index + 1}: ${piece.widthUnits} x ${piece.heightUnits} = ${piece.widthUnits * piece.heightUnits}`),
-        `Total area: ${totalArea} square ${unitLabel}s`,
+        `Total area: ${totalArea} ${formatSquareUnitLabel(unitLabel)}`,
       ],
       {
         width: NOTE_FRAME.width - 32,
@@ -5199,7 +5212,7 @@ export function compositeAreaModelScene(input: {
   )
 
   return {
-    summary: `Prepared a composite area model with total area ${totalArea} square ${unitLabel}s.`,
+    summary: `Prepared a composite area model with total area ${totalArea} ${formatSquareUnitLabel(unitLabel)}.`,
     canvasActions: actions,
   }
 }

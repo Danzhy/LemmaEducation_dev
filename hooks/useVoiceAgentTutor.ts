@@ -405,6 +405,24 @@ function createSilentMediaStream() {
   }
 }
 
+function withConnectionTimeout<T>(promise: Promise<T>, timeoutMs = 30000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error('Connection timed out. Please try again.'))
+    }, timeoutMs)
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timeoutId)
+        resolve(value)
+      })
+      .catch((error) => {
+        window.clearTimeout(timeoutId)
+        reject(error)
+      })
+  })
+}
+
 export function useVoiceAgentTutor({
   onError,
 }: UseVoiceAgentTutorOptions = {}): TutorSessionAdapter {
@@ -862,10 +880,12 @@ export function useVoiceAgentTutor({
           setState('idle')
         })
 
-        await session.connect({
-          apiKey: voiceAgentData.value,
-          model: voiceAgentData.model,
-        })
+        await withConnectionTimeout(
+          session.connect({
+            apiKey: voiceAgentData.value,
+            model: voiceAgentData.model,
+          })
+        )
 
         if (audioMode === 'silent') {
           session.mute(true)

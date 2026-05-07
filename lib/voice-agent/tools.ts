@@ -1321,31 +1321,28 @@ export function createVoiceAgentTools() {
     tool({
       name: 'percent_bar',
       description:
-        'Create a percent bar for part-whole percent reasoning, discounts, tax, tips, percent of a number, or decimal-percent connections.',
+        'Create a percent bar for part-whole percent reasoning, discounts, tax, tips, percent of a number, or decimal-percent connections. Pass plain numeric part and total values. For a direct percent like 35%, pass part 35 and total 100.',
       strict: true,
       parameters: {
         type: 'object',
         additionalProperties: false,
         properties: {
-          percent: { type: 'number' },
           part: { type: 'number' },
           total: { type: 'number' },
           title: { type: 'string' },
           label: { type: 'string' },
         },
-        required: [],
+        required: ['part', 'total'],
       },
       async execute(input) {
         const params = input as {
-          percent?: number
-          part?: number
-          total?: number
+          part: number
+          total: number
           title?: string
           label?: string
         }
         return stringifyResult(
           percentBarScene({
-            percent: params.percent,
             part: params.part,
             total: params.total,
             title: params.title,
