@@ -292,7 +292,7 @@ export default function TutorWorkspace({
   const embeddedBoardRef = useRef<EmbeddedBoardRef>(null)
   const lastSentCanvasHashRef = useRef<string | null>(null)
   const lastPersistedChatLengthRef = useRef(0)
-  const lastPersistedToolEventLengthRef = useRef(0)
+  const persistedToolEventIdsRef = useRef<Set<string>>(new Set())
   const previousUserTranscriptRef = useRef('')
   const toolShapeIdsRef = useRef<Set<string>>(new Set())
 
@@ -419,7 +419,7 @@ export default function TutorWorkspace({
   useEffect(() => {
     if (!session.currentSessionId) {
       lastPersistedChatLengthRef.current = 0
-      lastPersistedToolEventLengthRef.current = 0
+      persistedToolEventIdsRef.current.clear()
       return
     }
 
@@ -442,15 +442,17 @@ export default function TutorWorkspace({
 
   useEffect(() => {
     if (mode !== 'agent-lab' || !session.currentSessionId) {
-      lastPersistedToolEventLengthRef.current = 0
+      persistedToolEventIdsRef.current.clear()
       return
     }
 
-    if (session.toolEvents.length <= lastPersistedToolEventLengthRef.current) return
+    const nextEvents = session.toolEvents.filter(
+      (toolEvent) => !persistedToolEventIdsRef.current.has(toolEvent.id)
+    )
+    if (nextEvents.length === 0) return
 
-    const nextEvents = session.toolEvents.slice(lastPersistedToolEventLengthRef.current)
-    lastPersistedToolEventLengthRef.current = session.toolEvents.length
     nextEvents.forEach((toolEvent) => {
+      persistedToolEventIdsRef.current.add(toolEvent.id)
       void persistToolEvent(toolEvent)
     })
   }, [mode, persistToolEvent, session.currentSessionId, session.toolEvents])
