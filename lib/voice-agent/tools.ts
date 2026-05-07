@@ -11,6 +11,7 @@ import {
   equationBalanceScene,
   factorTreeScene,
   fractionCompareScene,
+  fractionOperationScene,
   fractionStripScene,
   geometryFigure,
   graphFunction,
@@ -22,12 +23,16 @@ import {
   mathCheckStep,
   mathSolveLinear,
   numberLineScene,
+  orderOfOperationsScene,
   placeValueChartScene,
   plotPointsOnPlane,
+  probabilityModelScene,
   ratioTableScene,
   slopeTriangleScene,
   solveLinearOnCanvas,
+  statisticsSummaryScene,
   tableOfValues,
+  unitConversionScene,
   writeOnCanvas,
 } from '@/lib/voice-agent/math-engine'
 
@@ -1030,6 +1035,45 @@ export function createVoiceAgentTools() {
       },
     }),
     tool({
+      name: 'fraction_operation',
+      description:
+        'Create structured fraction operation work for addition, subtraction, multiplication, or division. Use for common denominators, simplifying results, and explaining fraction computation without mental arithmetic.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          operation: { type: 'string', enum: ['add', 'subtract', 'multiply', 'divide'] },
+          leftNumerator: { type: 'number' },
+          leftDenominator: { type: 'number' },
+          rightNumerator: { type: 'number' },
+          rightDenominator: { type: 'number' },
+          title: { type: 'string' },
+        },
+        required: ['operation', 'leftNumerator', 'leftDenominator', 'rightNumerator', 'rightDenominator'],
+      },
+      async execute(input) {
+        const params = input as {
+          operation: 'add' | 'subtract' | 'multiply' | 'divide'
+          leftNumerator: number
+          leftDenominator: number
+          rightNumerator: number
+          rightDenominator: number
+          title?: string
+        }
+        return stringifyResult(
+          fractionOperationScene({
+            operation: params.operation,
+            leftNumerator: params.leftNumerator,
+            leftDenominator: params.leftDenominator,
+            rightNumerator: params.rightNumerator,
+            rightDenominator: params.rightDenominator,
+            title: params.title,
+          })
+        )
+      },
+    }),
+    tool({
       name: 'area_perimeter_model',
       description:
         'Create a rectangle model with unit squares plus area and perimeter facts. Use for area, perimeter, tiling, rectangles, and measurement word problems.',
@@ -1061,6 +1105,135 @@ export function createVoiceAgentTools() {
             unitLabel: params.unitLabel,
             title: params.title,
             showUnitSquares: params.showUnitSquares,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'statistics_summary',
+      description:
+        'Create a dot-plot style data summary with mean, median, mode, and range. Use for grades 5 to 7 statistics, data sets, and interpreting distributions.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          values: {
+            type: 'array',
+            items: { type: 'number' },
+          },
+          title: { type: 'string' },
+        },
+        required: ['values'],
+      },
+      async execute(input) {
+        const params = input as { values: number[]; title?: string }
+        return stringifyResult(
+          statisticsSummaryScene({
+            values: params.values,
+            title: params.title,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'unit_conversion',
+      description:
+        'Create a clear unit conversion setup. Use for metric length, mass, capacity, and time conversions in grades 3 to 7.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          value: { type: 'number' },
+          fromUnit: {
+            type: 'string',
+            enum: ['mm', 'cm', 'm', 'km', 'g', 'kg', 'mL', 'L', 'seconds', 'minutes', 'hours'],
+          },
+          toUnit: {
+            type: 'string',
+            enum: ['mm', 'cm', 'm', 'km', 'g', 'kg', 'mL', 'L', 'seconds', 'minutes', 'hours'],
+          },
+          measurementType: {
+            type: 'string',
+            enum: ['length', 'mass', 'capacity', 'time'],
+          },
+          title: { type: 'string' },
+        },
+        required: ['value', 'fromUnit', 'toUnit', 'measurementType'],
+      },
+      async execute(input) {
+        const params = input as {
+          value: number
+          fromUnit: string
+          toUnit: string
+          measurementType: 'length' | 'mass' | 'capacity' | 'time'
+          title?: string
+        }
+        return stringifyResult(
+          unitConversionScene({
+            value: params.value,
+            fromUnit: params.fromUnit,
+            toUnit: params.toUnit,
+            measurementType: params.measurementType,
+            title: params.title,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'probability_model',
+      description:
+        'Create a probability bar model from favorable and total outcomes. Use for simple probability, fractions, decimals, and percentages.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          favorableOutcomes: { type: 'number' },
+          totalOutcomes: { type: 'number' },
+          title: { type: 'string' },
+          label: { type: 'string' },
+        },
+        required: ['favorableOutcomes', 'totalOutcomes'],
+      },
+      async execute(input) {
+        const params = input as {
+          favorableOutcomes: number
+          totalOutcomes: number
+          title?: string
+          label?: string
+        }
+        return stringifyResult(
+          probabilityModelScene({
+            favorableOutcomes: params.favorableOutcomes,
+            totalOutcomes: params.totalOutcomes,
+            title: params.title,
+            label: params.label,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'order_of_operations',
+      description:
+        'Create a concise order-of-operations board note for a numeric expression. Use for PEMDAS, arithmetic expressions, and checking operation order.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          expression: { type: 'string' },
+          title: { type: 'string' },
+        },
+        required: ['expression'],
+      },
+      async execute(input) {
+        const params = input as { expression: string; title?: string }
+        return stringifyResult(
+          orderOfOperationsScene({
+            expression: params.expression,
+            title: params.title,
           })
         )
       },

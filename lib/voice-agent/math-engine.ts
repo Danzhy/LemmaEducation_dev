@@ -3933,6 +3933,19 @@ function simplifyFractionParts(numerator: number, denominator: number) {
   }
 }
 
+function greatestCommonDivisor(a: number, b: number): number {
+  return b === 0 ? Math.abs(a) : greatestCommonDivisor(b, a % b)
+}
+
+function leastCommonMultiple(a: number, b: number) {
+  return Math.abs(a * b) / (greatestCommonDivisor(a, b) || 1)
+}
+
+function formatFraction(numerator: number, denominator: number) {
+  if (denominator === 1) return String(numerator)
+  return `${numerator}/${denominator}`
+}
+
 export function fractionCompareScene(input: {
   leftNumerator: number
   leftDenominator: number
@@ -4242,6 +4255,391 @@ export function slopeTriangleScene(input: {
 
   return {
     summary: `Prepared a slope triangle with rise ${formatNumber(rise)}, run ${formatNumber(run)}, and slope ${slopeText}.`,
+    canvasActions: actions,
+  }
+}
+
+export function fractionOperationScene(input: {
+  operation: 'add' | 'subtract' | 'multiply' | 'divide'
+  leftNumerator: number
+  leftDenominator: number
+  rightNumerator: number
+  rightDenominator: number
+  title?: string
+}): CanvasActionResult {
+  const leftNumerator = Math.trunc(input.leftNumerator)
+  const leftDenominator = Math.trunc(input.leftDenominator)
+  const rightNumerator = Math.trunc(input.rightNumerator)
+  const rightDenominator = Math.trunc(input.rightDenominator)
+
+  if (
+    leftDenominator <= 0 ||
+    rightDenominator <= 0 ||
+    leftDenominator > 24 ||
+    rightDenominator > 24 ||
+    !['add', 'subtract', 'multiply', 'divide'].includes(input.operation)
+  ) {
+    throw new Error('Fraction operation supports denominators from 1 to 24.')
+  }
+  if (input.operation === 'divide' && rightNumerator === 0) {
+    throw new Error('Cannot divide by zero.')
+  }
+
+  const operator = input.operation === 'add' ? '+' : input.operation === 'subtract' ? '-' : input.operation === 'multiply' ? 'x' : '÷'
+  let resultNumerator: number
+  let resultDenominator: number
+  let stepLines: string[]
+
+  if (input.operation === 'add' || input.operation === 'subtract') {
+    const commonDenominator = leastCommonMultiple(leftDenominator, rightDenominator)
+    const leftScaled = leftNumerator * (commonDenominator / leftDenominator)
+    const rightScaled = rightNumerator * (commonDenominator / rightDenominator)
+    resultNumerator = input.operation === 'add' ? leftScaled + rightScaled : leftScaled - rightScaled
+    resultDenominator = commonDenominator
+    stepLines = [
+      `Common denominator: ${commonDenominator}`,
+      `${formatFraction(leftNumerator, leftDenominator)} = ${formatFraction(leftScaled, commonDenominator)}`,
+      `${formatFraction(rightNumerator, rightDenominator)} = ${formatFraction(rightScaled, commonDenominator)}`,
+    ]
+  } else if (input.operation === 'multiply') {
+    resultNumerator = leftNumerator * rightNumerator
+    resultDenominator = leftDenominator * rightDenominator
+    stepLines = [
+      'Multiply numerators.',
+      'Multiply denominators.',
+      `${leftNumerator} x ${rightNumerator} over ${leftDenominator} x ${rightDenominator}`,
+    ]
+  } else {
+    resultNumerator = leftNumerator * rightDenominator
+    resultDenominator = leftDenominator * rightNumerator
+    stepLines = [
+      'Keep the first fraction.',
+      'Change divide to multiply.',
+      `Use the reciprocal ${formatFraction(rightDenominator, rightNumerator)}.`,
+    ]
+  }
+
+  const simplified = simplifyFractionParts(resultNumerator, resultDenominator)
+  const originalExpression = `${formatFraction(leftNumerator, leftDenominator)} ${operator} ${formatFraction(rightNumerator, rightDenominator)}`
+  const resultExpression = `${formatFraction(resultNumerator, resultDenominator)} = ${formatFraction(simplified.numerator, simplified.denominator)}`
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Fraction operation'),
+    textLabel(TOOL_SCENE.x + 48, TOOL_SCENE.y + 70, originalExpression, {
+      width: 360,
+      color: 'green',
+    }),
+    rectangle(TOOL_SCENE.x + 54, TOOL_SCENE.y + 132, 390, 260, {
+      color: 'light-blue',
+      fill: 'semi',
+      opacity: 0.1,
+      dash: 'solid',
+      size: 's',
+    }),
+    ...noteParagraph(TOOL_SCENE.x + 78, TOOL_SCENE.y + 162, stepLines, {
+      width: 336,
+      color: 'black',
+      lineHeight: 34,
+    }),
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Result', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 62, resultExpression, {
+      width: NOTE_FRAME.width - 32,
+      color: 'black',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 112, 'Ask the student to explain the operation before moving on.', {
+      width: NOTE_FRAME.width - 32,
+      color: 'grey',
+    }),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
+  ]
+
+  return {
+    summary: `Prepared fraction ${input.operation} work for ${originalExpression}; result ${formatFraction(simplified.numerator, simplified.denominator)}.`,
+    canvasActions: actions,
+  }
+}
+
+export function orderOfOperationsScene(input: {
+  expression: string
+  title?: string
+}): CanvasActionResult {
+  const expression = normalizeExpression(input.expression)
+  if (!expression || expression.length > 80 || /[a-z]/i.test(expression)) {
+    throw new Error('Order of operations tool supports numeric expressions up to 80 characters.')
+  }
+
+  const result = coerceFiniteNumber(safeEvaluate(expression))
+  const simplified = simplify(expression).toString()
+  const readable = prettifyMathExpression(expression)
+  const hasParentheses = /[()]/.test(expression)
+  const hasMultiplyDivide = /[*\/]/.test(expression)
+  const hasAddSubtract = /[+\-]/.test(expression.replace(/^\-/, ''))
+  const stepLines = [
+    hasParentheses ? '1. Parentheses first.' : '1. No parentheses to simplify first.',
+    hasMultiplyDivide ? '2. Multiply or divide left to right.' : '2. No multiply or divide step needed.',
+    hasAddSubtract ? '3. Add or subtract left to right.' : '3. No final add or subtract step needed.',
+  ]
+
+  return {
+    summary: `Prepared order-of-operations work for ${readable}; result ${formatNumber(result)}.`,
+    canvasActions: buildCanvasWriteActions({
+      title: input.title?.trim() || 'Order of operations',
+      textLines: [...stepLines, `Result: ${formatNumber(result)}`],
+      mathExpressions: [readable, simplified === String(result) ? formatNumber(result) : `${simplified} = ${formatNumber(result)}`],
+      clearExisting: true,
+    }),
+  }
+}
+
+export function statisticsSummaryScene(input: {
+  values: number[]
+  title?: string
+}): CanvasActionResult {
+  const values = input.values
+    .map((value) => coerceFiniteNumber(value))
+    .filter(Number.isFinite)
+    .slice(0, 24)
+
+  if (values.length === 0) {
+    throw new Error('Statistics summary needs at least one value.')
+  }
+
+  const sorted = [...values].sort((a, b) => a - b)
+  const sum = values.reduce((total, value) => total + value, 0)
+  const mean = sum / values.length
+  const median =
+    sorted.length % 2 === 1
+      ? sorted[(sorted.length - 1) / 2]
+      : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+  const counts = new Map<number, number>()
+  sorted.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1))
+  const maxCount = Math.max(...counts.values())
+  const modes = [...counts.entries()]
+    .filter(([, count]) => count === maxCount && maxCount > 1)
+    .map(([value]) => value)
+  const range = sorted[sorted.length - 1] - sorted[0]
+  const lineStart = { x: TOOL_SCENE.x + 84, y: TOOL_SCENE.y + 336 }
+  const lineEnd = { x: TOOL_SCENE.x + 472, y: TOOL_SCENE.y + 336 }
+  const minValue = sorted[0]
+  const maxValue = sorted[sorted.length - 1]
+  const domain: [number, number] = isNearlyEqual(minValue, maxValue)
+    ? [minValue - 1, maxValue + 1]
+    : [minValue, maxValue]
+  const mapValue = (value: number) => mapToRange(value, domain[0], domain[1], lineStart.x, lineEnd.x)
+  const seenStack = new Map<number, number>()
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Statistics summary'),
+    textLabel(TOOL_SCENE.x + 62, TOOL_SCENE.y + 72, `Data: ${values.map((value) => formatNumber(value)).join(', ')}`, {
+      width: 500,
+      color: 'green',
+    }),
+    lineSegment(lineStart, lineEnd, {
+      color: 'blue',
+      size: 'm',
+      dash: 'solid',
+    }),
+    textLabel(lineStart.x - 18, lineStart.y + 22, formatNumber(domain[0]), {
+      width: 58,
+      color: 'grey',
+    }),
+    textLabel(lineEnd.x - 18, lineEnd.y + 22, formatNumber(domain[1]), {
+      width: 58,
+      color: 'grey',
+    }),
+  ]
+
+  sorted.forEach((value) => {
+    const stack = seenStack.get(value) ?? 0
+    seenStack.set(value, stack + 1)
+    actions.push(
+      point(mapValue(value), lineStart.y - 22 - stack * 26, {
+        color: 'green',
+      })
+    )
+  })
+
+  actions.push(
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Summary', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      [
+        `Mean: ${formatNumber(mean)}`,
+        `Median: ${formatNumber(median)}`,
+        `Mode: ${modes.length > 0 ? modes.map((value) => formatNumber(value)).join(', ') : 'none'}`,
+        `Range: ${formatNumber(range)}`,
+      ],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 34,
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: `Prepared statistics summary: mean ${formatNumber(mean)}, median ${formatNumber(median)}, range ${formatNumber(range)}.`,
+    canvasActions: actions,
+  }
+}
+
+const UNIT_FACTORS = {
+  length: {
+    mm: 0.001,
+    cm: 0.01,
+    m: 1,
+    km: 1000,
+  },
+  mass: {
+    g: 1,
+    kg: 1000,
+  },
+  capacity: {
+    mL: 0.001,
+    L: 1,
+  },
+  time: {
+    seconds: 1,
+    minutes: 60,
+    hours: 3600,
+  },
+} as const
+
+export function unitConversionScene(input: {
+  value: number
+  fromUnit: string
+  toUnit: string
+  measurementType: 'length' | 'mass' | 'capacity' | 'time'
+  title?: string
+}): CanvasActionResult {
+  const value = coerceFiniteNumber(input.value)
+  const units = UNIT_FACTORS[input.measurementType]
+  const fromUnit = input.fromUnit.trim() as keyof typeof units
+  const toUnit = input.toUnit.trim() as keyof typeof units
+
+  if (!(fromUnit in units) || !(toUnit in units)) {
+    throw new Error('Unsupported unit conversion for this measurement type.')
+  }
+
+  const baseValue = value * Number(units[fromUnit])
+  const converted = baseValue / Number(units[toUnit])
+  const conversionFactor = Number(units[fromUnit]) / Number(units[toUnit])
+
+  return {
+    summary: `Prepared unit conversion: ${formatNumber(value)} ${String(fromUnit)} = ${formatNumber(converted)} ${String(toUnit)}.`,
+    canvasActions: buildCanvasWriteActions({
+      title: input.title?.trim() || 'Unit conversion',
+      textLines: [
+        `Convert ${formatNumber(value)} ${String(fromUnit)} to ${String(toUnit)}.`,
+        `Conversion factor: ${formatNumber(conversionFactor, 6)}`,
+        `Answer: ${formatNumber(converted, 6)} ${String(toUnit)}`,
+      ],
+      mathExpressions: [`${formatNumber(value)} x ${formatNumber(conversionFactor, 6)} = ${formatNumber(converted, 6)}`],
+      clearExisting: true,
+    }),
+  }
+}
+
+export function probabilityModelScene(input: {
+  favorableOutcomes: number
+  totalOutcomes: number
+  title?: string
+  label?: string
+}): CanvasActionResult {
+  const favorableOutcomes = Math.trunc(input.favorableOutcomes)
+  const totalOutcomes = Math.trunc(input.totalOutcomes)
+
+  if (totalOutcomes <= 0 || totalOutcomes > 100 || favorableOutcomes < 0 || favorableOutcomes > totalOutcomes) {
+    throw new Error('Probability model needs 0 <= favorable outcomes <= total outcomes <= 100.')
+  }
+
+  const simplified = simplifyFractionParts(favorableOutcomes, totalOutcomes)
+  const probability = favorableOutcomes / totalOutcomes
+  const barX = TOOL_SCENE.x + 104
+  const barY = TOOL_SCENE.y + 214
+  const barWidth = 460
+  const barHeight = 62
+  const shadedWidth = totalOutcomes === 0 ? 0 : (favorableOutcomes / totalOutcomes) * barWidth
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Probability model'),
+    textLabel(TOOL_SCENE.x + 62, TOOL_SCENE.y + 72, input.label?.trim() || 'Favorable outcomes out of total outcomes', {
+      width: 470,
+      color: 'green',
+    }),
+    rectangle(barX, barY, barWidth, barHeight, {
+      color: 'blue',
+      fill: 'none',
+      dash: 'solid',
+      size: 'm',
+    }),
+    rectangle(barX, barY, shadedWidth, barHeight, {
+      color: 'green',
+      fill: 'solid',
+      opacity: 0.28,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(barX, barY - 42, `${favorableOutcomes} favorable`, {
+      width: 180,
+      color: 'green',
+    }),
+    textLabel(barX + barWidth - 130, barY + barHeight + 18, `${totalOutcomes} total`, {
+      width: 130,
+      color: 'grey',
+    }),
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Probability', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      [
+        `${favorableOutcomes}/${totalOutcomes} = ${formatFraction(simplified.numerator, simplified.denominator)}`,
+        `Decimal: ${formatNumber(probability, 3)}`,
+        `Percent: ${formatPercent(probability * 100)}`,
+      ],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 34,
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
+  ]
+
+  return {
+    summary: `Prepared probability model for ${favorableOutcomes}/${totalOutcomes}, or ${formatPercent(probability * 100)}.`,
     canvasActions: actions,
   }
 }
