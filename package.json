@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "migrate:waitlist": "node scripts/migrate-waitlist-schema.mjs",
     "test:voice-agent-tools": "tsx scripts/voice-agent-tool-smoke.ts",
-    "test:voice-agent-registry": "tsx scripts/voice-agent-tool-registry-check.ts"
+    "test:voice-agent-registry": "tsx scripts/voice-agent-tool-registry-check.ts",
+    "test:voice-agent-coverage": "tsx scripts/voice-agent-curriculum-coverage.ts"
   },
   "overrides": {
     "brace-expansion": "^1.1.13",
