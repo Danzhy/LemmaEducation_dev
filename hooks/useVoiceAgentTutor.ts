@@ -25,6 +25,7 @@ type UseVoiceAgentTutorOptions = {
 const CANVAS_CONTEXT_MARKER = 'LEMMA_CANVAS_CONTEXT'
 const MAX_TOOL_EVENTS = 80
 const MAX_PENDING_CANVAS_ACTIONS = 160
+const MAX_CANVAS_ACTIONS_PER_TOOL_RESULT = 80
 
 const CANVAS_COLORS = [
   'black',
@@ -318,7 +319,8 @@ function extractCanvasActionsFromToolResult(toolName: string, parsed: any): Tuto
   if (Array.isArray(parsed.canvasActions)) {
     return parsed.canvasActions
       .map((action: Record<string, any>) => buildCanvasActionFromPayload(action.type, action))
-      .filter(Boolean) as TutorCanvasAction[]
+      .filter(Boolean)
+      .slice(0, MAX_CANVAS_ACTIONS_PER_TOOL_RESULT) as TutorCanvasAction[]
   }
 
   if (toolName === 'canvas_action' && typeof parsed.actionType === 'string' && parsed.payload && typeof parsed.payload === 'object') {
