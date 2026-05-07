@@ -5,13 +5,18 @@ import {
   arrayModelScene,
   barModelScene,
   canvasAction,
+  dataDisplayScene,
+  decimalGridScene,
   equationBalanceScene,
   factorTreeScene,
   fractionStripScene,
   geometryFigure,
   graphFunction,
   hintGenerator,
+  integerChipsScene,
+  longDivisionScene,
   mathCalculate,
+  mathCheckAnswer,
   mathCheckStep,
   mathSolveLinear,
   numberLineScene,
@@ -120,6 +125,45 @@ export function createVoiceAgentTools() {
       async execute(input) {
         const params = input as { previousStep: string; nextStep: string }
         return stringifyResult(mathCheckStep(params.previousStep, params.nextStep))
+      },
+    }),
+    tool({
+      name: 'math_check_answer',
+      description:
+        'Deterministically check a student answer for an arithmetic expression or simple linear equation before giving feedback. Use this for answer checks, grading a typed response, or deciding whether to give a next hint.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          problemExpression: {
+            type: 'string',
+            description: 'The expression or equation being answered, such as 3/4+2/3 or 2x+3=11.',
+          },
+          studentAnswer: {
+            type: 'string',
+            description: 'The student answer, such as 17/12, 1.4167, or x=4.',
+          },
+          tolerance: {
+            type: 'number',
+            description: 'Optional numeric tolerance for decimal answers. Use only when appropriate.',
+          },
+        },
+        required: ['problemExpression', 'studentAnswer'],
+      },
+      async execute(input) {
+        const params = input as {
+          problemExpression: string
+          studentAnswer: string
+          tolerance?: number
+        }
+        return stringifyResult(
+          mathCheckAnswer({
+            problemExpression: params.problemExpression,
+            studentAnswer: params.studentAnswer,
+            tolerance: params.tolerance,
+          })
+        )
       },
     }),
     tool({
@@ -802,6 +846,146 @@ export function createVoiceAgentTools() {
           factorTreeScene({
             value: params.value,
             title: params.title,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'long_division',
+      description:
+        'Create a long-division setup and compact step list on the canvas. Use for whole-number division, quotient and remainder reasoning, or helping grades 3 to 7 students see each division step.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          dividend: { type: 'number' },
+          divisor: { type: 'number' },
+          title: { type: 'string' },
+        },
+        required: ['dividend', 'divisor'],
+      },
+      async execute(input) {
+        const params = input as { dividend: number; divisor: number; title?: string }
+        return stringifyResult(
+          longDivisionScene({
+            dividend: params.dividend,
+            divisor: params.divisor,
+            title: params.title,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'decimal_grid',
+      description:
+        'Create a tenths or hundredths grid with shaded parts. Use for decimals, percentages, equivalent fractions, and visualizing values such as 0.37 or 45%.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          shadedParts: {
+            type: 'number',
+            description: 'How many equal parts should be shaded.',
+          },
+          totalParts: {
+            type: 'number',
+            enum: [10, 100],
+            description: 'Use 10 for tenths or 100 for hundredths.',
+          },
+          title: { type: 'string' },
+          label: { type: 'string' },
+        },
+        required: ['shadedParts'],
+      },
+      async execute(input) {
+        const params = input as {
+          shadedParts: number
+          totalParts?: 10 | 100
+          title?: string
+          label?: string
+        }
+        return stringifyResult(
+          decimalGridScene({
+            shadedParts: params.shadedParts,
+            totalParts: params.totalParts,
+            title: params.title,
+            label: params.label,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'data_display',
+      description:
+        'Create a simple bar chart or line plot on the canvas. Use for grade 3 to 7 data, statistics, reading graphs, comparing categories, and describing trends.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          displayType: { type: 'string', enum: ['bar_chart', 'line_plot'] },
+          title: { type: 'string' },
+          data: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                label: { type: 'string' },
+                value: { type: 'number' },
+              },
+              required: ['label', 'value'],
+            },
+          },
+        },
+        required: ['displayType', 'data'],
+      },
+      async execute(input) {
+        const params = input as {
+          displayType: 'bar_chart' | 'line_plot'
+          title?: string
+          data: Array<{ label: string; value: number }>
+        }
+        return stringifyResult(
+          dataDisplayScene({
+            displayType: params.displayType,
+            title: params.title,
+            data: params.data,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'integer_chips',
+      description:
+        'Create positive and negative integer chips on the canvas. Use for adding, subtracting, and comparing integers, especially zero-pair explanations.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          positiveCount: { type: 'number' },
+          negativeCount: { type: 'number' },
+          title: { type: 'string' },
+          expression: { type: 'string' },
+        },
+        required: ['positiveCount', 'negativeCount'],
+      },
+      async execute(input) {
+        const params = input as {
+          positiveCount: number
+          negativeCount: number
+          title?: string
+          expression?: string
+        }
+        return stringifyResult(
+          integerChipsScene({
+            positiveCount: params.positiveCount,
+            negativeCount: params.negativeCount,
+            title: params.title,
+            expression: params.expression,
           })
         )
       },

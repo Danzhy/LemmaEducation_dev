@@ -6,6 +6,16 @@ export type MathStepCheckResult = {
   hintTarget: string
 }
 
+export type MathAnswerCheckResult = {
+  verdict: 'correct' | 'incorrect' | 'unclear'
+  expectedValue?: number
+  studentValue?: number
+  expectedExact?: string
+  reason: string
+  hintTarget: string
+  suggestedQuestion: string
+}
+
 export type LinearSolveResult = {
   variable: string
   solution: number

@@ -10,6 +10,7 @@ import type {
   HintGeneratorResult,
   LinearCanvasResult,
   LinearSolveResult,
+  MathAnswerCheckResult,
   MathStepCheckResult,
   PlotPointsResult,
   ValueTableResult,
@@ -96,6 +97,10 @@ function formatNumber(value: number, digits = 2) {
     return String(Math.round(value))
   }
   return String(roundPoint(value, digits))
+}
+
+function formatPercent(value: number) {
+  return `${formatNumber(value, 1)}%`
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -1623,6 +1628,77 @@ export function mathCalculate(expression: string) {
     exact,
     numeric: roundPoint(numeric),
     explanation: 'This calculation was evaluated with a deterministic math engine.',
+  }
+}
+
+function parseStudentAnswerValue(answer: string) {
+  const normalized = normalizeExpression(answer).replace(/^[a-z]=/i, '')
+  return coerceFiniteNumber(safeEvaluate(normalized))
+}
+
+export function mathCheckAnswer(input: {
+  problemExpression: string
+  studentAnswer: string
+  tolerance?: number
+}): MathAnswerCheckResult {
+  const problemExpression = normalizeExpression(input.problemExpression)
+  const studentAnswer = normalizeExpression(input.studentAnswer)
+  const tolerance = clamp(input.tolerance ?? 1e-6, 1e-9, 0.05)
+
+  if (!problemExpression || !studentAnswer) {
+    return {
+      verdict: 'unclear',
+      reason: 'The problem and the student answer both need to be provided.',
+      hintTarget: 'state the full problem and answer',
+      suggestedQuestion: 'Can you write the full expression and your answer clearly?',
+    }
+  }
+
+  try {
+    if (problemExpression.includes('=')) {
+      const solved = mathSolveLinear(problemExpression)
+      const studentValue = parseStudentAnswerValue(studentAnswer)
+      const correct = isNearlyEqual(studentValue, solved.solution, tolerance)
+
+      return {
+        verdict: correct ? 'correct' : 'incorrect',
+        expectedValue: solved.solution,
+        studentValue: roundPoint(studentValue),
+        expectedExact: `x=${formatNumber(solved.solution)}`,
+        reason: correct
+          ? 'The answer matches the deterministic linear-equation solution.'
+          : `The equation solves to x = ${formatNumber(solved.solution)}, not ${formatNumber(studentValue)}.`,
+        hintTarget: correct ? 'check by substituting' : 'isolate the variable and check signs',
+        suggestedQuestion: correct
+          ? 'Can you substitute your answer back into the original equation to check it?'
+          : 'Which operation should undo the constant or coefficient first?',
+      }
+    }
+
+    const expectedValue = coerceFiniteNumber(safeEvaluate(problemExpression))
+    const studentValue = parseStudentAnswerValue(studentAnswer)
+    const correct = isNearlyEqual(studentValue, expectedValue, tolerance)
+
+    return {
+      verdict: correct ? 'correct' : 'incorrect',
+      expectedValue: roundPoint(expectedValue),
+      studentValue: roundPoint(studentValue),
+      expectedExact: simplify(problemExpression).toString(),
+      reason: correct
+        ? 'The answer matches the deterministic calculation.'
+        : `The expression equals ${formatNumber(expectedValue)}, not ${formatNumber(studentValue)}.`,
+      hintTarget: correct ? 'explain the strategy' : 'recheck the operation order or common denominator',
+      suggestedQuestion: correct
+        ? 'Can you explain the step that made the calculation work?'
+        : 'Which part should we recalculate first to find the mismatch?',
+    }
+  } catch {
+    return {
+      verdict: 'unclear',
+      reason: 'The answer could not be checked reliably with the current deterministic tool.',
+      hintTarget: 'rewrite in a simpler math form',
+      suggestedQuestion: 'Can you rewrite the problem as a clear expression or equation?',
+    }
   }
 }
 
@@ -3473,6 +3549,377 @@ export function factorTreeScene(input: {
 
   return {
     summary: 'Prepared a factor tree on the canvas.',
+    canvasActions: actions,
+  }
+}
+
+function buildLongDivisionStepLines(dividend: number, divisor: number) {
+  const digits = String(dividend)
+    .split('')
+    .map((digit) => Number(digit))
+  const lines: string[] = []
+  let working = 0
+
+  digits.forEach((digit, index) => {
+    working = working * 10 + digit
+    const qDigit = Math.floor(working / divisor)
+    const product = qDigit * divisor
+    const remainder = working - product
+
+    if (qDigit === 0 && lines.length === 0 && index < digits.length - 1) {
+      lines.push(`${working} is less than ${divisor}, so bring down the next digit.`)
+      return
+    }
+
+    lines.push(`${working} ÷ ${divisor} gives ${qDigit}.`)
+    lines.push(`${qDigit} × ${divisor} = ${product}; subtract to get ${remainder}.`)
+    working = remainder
+
+    if (index < digits.length - 1) {
+      lines.push(`Bring down ${digits[index + 1]}.`)
+    }
+  })
+
+  return lines.slice(0, 7)
+}
+
+export function longDivisionScene(input: {
+  dividend: number
+  divisor: number
+  title?: string
+}): CanvasActionResult {
+  const dividend = Math.trunc(input.dividend)
+  const divisor = Math.trunc(input.divisor)
+
+  if (!Number.isFinite(dividend) || dividend < 1 || dividend > 99999) {
+    throw new Error('Long division supports whole-number dividends from 1 to 99999.')
+  }
+  if (!Number.isFinite(divisor) || divisor < 1 || divisor > 999) {
+    throw new Error('Long division supports whole-number divisors from 1 to 999.')
+  }
+
+  const quotient = Math.floor(dividend / divisor)
+  const remainder = dividend % divisor
+  const bracketX = TOOL_SCENE.x + 164
+  const bracketY = TOOL_SCENE.y + 222
+  const bracketWidth = 300
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Long division'),
+    textLabel(TOOL_SCENE.x + 36, TOOL_SCENE.y + 64, `${dividend} ÷ ${divisor}`, {
+      width: 220,
+      color: 'green',
+    }),
+    textLabel(bracketX - 88, bracketY + 8, String(divisor), {
+      width: 72,
+      color: 'black',
+    }),
+    textLabel(bracketX + 26, bracketY + 8, String(dividend), {
+      width: 180,
+      color: 'black',
+    }),
+    textLabel(bracketX + 26, bracketY - 66, String(quotient), {
+      width: 180,
+      color: 'green',
+    }),
+    lineSegment(
+      { x: bracketX, y: bracketY - 18 },
+      { x: bracketX + bracketWidth, y: bracketY - 18 },
+      { color: 'blue', size: 'm', dash: 'solid' }
+    ),
+    lineSegment(
+      { x: bracketX, y: bracketY - 18 },
+      { x: bracketX, y: bracketY + 58 },
+      { color: 'blue', size: 'm', dash: 'solid' }
+    ),
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Steps', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(NOTE_FRAME.x + 16, NOTE_FRAME.y + 52, buildLongDivisionStepLines(dividend, divisor), {
+      width: NOTE_FRAME.width - 32,
+      color: 'black',
+      lineHeight: 28,
+    }),
+    textLabel(
+      bracketX + 26,
+      bracketY + 94,
+      remainder === 0 ? `Answer: ${quotient}` : `Answer: ${quotient} R ${remainder}`,
+      {
+        width: 240,
+        color: 'green',
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
+  ]
+
+  return {
+    summary:
+      remainder === 0
+        ? `Prepared long division for ${dividend} ÷ ${divisor}; quotient ${quotient}.`
+        : `Prepared long division for ${dividend} ÷ ${divisor}; quotient ${quotient} remainder ${remainder}.`,
+    canvasActions: actions,
+  }
+}
+
+export function decimalGridScene(input: {
+  shadedParts: number
+  totalParts?: number
+  title?: string
+  label?: string
+}): CanvasActionResult {
+  const totalParts = input.totalParts === 10 ? 10 : 100
+  const shadedParts = Math.trunc(clamp(input.shadedParts, 0, totalParts))
+  const columns = 10
+  const rows = totalParts === 100 ? 10 : 1
+  const cellSize = totalParts === 100 ? 30 : 42
+  const gridX = TOOL_SCENE.x + 118
+  const gridY = TOOL_SCENE.y + 154
+  const gridWidth = columns * cellSize
+  const gridHeight = rows * cellSize
+  const decimalValue = shadedParts / totalParts
+
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || (totalParts === 100 ? 'Hundredths grid' : 'Tenths grid')),
+    textLabel(
+      gridX,
+      TOOL_SCENE.y + 62,
+      input.label?.trim() ||
+        `${shadedParts}/${totalParts} = ${formatNumber(decimalValue, 2)} = ${formatPercent(decimalValue * 100)}`,
+      {
+        width: 420,
+        color: 'green',
+      }
+    ),
+  ]
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const index = row * columns + column
+      const shaded = index < shadedParts
+      actions.push(
+        rectangle(gridX + column * cellSize, gridY + row * cellSize, cellSize, cellSize, {
+          color: shaded ? 'green' : 'blue',
+          fill: shaded ? 'solid' : 'none',
+          opacity: shaded ? 0.28 : undefined,
+          dash: 'solid',
+          size: 's',
+        })
+      )
+    }
+  }
+
+  actions.push(
+    textLabel(gridX + gridWidth + 34, gridY + Math.max(0, gridHeight / 2 - 38), 'Each small square is one equal part.', {
+      width: 180,
+      color: 'grey',
+    }),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: `Prepared a ${totalParts === 100 ? 'hundredths' : 'tenths'} grid for ${shadedParts}/${totalParts}.`,
+    canvasActions: actions,
+  }
+}
+
+export function dataDisplayScene(input: {
+  displayType: 'bar_chart' | 'line_plot'
+  data: Array<{ label: string; value: number }>
+  title?: string
+}): CanvasActionResult {
+  const data = input.data
+    .slice(0, 8)
+    .map((item) => ({
+      label: item.label.trim().slice(0, 14),
+      value: coerceFiniteNumber(item.value),
+    }))
+    .filter((item) => item.label && Number.isFinite(item.value))
+
+  if (data.length === 0) {
+    throw new Error('Data display needs at least one labeled value.')
+  }
+  if (input.displayType === 'bar_chart' && data.some((item) => item.value < 0)) {
+    throw new Error('Bar charts in this lab need non-negative values.')
+  }
+
+  const chartX = TOOL_SCENE.x + 96
+  const chartY = TOOL_SCENE.y + 138
+  const chartWidth = 530
+  const chartHeight = 300
+  const maxValue = Math.max(1, ...data.map((item) => item.value))
+  const yMax = Math.ceil(maxValue / niceTickStep(maxValue, 4)) * niceTickStep(maxValue, 4)
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || (input.displayType === 'line_plot' ? 'Line plot' : 'Bar chart')),
+    lineSegment({ x: chartX, y: chartY + chartHeight }, { x: chartX + chartWidth, y: chartY + chartHeight }, {
+      color: 'grey',
+      size: 'm',
+      dash: 'solid',
+    }),
+    lineSegment({ x: chartX, y: chartY }, { x: chartX, y: chartY + chartHeight }, {
+      color: 'grey',
+      size: 'm',
+      dash: 'solid',
+    }),
+  ]
+
+  for (const tick of generateTicks(0, yMax, { targetSegments: 4 })) {
+    const y = mapToRange(tick, 0, yMax, chartY + chartHeight, chartY)
+    actions.push(
+      lineSegment({ x: chartX - 6, y }, { x: chartX + chartWidth, y }, {
+        color: tick === 0 ? 'grey' : 'light-blue',
+        size: 's',
+        dash: tick === 0 ? 'solid' : 'dotted',
+      }),
+      textLabel(chartX - 54, y - 12, formatNumber(tick), {
+        width: 42,
+        color: 'grey',
+      })
+    )
+  }
+
+  const slotWidth = chartWidth / data.length
+  if (input.displayType === 'line_plot') {
+    const points = data.map((item, index) => ({
+      x: chartX + slotWidth * index + slotWidth / 2,
+      y: mapToRange(item.value, 0, yMax, chartY + chartHeight, chartY),
+    }))
+    actions.push(polyline(points, { color: 'blue', size: 'm', dash: 'solid' }))
+    points.forEach((canvasPoint, index) => {
+      actions.push(
+        point(canvasPoint.x, canvasPoint.y, {
+          label: formatNumber(data[index].value),
+          color: 'green',
+          labelPosition: 'top',
+          labelWidth: 72,
+        }),
+        textLabel(canvasPoint.x - slotWidth / 2 + 8, chartY + chartHeight + 18, data[index].label, {
+          width: slotWidth - 16,
+          color: 'grey',
+        })
+      )
+    })
+  } else {
+    const barWidth = Math.min(56, slotWidth * 0.64)
+    data.forEach((item, index) => {
+      const barHeight = mapToRange(item.value, 0, yMax, 0, chartHeight)
+      const x = chartX + slotWidth * index + (slotWidth - barWidth) / 2
+      const y = chartY + chartHeight - barHeight
+      actions.push(
+        rectangle(x, y, barWidth, barHeight, {
+          color: 'green',
+          fill: 'solid',
+          opacity: 0.26,
+          dash: 'solid',
+          size: 's',
+        }),
+        textLabel(x - 8, y - 28, formatNumber(item.value), {
+          width: barWidth + 16,
+          color: 'green',
+        }),
+        textLabel(chartX + slotWidth * index + 8, chartY + chartHeight + 18, item.label, {
+          width: slotWidth - 16,
+          color: 'grey',
+        })
+      )
+    })
+  }
+
+  actions.push(
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: `Prepared a ${input.displayType === 'line_plot' ? 'line plot' : 'bar chart'} for ${data.length} values.`,
+    canvasActions: actions,
+  }
+}
+
+export function integerChipsScene(input: {
+  positiveCount: number
+  negativeCount: number
+  title?: string
+  expression?: string
+}): CanvasActionResult {
+  const positiveCount = Math.trunc(clamp(input.positiveCount, 0, 24))
+  const negativeCount = Math.trunc(clamp(input.negativeCount, 0, 24))
+  if (positiveCount + negativeCount === 0) {
+    throw new Error('Integer chips need at least one positive or negative chip.')
+  }
+
+  const chipSize = 42
+  const gap = 12
+  const positivesX = TOOL_SCENE.x + 112
+  const negativesX = TOOL_SCENE.x + 420
+  const startY = TOOL_SCENE.y + 160
+  const value = positiveCount - negativeCount
+  const drawChip = (x: number, y: number, label: string, color: TutorCanvasColor) => [
+    rectangle(x, y, chipSize, chipSize, {
+      color,
+      fill: 'solid',
+      opacity: 0.22,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(x + 12, y + 9, label, {
+      width: 24,
+      color,
+    }),
+  ]
+
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Integer chips'),
+    textLabel(TOOL_SCENE.x + 46, TOOL_SCENE.y + 66, input.expression?.trim() || `${positiveCount} positives and ${negativeCount} negatives`, {
+      width: 460,
+      color: 'green',
+    }),
+    textLabel(positivesX, startY - 42, 'Positive chips', {
+      width: 180,
+      color: 'green',
+    }),
+    textLabel(negativesX, startY - 42, 'Negative chips', {
+      width: 180,
+      color: 'red',
+    }),
+  ]
+
+  Array.from({ length: positiveCount }).forEach((_, index) => {
+    const column = index % 5
+    const row = Math.floor(index / 5)
+    actions.push(...drawChip(positivesX + column * (chipSize + gap), startY + row * (chipSize + gap), '+', 'green'))
+  })
+
+  Array.from({ length: negativeCount }).forEach((_, index) => {
+    const column = index % 5
+    const row = Math.floor(index / 5)
+    actions.push(...drawChip(negativesX + column * (chipSize + gap), startY + row * (chipSize + gap), '-', 'red'))
+  })
+
+  const zeroPairs = Math.min(positiveCount, negativeCount)
+  actions.push(
+    textLabel(TOOL_SCENE.x + 114, TOOL_SCENE.y + 424, `${zeroPairs} zero pair${zeroPairs === 1 ? '' : 's'} can cancel.`, {
+      width: 250,
+      color: 'grey',
+    }),
+    textLabel(TOOL_SCENE.x + 420, TOOL_SCENE.y + 424, `Result: ${formatNumber(value)}`, {
+      width: 210,
+      color: value < 0 ? 'red' : 'green',
+    }),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: `Prepared integer chips with value ${value}.`,
     canvasActions: actions,
   }
 }
