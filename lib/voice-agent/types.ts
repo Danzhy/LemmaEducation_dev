@@ -161,3 +161,33 @@ export type UnitRateResult = {
   suggestedTool: 'double_number_line' | 'ratio_table'
   suggestedQuestion: string
 }
+
+export type DecimalCompareResult = {
+  left: number
+  right: number
+  comparison: 'left_greater' | 'right_greater' | 'equal'
+  explanation: string
+  suggestedTool: 'place_value_chart' | 'decimal_grid'
+  suggestedQuestion: string
+}
+
+export type RoundNumberResult = {
+  value: number
+  place: string
+  rounded: number
+  checkedDigit: number
+  direction: 'up' | 'down'
+  explanation: string
+  suggestedTool: 'number_line' | 'place_value_chart'
+}
+
+export type CommonDenominatorResult = {
+  left: string
+  right: string
+  commonDenominator: number
+  leftEquivalent: string
+  rightEquivalent: string
+  explanation: string
+  suggestedTool: 'fraction_operation' | 'fraction_compare'
+  suggestedQuestion: string
+}

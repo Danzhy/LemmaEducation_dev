@@ -7,10 +7,12 @@ import {
   barModelScene,
   canvasAction,
   compositeAreaModelScene,
+  commonDenominator,
   coordinateDistanceScene,
   curriculumCoach,
   dataDisplayScene,
   decimalGridScene,
+  decimalCompare,
   doubleNumberLineScene,
   equationBalanceScene,
   factorTreeScene,
@@ -37,6 +39,7 @@ import {
   percentOfNumber,
   probabilityModelScene,
   ratioTableScene,
+  roundNumber,
   socraticMovePlanner,
   slopeTriangleScene,
   solveLinearOnCanvas,
@@ -433,6 +436,72 @@ export function createVoiceAgentTools() {
           valueLabel?: string
         }
         return stringifyResult(unitRate(params))
+      },
+    }),
+    tool({
+      name: 'decimal_compare',
+      description:
+        'Compare two decimal numbers by value and return a place-value explanation. Use when a student compares decimals by digit length.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          left: { type: 'number' },
+          right: { type: 'number' },
+        },
+        required: ['left', 'right'],
+      },
+      async execute(input) {
+        const params = input as { left: number; right: number }
+        return stringifyResult(decimalCompare(params))
+      },
+    }),
+    tool({
+      name: 'round_number',
+      description:
+        'Round a number to a named place value such as tens, hundreds, tenths, or hundredths with the checked digit explained.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          value: { type: 'number' },
+          place: { type: 'string' },
+        },
+        required: ['value', 'place'],
+      },
+      async execute(input) {
+        const params = input as { value: number; place: string }
+        return stringifyResult(roundNumber(params))
+      },
+    }),
+    tool({
+      name: 'common_denominator',
+      description:
+        'Find a common denominator and equivalent fractions for comparing, adding, or subtracting two fractions.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          leftNumerator: { type: 'number' },
+          leftDenominator: { type: 'number' },
+          rightNumerator: { type: 'number' },
+          rightDenominator: { type: 'number' },
+          purpose: { type: 'string', enum: ['compare', 'add_subtract'] },
+        },
+        required: ['leftNumerator', 'leftDenominator', 'rightNumerator', 'rightDenominator'],
+      },
+      async execute(input) {
+        const params = input as {
+          leftNumerator: number
+          leftDenominator: number
+          rightNumerator: number
+          rightDenominator: number
+          purpose?: 'compare' | 'add_subtract'
+        }
+        return stringifyResult(commonDenominator(params))
       },
     }),
     tool({

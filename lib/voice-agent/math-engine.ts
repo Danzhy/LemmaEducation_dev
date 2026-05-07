@@ -19,6 +19,9 @@ import type {
   FractionSimplifyResult,
   PercentOfNumberResult,
   UnitRateResult,
+  DecimalCompareResult,
+  RoundNumberResult,
+  CommonDenominatorResult,
 } from '@/lib/voice-agent/types'
 import type {
   TutorCanvasAction,
@@ -4043,6 +4046,132 @@ export function unitRate(input: {
     equation: `${formatNumber(value, 4)} ÷ ${formatNumber(quantity, 4)} = ${formatNumber(ratePerOne, 4)}`,
     suggestedTool: 'double_number_line',
     suggestedQuestion: `If ${formatNumber(quantity)} ${formatUnitLabel(quantityLabel, quantity)} match ${formatNumber(value)} ${formatUnitLabel(valueLabel, value)}, what matches 1 ${quantityLabel}?`,
+  }
+}
+
+export function decimalCompare(input: {
+  left: number
+  right: number
+}): DecimalCompareResult {
+  const left = coerceFiniteNumber(input.left)
+  const right = coerceFiniteNumber(input.right)
+  const comparison = isNearlyEqual(left, right)
+    ? 'equal'
+    : left > right
+      ? 'left_greater'
+      : 'right_greater'
+  const leftText = String(left)
+  const rightText = String(right)
+  const maxDecimalPlaces = Math.max(
+    leftText.includes('.') ? leftText.split('.')[1]?.length ?? 0 : 0,
+    rightText.includes('.') ? rightText.split('.')[1]?.length ?? 0 : 0
+  )
+
+  return {
+    left,
+    right,
+    comparison,
+    explanation:
+      comparison === 'equal'
+        ? `${formatNumber(left)} and ${formatNumber(right)} have the same value when place values are aligned.`
+        : `Align the decimals to ${maxDecimalPlaces} place${maxDecimalPlaces === 1 ? '' : 's'}, then compare from left to right.`,
+    suggestedTool: maxDecimalPlaces <= 2 ? 'decimal_grid' : 'place_value_chart',
+    suggestedQuestion: 'What place value should we compare first?',
+  }
+}
+
+function resolveRoundingFactor(place: string) {
+  const normalized = place.trim().toLowerCase().replace(/[\s_-]+/g, '')
+  const factors: Record<string, number> = {
+    ten: 10,
+    tens: 10,
+    hundred: 100,
+    hundreds: 100,
+    thousand: 1000,
+    thousands: 1000,
+    tenth: 0.1,
+    tenths: 0.1,
+    hundredth: 0.01,
+    hundredths: 0.01,
+    thousandth: 0.001,
+    thousandths: 0.001,
+    one: 1,
+    ones: 1,
+    unit: 1,
+    units: 1,
+  }
+  const factor = factors[normalized]
+  if (!factor) {
+    throw new Error('Unsupported rounding place. Use ones, tens, hundreds, thousands, tenths, hundredths, or thousandths.')
+  }
+  return factor
+}
+
+function getRoundingCheckedDigit(value: number, factor: number) {
+  if (factor >= 1) {
+    return Math.abs(Math.trunc(value / (factor / 10))) % 10
+  }
+  const reciprocal = Math.round(1 / factor)
+  return Math.abs(Math.trunc(value * reciprocal * 10)) % 10
+}
+
+export function roundNumber(input: {
+  value: number
+  place: string
+}): RoundNumberResult {
+  const value = coerceFiniteNumber(input.value)
+  const factor = resolveRoundingFactor(input.place)
+  const rounded =
+    factor >= 1
+      ? Math.round(value / factor) * factor
+      : Math.round(value / factor) * factor
+  const checkedDigit = getRoundingCheckedDigit(value, factor)
+  const direction = Math.abs(rounded) > Math.abs(value) ? 'up' : 'down'
+
+  return {
+    value,
+    place: input.place.trim(),
+    rounded: roundPoint(rounded, 6),
+    checkedDigit,
+    direction,
+    explanation:
+      checkedDigit >= 5
+        ? `The next digit is ${checkedDigit}, so we round up.`
+        : `The next digit is ${checkedDigit}, so we keep the target place and round down.`,
+    suggestedTool: factor >= 1 ? 'number_line' : 'place_value_chart',
+  }
+}
+
+export function commonDenominator(input: {
+  leftNumerator: number
+  leftDenominator: number
+  rightNumerator: number
+  rightDenominator: number
+  purpose?: 'compare' | 'add_subtract'
+}): CommonDenominatorResult {
+  const leftNumerator = Math.trunc(coerceFiniteNumber(input.leftNumerator))
+  const leftDenominator = Math.trunc(coerceFiniteNumber(input.leftDenominator))
+  const rightNumerator = Math.trunc(coerceFiniteNumber(input.rightNumerator))
+  const rightDenominator = Math.trunc(coerceFiniteNumber(input.rightDenominator))
+  if (leftDenominator === 0 || rightDenominator === 0) {
+    throw new Error('Fraction denominators cannot be 0.')
+  }
+
+  const commonDenominator = leastCommonMultiple(Math.abs(leftDenominator), Math.abs(rightDenominator))
+  const leftScale = commonDenominator / Math.abs(leftDenominator)
+  const rightScale = commonDenominator / Math.abs(rightDenominator)
+  const normalizedLeftNumerator = leftDenominator < 0 ? -leftNumerator : leftNumerator
+  const normalizedRightNumerator = rightDenominator < 0 ? -rightNumerator : rightNumerator
+
+  return {
+    left: formatFraction(normalizedLeftNumerator, Math.abs(leftDenominator)),
+    right: formatFraction(normalizedRightNumerator, Math.abs(rightDenominator)),
+    commonDenominator,
+    leftEquivalent: formatFraction(normalizedLeftNumerator * leftScale, commonDenominator),
+    rightEquivalent: formatFraction(normalizedRightNumerator * rightScale, commonDenominator),
+    explanation: `Use ${commonDenominator} because it is a common multiple of both denominators.`,
+    suggestedTool: input.purpose === 'compare' ? 'fraction_compare' : 'fraction_operation',
+    suggestedQuestion: 'What did we multiply each denominator by, and did the numerator get the same multiplier?',
   }
 }
 

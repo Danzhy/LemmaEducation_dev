@@ -3,10 +3,12 @@ import {
   areaPerimeterModelScene,
   arrayModelScene,
   barModelScene,
+  commonDenominator,
   compositeAreaModelScene,
   coordinateDistanceScene,
   curriculumCoach,
   dataDisplayScene,
+  decimalCompare,
   decimalGridScene,
   doubleNumberLineScene,
   equationBalanceScene,
@@ -29,6 +31,7 @@ import {
   percentOfNumber,
   probabilityModelScene,
   ratioTableScene,
+  roundNumber,
   socraticMovePlanner,
   slopeTriangleScene,
   statisticsSummaryScene,
@@ -214,4 +217,21 @@ assert(percentResult.part === 18, 'percent_of_number should compute 30% of 60 as
 const rate = unitRate({ quantity: 3, value: 12, quantityLabel: 'notebook', valueLabel: 'dollars' })
 assert(rate.ratePerOne === 4, 'unit_rate should compute 12 dollars for 3 notebooks as 4 per notebook.')
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 9} checks).`)
+const decimalComparison = decimalCompare({ left: 0.8, right: 0.75 })
+assert(decimalComparison.comparison === 'left_greater', 'decimal_compare should know 0.8 > 0.75.')
+
+const rounded = roundNumber({ value: 8649, place: 'hundreds' })
+assert(rounded.rounded === 8600, 'round_number should round 8649 to 8600 by hundreds.')
+
+const denominatorPlan = commonDenominator({
+  leftNumerator: 1,
+  leftDenominator: 2,
+  rightNumerator: 1,
+  rightDenominator: 3,
+})
+assert(
+  denominatorPlan.leftEquivalent === '3/6' && denominatorPlan.rightEquivalent === '2/6',
+  'common_denominator should convert 1/2 and 1/3 to sixths.'
+)
+
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 12} checks).`)
