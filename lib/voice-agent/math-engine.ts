@@ -2879,3 +2879,600 @@ export function fractionStripScene(input: {
     canvasActions: actions,
   }
 }
+
+export function arrayModelScene(input: {
+  rows: number
+  columns: number
+  title?: string
+  rowLabel?: string
+  columnLabel?: string
+  highlightCount?: number
+}): CanvasActionResult {
+  const rows = Math.trunc(input.rows)
+  const columns = Math.trunc(input.columns)
+  const highlightCount =
+    typeof input.highlightCount === 'number' ? Math.trunc(input.highlightCount) : rows * columns
+
+  if (!Number.isFinite(rows) || rows <= 0 || rows > 12) {
+    throw new Error('Array model supports 1 to 12 rows.')
+  }
+  if (!Number.isFinite(columns) || columns <= 0 || columns > 12) {
+    throw new Error('Array model supports 1 to 12 columns.')
+  }
+
+  const maxCells = rows * columns
+  const shadedCells = clamp(highlightCount, 0, maxCells)
+  const cellSize = Math.min(48, Math.floor(360 / Math.max(rows, columns)))
+  const gap = 6
+  const gridWidth = columns * cellSize + (columns - 1) * gap
+  const gridHeight = rows * cellSize + (rows - 1) * gap
+  const x0 = TOOL_SCENE.x + 150
+  const y0 = TOOL_SCENE.y + 146
+  const title = input.title?.trim() || 'Array model'
+
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(title),
+    textLabel(x0, TOOL_SCENE.y + 62, `${rows} rows x ${columns} columns = ${maxCells}`, {
+      width: 360,
+      color: 'green',
+    }),
+  ]
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const index = row * columns + column
+      const shaded = index < shadedCells
+      actions.push(
+        rectangle(
+          x0 + column * (cellSize + gap),
+          y0 + row * (cellSize + gap),
+          cellSize,
+          cellSize,
+          {
+            color: shaded ? 'green' : 'blue',
+            fill: shaded ? 'solid' : 'none',
+            opacity: shaded ? 0.26 : undefined,
+            dash: 'solid',
+            size: 's',
+          }
+        )
+      )
+    }
+  }
+
+  actions.push(
+    textLabel(x0 + gridWidth + 26, y0 + gridHeight / 2 - 18, input.rowLabel?.trim() || `${rows} rows`, {
+      width: 130,
+      color: 'grey',
+    }),
+    textLabel(x0 + gridWidth / 2 - 72, y0 + gridHeight + 26, input.columnLabel?.trim() || `${columns} in each row`, {
+      width: 170,
+      color: 'grey',
+    }),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: 'Prepared an array model on the canvas.',
+    canvasActions: actions,
+  }
+}
+
+export function ratioTableScene(input: {
+  leftLabel: string
+  rightLabel: string
+  rows: Array<{ left: string | number; right: string | number }>
+  title?: string
+}): CanvasActionResult {
+  const rows = input.rows.slice(0, 8).filter((row) => row.left !== '' && row.right !== '')
+  if (rows.length === 0) {
+    throw new Error('Ratio table needs at least one row.')
+  }
+
+  const x = TOOL_SCENE.x + 132
+  const y = TOOL_SCENE.y + 144
+  const columnWidth = 170
+  const rowHeight = 48
+  const tableWidth = columnWidth * 2
+  const tableHeight = rowHeight * (rows.length + 1)
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Ratio table'),
+    rectangle(x, y, tableWidth, tableHeight, {
+      color: 'blue',
+      fill: 'none',
+      dash: 'solid',
+      size: 's',
+    }),
+    rectangle(x, y, tableWidth, rowHeight, {
+      color: 'light-blue',
+      fill: 'solid',
+      opacity: 0.2,
+      dash: 'solid',
+      size: 's',
+    }),
+    lineSegment({ x: x + columnWidth, y }, { x: x + columnWidth, y: y + tableHeight }, {
+      color: 'blue',
+      size: 's',
+      dash: 'solid',
+    }),
+    textLabel(x + 18, y + 12, input.leftLabel.trim() || 'Left', {
+      width: columnWidth - 28,
+      color: 'green',
+    }),
+    textLabel(x + columnWidth + 18, y + 12, input.rightLabel.trim() || 'Right', {
+      width: columnWidth - 28,
+      color: 'green',
+    }),
+  ]
+
+  rows.forEach((row, index) => {
+    const rowY = y + rowHeight * (index + 1)
+    actions.push(
+      lineSegment({ x, y: rowY }, { x: x + tableWidth, y: rowY }, {
+        color: 'blue',
+        size: 's',
+        dash: 'solid',
+      }),
+      textLabel(x + 20, rowY + 12, String(row.left), {
+        width: columnWidth - 36,
+        color: 'black',
+      }),
+      textLabel(x + columnWidth + 20, rowY + 12, String(row.right), {
+        width: columnWidth - 36,
+        color: 'black',
+      })
+    )
+  })
+
+  actions.push(
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: 'Prepared a ratio table on the canvas.',
+    canvasActions: actions,
+  }
+}
+
+export function angleDiagramScene(input: {
+  degrees: number
+  label?: string
+  title?: string
+  showRightAngleMarker?: boolean
+}): CanvasActionResult {
+  const degrees = clamp(input.degrees, 5, 175)
+  const radians = (degrees * Math.PI) / 180
+  const vertex = { x: TOOL_SCENE.x + 332, y: TOOL_SCENE.y + 350 }
+  const rayLength = 250
+  const baseEnd = { x: vertex.x + rayLength, y: vertex.y }
+  const angledEnd = {
+    x: vertex.x + Math.cos(radians) * rayLength,
+    y: vertex.y - Math.sin(radians) * rayLength,
+  }
+  const arcRadius = 84
+  const arcPoints = Array.from({ length: 18 }, (_, index) => {
+    const theta = (radians * index) / 17
+    return {
+      x: vertex.x + Math.cos(theta) * arcRadius,
+      y: vertex.y - Math.sin(theta) * arcRadius,
+    }
+  })
+
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Angle diagram'),
+    point(vertex.x, vertex.y, { color: 'blue' }),
+    textLabel(vertex.x - 20, vertex.y + 14, 'V', {
+      width: 32,
+      color: 'blue',
+    }),
+    lineSegment(vertex, baseEnd, { color: 'blue', size: 'm', dash: 'solid' }),
+    lineSegment(vertex, angledEnd, { color: 'blue', size: 'm', dash: 'solid' }),
+    polyline(arcPoints, { color: 'orange', size: 'm', dash: 'solid' }),
+    textLabel(
+      vertex.x + arcRadius * 0.74,
+      vertex.y - arcRadius * 0.48 - 28,
+      input.label?.trim() || `${formatNumber(degrees, 1)} degrees`,
+      {
+        width: 140,
+        color: 'orange',
+      }
+    ),
+  ]
+
+  if (input.showRightAngleMarker || isNearlyEqual(degrees, 90, 0.5)) {
+    const markerSize = 34
+    actions.push(
+      polyline(
+        [
+          { x: vertex.x + markerSize, y: vertex.y },
+          { x: vertex.x + markerSize, y: vertex.y - markerSize },
+          { x: vertex.x, y: vertex.y - markerSize },
+        ],
+        { color: 'green', size: 's', dash: 'solid' }
+      )
+    )
+  }
+
+  actions.push(
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: 'Prepared an angle diagram on the canvas.',
+    canvasActions: actions,
+  }
+}
+
+export function equationBalanceScene(input: {
+  leftExpression: string
+  rightExpression: string
+  title?: string
+  balanced?: boolean
+}): CanvasActionResult {
+  const centerX = TOOL_SCENE.x + 390
+  const baseY = TOOL_SCENE.y + 372
+  const beamY = TOOL_SCENE.y + 248
+  const panY = TOOL_SCENE.y + 306
+  const panWidth = 230
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Equation balance'),
+    lineSegment({ x: centerX - 260, y: beamY }, { x: centerX + 260, y: beamY }, {
+      color: input.balanced === false ? 'orange' : 'green',
+      size: 'm',
+      dash: 'solid',
+    }),
+    lineSegment({ x: centerX, y: beamY }, { x: centerX, y: baseY }, {
+      color: 'grey',
+      size: 'm',
+      dash: 'solid',
+    }),
+    polyline(
+      [
+        { x: centerX - 58, y: baseY },
+        { x: centerX, y: beamY + 36 },
+        { x: centerX + 58, y: baseY },
+      ],
+      { color: 'grey', size: 'm', dash: 'solid' }
+    ),
+    lineSegment({ x: centerX - 210, y: beamY }, { x: centerX - 210, y: panY }, {
+      color: 'grey',
+      size: 's',
+      dash: 'solid',
+    }),
+    lineSegment({ x: centerX + 210, y: beamY }, { x: centerX + 210, y: panY }, {
+      color: 'grey',
+      size: 's',
+      dash: 'solid',
+    }),
+    rectangle(centerX - 210 - panWidth / 2, panY, panWidth, 78, {
+      color: 'blue',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    rectangle(centerX + 210 - panWidth / 2, panY, panWidth, 78, {
+      color: 'blue',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(centerX - 210 - panWidth / 2 + 20, panY + 22, prettifyMathExpression(input.leftExpression), {
+      width: panWidth - 40,
+      color: 'green',
+    }),
+    textLabel(centerX + 210 - panWidth / 2 + 20, panY + 22, prettifyMathExpression(input.rightExpression), {
+      width: panWidth - 40,
+      color: 'green',
+    }),
+    textLabel(
+      centerX - 128,
+      TOOL_SCENE.y + 428,
+      input.balanced === false ? 'Check what changed on each side.' : 'Keep both sides equal.',
+      {
+        width: 280,
+        color: input.balanced === false ? 'orange' : 'grey',
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
+  ]
+
+  return {
+    summary: 'Prepared an equation balance model on the canvas.',
+    canvasActions: actions,
+  }
+}
+
+export function barModelScene(input: {
+  title?: string
+  bars: Array<{
+    label?: string
+    segments: Array<{
+      label?: string
+      value?: string | number
+      shaded?: boolean
+    }>
+  }>
+}): CanvasActionResult {
+  const bars = input.bars
+    .slice(0, 4)
+    .map((bar) => ({
+      label: bar.label?.trim(),
+      segments: bar.segments
+        .slice(0, 8)
+        .map((segment) => ({
+          label: segment.label?.trim(),
+          value: segment.value,
+          shaded: segment.shaded === true,
+        }))
+        .filter((segment) => segment.label || segment.value !== undefined),
+    }))
+    .filter((bar) => bar.segments.length > 0)
+
+  if (bars.length === 0) {
+    throw new Error('Bar model needs at least one bar with one segment.')
+  }
+
+  const barX = TOOL_SCENE.x + 178
+  const barY = TOOL_SCENE.y + 142
+  const barWidth = 430
+  const barHeight = 58
+  const barGap = 66
+  const labelX = TOOL_SCENE.x + 54
+
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Bar model'),
+  ]
+
+  bars.forEach((bar, barIndex) => {
+    const y = barY + barIndex * (barHeight + barGap)
+    const numericValues = bar.segments.map((segment) => Number(segment.value))
+    const hasUsableValues =
+      numericValues.every((value) => Number.isFinite(value) && value > 0) &&
+      numericValues.reduce((sum, value) => sum + value, 0) > 0
+    const total = hasUsableValues ? numericValues.reduce((sum, value) => sum + value, 0) : 0
+
+    actions.push(
+      textLabel(labelX, y + 16, bar.label || `Bar ${barIndex + 1}`, {
+        width: 110,
+        color: 'green',
+      })
+    )
+
+    let cursorX = barX
+    bar.segments.forEach((segment, segmentIndex) => {
+      const segmentWidth = hasUsableValues
+        ? Math.max(42, (Number(segment.value) / total) * barWidth)
+        : barWidth / bar.segments.length
+      const isLast = segmentIndex === bar.segments.length - 1
+      const width = isLast ? Math.max(36, barX + barWidth - cursorX) : segmentWidth
+      const label =
+        segment.label ||
+        (segment.value !== undefined ? String(segment.value) : `Part ${segmentIndex + 1}`)
+
+      actions.push(
+        rectangle(cursorX, y, width, barHeight, {
+          color: segment.shaded ? 'green' : 'blue',
+          fill: segment.shaded ? 'solid' : 'none',
+          opacity: segment.shaded ? 0.24 : undefined,
+          dash: 'solid',
+          size: 's',
+        }),
+        textLabel(cursorX + 10, y + 16, label, {
+          width: Math.max(38, width - 20),
+          color: segment.shaded ? 'green' : 'black',
+        })
+      )
+      cursorX += width
+    })
+  })
+
+  actions.push(
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: 'Prepared a bar model on the canvas.',
+    canvasActions: actions,
+  }
+}
+
+export function placeValueChartScene(input: {
+  columns: string[]
+  rows: Array<{
+    label?: string
+    values: Array<string | number>
+  }>
+  title?: string
+}): CanvasActionResult {
+  const columns = input.columns.map((column) => column.trim()).filter(Boolean).slice(0, 8)
+  const rows = input.rows
+    .slice(0, 4)
+    .map((row) => ({
+      label: row.label?.trim(),
+      values: row.values.slice(0, columns.length).map((value) => String(value)),
+    }))
+    .filter((row) => row.values.length > 0)
+
+  if (columns.length < 2) {
+    throw new Error('Place-value chart needs at least two columns.')
+  }
+  if (rows.length === 0) {
+    throw new Error('Place-value chart needs at least one row.')
+  }
+
+  const rowHeaderWidth = rows.some((row) => row.label) ? 112 : 0
+  const x = TOOL_SCENE.x + 76
+  const y = TOOL_SCENE.y + 140
+  const availableWidth = 620
+  const columnWidth = Math.min(96, Math.floor((availableWidth - rowHeaderWidth) / columns.length))
+  const rowHeight = 48
+  const tableWidth = rowHeaderWidth + columnWidth * columns.length
+  const tableHeight = rowHeight * (rows.length + 1)
+
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Place-value chart'),
+    rectangle(x, y, tableWidth, tableHeight, {
+      color: 'blue',
+      fill: 'none',
+      dash: 'solid',
+      size: 's',
+    }),
+    rectangle(x, y, tableWidth, rowHeight, {
+      color: 'light-green',
+      fill: 'solid',
+      opacity: 0.16,
+      dash: 'solid',
+      size: 's',
+    }),
+  ]
+
+  if (rowHeaderWidth > 0) {
+    actions.push(
+      lineSegment({ x: x + rowHeaderWidth, y }, { x: x + rowHeaderWidth, y: y + tableHeight }, {
+        color: 'blue',
+        size: 's',
+        dash: 'solid',
+      })
+    )
+  }
+
+  columns.forEach((column, index) => {
+    const columnX = x + rowHeaderWidth + columnWidth * index
+    if (index > 0) {
+      actions.push(
+        lineSegment({ x: columnX, y }, { x: columnX, y: y + tableHeight }, {
+          color: 'blue',
+          size: 's',
+          dash: 'solid',
+        })
+      )
+    }
+    actions.push(
+      textLabel(columnX + 8, y + 12, column, {
+        width: columnWidth - 14,
+        color: 'green',
+      })
+    )
+  })
+
+  rows.forEach((row, rowIndex) => {
+    const rowY = y + rowHeight * (rowIndex + 1)
+    actions.push(
+      lineSegment({ x, y: rowY }, { x: x + tableWidth, y: rowY }, {
+        color: 'blue',
+        size: 's',
+        dash: 'solid',
+      })
+    )
+    if (rowHeaderWidth > 0) {
+      actions.push(
+        textLabel(x + 10, rowY + 12, row.label || `Row ${rowIndex + 1}`, {
+          width: rowHeaderWidth - 18,
+          color: 'grey',
+        })
+      )
+    }
+    columns.forEach((_, columnIndex) => {
+      actions.push(
+        textLabel(x + rowHeaderWidth + columnWidth * columnIndex + 12, rowY + 12, row.values[columnIndex] || '', {
+          width: columnWidth - 20,
+          color: 'black',
+        })
+      )
+    })
+  })
+
+  actions.push(
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: 'Prepared a place-value chart on the canvas.',
+    canvasActions: actions,
+  }
+}
+
+function primeFactorization(value: number) {
+  const factors: number[] = []
+  let remaining = Math.trunc(Math.abs(value))
+  let divisor = 2
+
+  while (remaining > 1 && divisor * divisor <= remaining) {
+    while (remaining % divisor === 0) {
+      factors.push(divisor)
+      remaining /= divisor
+    }
+    divisor += divisor === 2 ? 1 : 2
+  }
+
+  if (remaining > 1) {
+    factors.push(remaining)
+  }
+
+  return factors
+}
+
+export function factorTreeScene(input: {
+  value: number
+  title?: string
+}): CanvasActionResult {
+  const value = Math.trunc(input.value)
+  if (!Number.isFinite(value) || value < 2 || value > 999) {
+    throw new Error('Factor tree supports whole numbers from 2 to 999.')
+  }
+
+  const factors = primeFactorization(value)
+  const root = { x: TOOL_SCENE.x + 390, y: TOOL_SCENE.y + 122 }
+  const leafY = TOOL_SCENE.y + 330
+  const spacing = Math.min(112, 520 / Math.max(factors.length, 1))
+  const startX = root.x - ((factors.length - 1) * spacing) / 2
+
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Factor tree'),
+    point(root.x, root.y, {
+      label: String(value),
+      color: 'green',
+      labelPosition: 'top',
+      labelWidth: 80,
+    }),
+  ]
+
+  factors.forEach((factor, index) => {
+    const leaf = { x: startX + index * spacing, y: leafY }
+    actions.push(
+      lineSegment(root, leaf, {
+        color: 'grey',
+        size: 's',
+        dash: 'solid',
+      }),
+      point(leaf.x, leaf.y, {
+        label: String(factor),
+        color: 'blue',
+        labelPosition: 'bottom',
+        labelWidth: 60,
+      })
+    )
+  })
+
+  actions.push(
+    textLabel(TOOL_SCENE.x + 146, TOOL_SCENE.y + 416, `${value} = ${factors.join(' x ')}`, {
+      width: 360,
+      color: 'green',
+    }),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: 'Prepared a factor tree on the canvas.',
+    canvasActions: actions,
+  }
+}

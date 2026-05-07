@@ -9,12 +9,14 @@ import {
 import { takeTutorApiRateLimit } from '@/lib/tutor/api-rate-limit'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { getQuotaSnapshot, reconcileOpenSessions } from '@/lib/tutor/quota'
+import { createTutorDbTimeout } from '@/lib/tutor/db-timeout'
 
 function getModelSnapshot() {
   return process.env.OPENAI_REALTIME_MODEL?.trim() || 'gpt-realtime-mini'
 }
 
 export async function POST(request: Request) {
+  const dbTimeout = createTutorDbTimeout()
   try {
     const userId = await getSessionUserId()
     if (!userId) {
@@ -24,12 +26,14 @@ export async function POST(request: Request) {
       )
     }
 
-    const sql = getNeonSql()
+    const sql = getNeonSql({ signal: dbTimeout.signal })
+
     const rateLimit = await takeTutorApiRateLimit(request, {
       endpoint: 'session-start',
       userId,
       maxHits: 24,
       windowSeconds: 60 * 60,
+      sql,
     })
 
     if (!rateLimit.allowed) {
@@ -129,10 +133,20 @@ export async function POST(request: Request) {
       maxSessionSeconds: TUTOR_MAX_SESSION_SECONDS,
     })
   } catch (e) {
+    const databaseTimedOut = dbTimeout.timedOut()
     console.error('[tutor/session/start]', e)
     return NextResponse.json(
-      { ok: false, code: 'SERVER_ERROR', message: 'Could not start session. Try again.' },
-      { status: 500 }
+      {
+        ok: false,
+        code: databaseTimedOut ? 'DATABASE_TIMEOUT' : 'SERVER_ERROR',
+        message:
+          databaseTimedOut
+            ? 'Could not reach the session database quickly enough. Please try again.'
+            : 'Could not start session. Try again.',
+      },
+      { status: databaseTimedOut ? 503 : 500 }
     )
+  } finally {
+    dbTimeout.clear()
   }
 }

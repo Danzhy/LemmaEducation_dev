@@ -5,6 +5,7 @@ import { takeTutorApiRateLimit } from '@/lib/tutor/api-rate-limit'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { finalizeSessionById, getQuotaSnapshot, pauseSessionById } from '@/lib/tutor/quota'
 import { TUTOR_INACTIVITY_PAUSE_SECONDS } from '@/lib/tutor/constants'
+import { createTutorDbTimeout } from '@/lib/tutor/db-timeout'
 
 function getRequiredEnv(value: string | undefined) {
   const normalized = value?.trim()
@@ -34,13 +35,13 @@ function buildLabInstructions(baseInstructions: string, gradeLevel: string, lang
     'When a deterministic math tool is available, prefer it over mental arithmetic or algebra.',
     'If you use a tool, briefly use its result to guide the student instead of dumping the whole solution.',
     'If the student asks for a graph, diagram, worked setup, or visual explanation, use the structured canvas tools instead of describing an imaginary drawing.',
-    'Your board toolkit is intentionally structured, not arbitrary. Use graph_function for polished function graphs from equations, plot_points_on_plane for plotting and connecting ordered pairs, table_of_values for coordinate tables, number_line for number-line models, fraction_strip for fraction bars, geometry_figure for standard diagrams, solve_linear_on_canvas for algebra steps, write_on_canvas for short worked notes, annotate_graph_features for graph follow-up labels or highlights, and canvas_action only for the smallest precise follow-up annotations.',
+    'Your board toolkit is intentionally structured, not arbitrary. Use graph_function for polished function graphs from equations, plot_points_on_plane for plotting and connecting ordered pairs, table_of_values for coordinate tables, number_line for number-line models, fraction_strip for fraction bars, array_model for multiplication and area arrays, ratio_table for ratios and rates, bar_model for tape diagrams and word-problem setup, place_value_chart for digit value and decimals, factor_tree for factors and prime factorization, angle_diagram for angle reasoning, equation_balance for equality models, geometry_figure for standard diagrams, solve_linear_on_canvas for algebra steps, write_on_canvas for short worked notes, annotate_graph_features for graph follow-up labels or highlights, and canvas_action only for the smallest precise follow-up annotations.',
     'Do not try to free-sketch unrelated art, decorative shapes, or arbitrary whiteboard layouts. Stay within the structured math teaching tools.',
     'For a normal graph request, do not set domainStart or domainEnd unless the student explicitly asks for a particular interval. Let graph_function choose a teaching-friendly view by default.',
     'If the student asks for a graph to be drawn neatly, cleanly, or clearly, call graph_function once and let it own the board. Do not stack a second canvas-writing tool on top unless the student asked for an extra worked note or follow-up annotation.',
     'For simple linear equations in x, if the student wants steps on the board or asks you to show the next steps visually, use solve_linear_on_canvas instead of trying to compose the board by hand.',
     'When a student asks you to write, show, set up, or model the next idea on the board, prefer exactly one of solve_linear_on_canvas, table_of_values, geometry_figure, write_on_canvas, or plot_points_on_plane based on the request.',
-    'For number-line or fraction-model requests, prefer exactly one of number_line or fraction_strip first. Do not layer write_on_canvas or canvas_action on top unless the student explicitly asks for extra written notes or extra labels on the board.',
+    'For visual model requests, prefer exactly one purpose-built tool first: number_line, fraction_strip, array_model, ratio_table, bar_model, place_value_chart, factor_tree, angle_diagram, equation_balance, graph_function, plot_points_on_plane, geometry_figure, table_of_values, or solve_linear_on_canvas. Do not layer write_on_canvas or canvas_action on top unless the student explicitly asks for extra written notes or extra labels on the board.',
     'For graph_function and plot_points_on_plane, default to a clean board with the math drawing itself. Keep the explanation in your spoken or chat response unless the student explicitly asks for written notes on the board.',
     'Do not pass noteLines into graph_function or plot_points_on_plane unless the student explicitly asks for a summary box, written notes, or a key ideas box on the canvas.',
     'If the student explicitly asks you to label the x-intercepts, y-intercept, or vertex, pass showXIntercepts, showYIntercept, and showVertex into graph_function so the board reflects the exact request.',
@@ -72,13 +73,15 @@ export async function POST(request: Request) {
     )
   }
 
+  const dbTimeout = createTutorDbTimeout()
   try {
-    const sql = getNeonSql()
+    const sql = getNeonSql({ signal: dbTimeout.signal })
     const rateLimit = await takeTutorApiRateLimit(request, {
       endpoint: 'voice-agent-session',
       userId,
       maxHits: 48,
       windowSeconds: 60 * 60,
+      sql,
     })
 
     if (!rateLimit.allowed) {
@@ -149,15 +152,20 @@ export async function POST(request: Request) {
       )
     }
   } catch (error) {
+    const databaseTimedOut = dbTimeout.timedOut()
     console.error('[voice-agent/session] quota check', error)
     return NextResponse.json(
       {
         ok: false,
-        code: 'QUOTA_CHECK_FAILED',
-        message: 'Could not verify quota.',
+        code: databaseTimedOut ? 'DATABASE_TIMEOUT' : 'QUOTA_CHECK_FAILED',
+        message: databaseTimedOut
+          ? 'Could not reach the session database quickly enough. Please try again.'
+          : 'Could not verify quota.',
       },
       { status: 503 }
     )
+  } finally {
+    dbTimeout.clear()
   }
 
   const realtimeModel =

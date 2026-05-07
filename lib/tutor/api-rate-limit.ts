@@ -9,9 +9,10 @@ export async function takeTutorApiRateLimit(
     windowSeconds: number
     userId?: string | null
     sessionId?: string | null
+    sql?: ReturnType<typeof getNeonSql>
   }
 ) {
-  const sql = getNeonSql()
+  const sql = options.sql ?? getNeonSql()
   const subjectParts = [
     options.userId ? `user:${options.userId}` : `ip:${getTrustedClientIp(request)}`,
     options.sessionId ? `session:${options.sessionId}` : null,

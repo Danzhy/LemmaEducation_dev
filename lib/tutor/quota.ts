@@ -64,7 +64,7 @@ function getInactivitySeconds(session: SessionRow, now: Date = new Date()): numb
 }
 
 export async function getPersistedUsage(sql: Sql, userId: string) {
-  await ensureTutorUsageRow(userId)
+  await ensureTutorUsageRow(userId, sql)
   const rows = await sql`
     SELECT
       COALESCE(total_active_seconds, 0)::bigint AS total_active_seconds,

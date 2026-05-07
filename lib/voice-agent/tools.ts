@@ -1,7 +1,12 @@
 import { tool, type Tool } from '@openai/agents'
 import {
   annotateGraphFeatures,
+  angleDiagramScene,
+  arrayModelScene,
+  barModelScene,
   canvasAction,
+  equationBalanceScene,
+  factorTreeScene,
   fractionStripScene,
   geometryFigure,
   graphFunction,
@@ -10,7 +15,9 @@ import {
   mathCheckStep,
   mathSolveLinear,
   numberLineScene,
+  placeValueChartScene,
   plotPointsOnPlane,
+  ratioTableScene,
   solveLinearOnCanvas,
   tableOfValues,
   writeOnCanvas,
@@ -23,8 +30,11 @@ function stringifyResult(result: unknown) {
 const STRUCTURED_CANVAS_ACTIONS = new Set([
   'clear_tool_layer',
   'place_text_label',
+  'place_math_block',
   'place_point',
   'draw_line_segment',
+  'draw_axes',
+  'draw_rectangle',
   'highlight_region',
   'plot_polyline',
   'coordinate_plane',
@@ -43,6 +53,22 @@ function assertSafeCanvasActionInput(input: Parameters<typeof canvasAction>[0]) 
 
   if (input.actionType === 'plot_polyline' && (input.points?.length ?? 0) > 24) {
     throw new Error('Use graph_function or plot_points_on_plane for larger plotted shapes.')
+  }
+
+  if (
+    (input.actionType === 'draw_rectangle' || input.actionType === 'highlight_region') &&
+    (typeof input.width !== 'number' ||
+      typeof input.height !== 'number' ||
+      input.width <= 0 ||
+      input.height <= 0 ||
+      input.width > 900 ||
+      input.height > 650)
+  ) {
+    throw new Error('Canvas rectangles and highlights need reasonable positive width and height.')
+  }
+
+  if (input.actionType === 'place_math_block' && input.latex && input.latex.trim().length > 160) {
+    throw new Error('Canvas math blocks must stay short. Use solve_linear_on_canvas or write_on_canvas for worked steps.')
   }
 
   if (
@@ -503,6 +529,279 @@ export function createVoiceAgentTools() {
             denominator: params.denominator,
             title: params.title,
             label: params.label,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'array_model',
+      description:
+        'Create a rectangular array model for multiplication, repeated addition, area, or counting groups. Use this for prompts like "show 4 times 6", "draw 3 rows of 5", or "model area as rows and columns". Let this tool own the board unless extra notes are requested.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          rows: { type: 'number' },
+          columns: { type: 'number' },
+          title: { type: 'string' },
+          rowLabel: { type: 'string' },
+          columnLabel: { type: 'string' },
+          highlightCount: { type: 'number' },
+        },
+        required: ['rows', 'columns'],
+      },
+      async execute(input) {
+        const params = input as {
+          rows: number
+          columns: number
+          title?: string
+          rowLabel?: string
+          columnLabel?: string
+          highlightCount?: number
+        }
+        return stringifyResult(
+          arrayModelScene({
+            rows: params.rows,
+            columns: params.columns,
+            title: params.title,
+            rowLabel: params.rowLabel,
+            columnLabel: params.columnLabel,
+            highlightCount: params.highlightCount,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'ratio_table',
+      description:
+        'Create a clean two-column ratio table. Use this for equivalent ratios, rates, proportional reasoning, recipes, scale factors, or unit-rate setup.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          leftLabel: { type: 'string' },
+          rightLabel: { type: 'string' },
+          title: { type: 'string' },
+          rows: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                left: { type: ['string', 'number'] },
+                right: { type: ['string', 'number'] },
+              },
+              required: ['left', 'right'],
+            },
+          },
+        },
+        required: ['leftLabel', 'rightLabel', 'rows'],
+      },
+      async execute(input) {
+        const params = input as {
+          leftLabel: string
+          rightLabel: string
+          title?: string
+          rows: Array<{ left: string | number; right: string | number }>
+        }
+        return stringifyResult(
+          ratioTableScene({
+            leftLabel: params.leftLabel,
+            rightLabel: params.rightLabel,
+            title: params.title,
+            rows: params.rows,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'angle_diagram',
+      description:
+        'Create a clean angle diagram with two rays, an arc, and a degree label. Use this for acute, obtuse, right-angle, complementary-angle, or angle-estimation explanations.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          degrees: { type: 'number' },
+          label: { type: 'string' },
+          title: { type: 'string' },
+          showRightAngleMarker: { type: 'boolean' },
+        },
+        required: ['degrees'],
+      },
+      async execute(input) {
+        const params = input as {
+          degrees: number
+          label?: string
+          title?: string
+          showRightAngleMarker?: boolean
+        }
+        return stringifyResult(
+          angleDiagramScene({
+            degrees: params.degrees,
+            label: params.label,
+            title: params.title,
+            showRightAngleMarker: params.showRightAngleMarker,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'equation_balance',
+      description:
+        'Create a balance-scale model for an equation or equality. Use this when explaining why the same operation must happen to both sides, or when checking whether a step preserved equality.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          leftExpression: { type: 'string' },
+          rightExpression: { type: 'string' },
+          title: { type: 'string' },
+          balanced: { type: 'boolean' },
+        },
+        required: ['leftExpression', 'rightExpression'],
+      },
+      async execute(input) {
+        const params = input as {
+          leftExpression: string
+          rightExpression: string
+          title?: string
+          balanced?: boolean
+        }
+        return stringifyResult(
+          equationBalanceScene({
+            leftExpression: params.leftExpression,
+            rightExpression: params.rightExpression,
+            title: params.title,
+            balanced: params.balanced,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'bar_model',
+      description:
+        'Create a tape or bar model for word problems, part-whole reasoning, comparison problems, fractions, percentages, or ratio thinking. Use this instead of freehand drawing when the student asks for a model or visual setup.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          title: { type: 'string' },
+          bars: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                label: { type: 'string' },
+                segments: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                      label: { type: 'string' },
+                      value: { type: ['string', 'number'] },
+                      shaded: { type: 'boolean' },
+                    },
+                    required: ['label', 'value', 'shaded'],
+                  },
+                },
+              },
+              required: ['label', 'segments'],
+            },
+          },
+        },
+        required: ['bars'],
+      },
+      async execute(input) {
+        const params = input as {
+          title?: string
+          bars: Array<{
+            label?: string
+            segments: Array<{ label?: string; value?: string | number; shaded?: boolean }>
+          }>
+        }
+        return stringifyResult(
+          barModelScene({
+            title: params.title,
+            bars: params.bars,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'place_value_chart',
+      description:
+        'Create a place-value chart for whole numbers or decimals. Use this for regrouping, comparing decimals, expanded form, rounding, and understanding digit value.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          title: { type: 'string' },
+          columns: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          rows: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                label: { type: 'string' },
+                values: {
+                  type: 'array',
+                  items: { type: ['string', 'number'] },
+                },
+              },
+              required: ['label', 'values'],
+            },
+          },
+        },
+        required: ['columns', 'rows'],
+      },
+      async execute(input) {
+        const params = input as {
+          title?: string
+          columns: string[]
+          rows: Array<{ label?: string; values: Array<string | number> }>
+        }
+        return stringifyResult(
+          placeValueChartScene({
+            title: params.title,
+            columns: params.columns,
+            rows: params.rows,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'factor_tree',
+      description:
+        'Create a prime-factor tree for a whole number. Use this for factors, multiples, divisibility, prime factorization, GCF, or LCM setup.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          value: { type: 'number' },
+          title: { type: 'string' },
+        },
+        required: ['value'],
+      },
+      async execute(input) {
+        const params = input as { value: number; title?: string }
+        return stringifyResult(
+          factorTreeScene({
+            value: params.value,
+            title: params.title,
           })
         )
       },
