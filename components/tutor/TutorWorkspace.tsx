@@ -1048,7 +1048,7 @@ export default function TutorWorkspace({
                               </p>
                               <span className="text-[11px] text-[#7A8C86]">lab only</span>
                             </div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto pr-1">
                               {LAB_TOOL_RECIPES.map((recipe) => (
                                 <button
                                   key={recipe.label}
