@@ -3,8 +3,12 @@ import {
   areaPerimeterModelScene,
   arrayModelScene,
   barModelScene,
+  compositeAreaModelScene,
+  coordinateDistanceScene,
+  curriculumCoach,
   dataDisplayScene,
   decimalGridScene,
+  doubleNumberLineScene,
   equationBalanceScene,
   factorTreeScene,
   fractionCompareScene,
@@ -14,10 +18,13 @@ import {
   integerChipsScene,
   longDivisionScene,
   mathCheckAnswer,
+  misconceptionDiagnosis,
   numberLineScene,
   orderOfOperationsScene,
   placeValueChartScene,
   plotPointsOnPlane,
+  practiceSetGenerator,
+  percentBarScene,
   probabilityModelScene,
   ratioTableScene,
   slopeTriangleScene,
@@ -106,6 +113,14 @@ const smokeCases: SmokeCase[] = [
     run: () => probabilityModelScene({ favorableOutcomes: 3, totalOutcomes: 8 }),
   },
   {
+    name: 'percent_bar',
+    run: () => percentBarScene({ part: 18, total: 60 }),
+  },
+  {
+    name: 'double_number_line',
+    run: () => doubleNumberLineScene({ topLabel: 'notebooks', bottomLabel: 'dollars', pairs: [{ top: 0, bottom: 0 }, { top: 3, bottom: 12 }, { top: 6, bottom: 24 }] }),
+  },
+  {
     name: 'unit_conversion',
     run: () => unitConversionScene({ value: 2.5, fromUnit: 'm', toUnit: 'cm', measurementType: 'length' }),
   },
@@ -126,12 +141,20 @@ const smokeCases: SmokeCase[] = [
     run: () => areaPerimeterModelScene({ widthUnits: 7, heightUnits: 4, unitLabel: 'cm' }),
   },
   {
+    name: 'composite_area_model',
+    run: () => compositeAreaModelScene({ unitLabel: 'cm', rectangles: [{ xUnits: 0, yUnits: 0, widthUnits: 3, heightUnits: 4 }, { xUnits: 3, yUnits: 0, widthUnits: 2, heightUnits: 5 }] }),
+  },
+  {
     name: 'order_of_operations',
     run: () => orderOfOperationsScene({ expression: '3+4*2' }),
   },
   {
     name: 'slope_triangle',
     run: () => slopeTriangleScene({ pointA: { x: 1, y: 2 }, pointB: { x: 5, y: 6 } }),
+  },
+  {
+    name: 'coordinate_distance',
+    run: () => coordinateDistanceScene({ pointA: { x: 2, y: 3 }, pointB: { x: 5, y: 7 } }),
   },
   {
     name: 'angle_diagram',
@@ -150,4 +173,16 @@ for (const smokeCase of smokeCases) {
 const correctAnswer = mathCheckAnswer({ problemExpression: '3/4+2/3', studentAnswer: '17/12' })
 assert(correctAnswer.verdict === 'correct', 'math_check_answer should mark 17/12 as correct.')
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 1} checks).`)
+const coach = curriculumCoach({ topic: 'ratios', gradeLevel: 'Grade 6' })
+assert(
+  (coach.recommendedTools as readonly string[]).includes('double_number_line'),
+  'curriculum_coach should recommend double_number_line for ratios.'
+)
+
+const diagnosis = misconceptionDiagnosis({ topic: 'fractions', studentWork: 'I added 1/2 + 1/3 and got 2/5.' })
+assert(diagnosis.findings.length > 0, 'misconception_diagnosis should return at least one finding.')
+
+const practiceSet = practiceSetGenerator({ topic: 'geometry', count: 2 })
+assert(practiceSet.items.length === 2, 'practice_set_generator should honor requested count.')
+
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 4} checks).`)

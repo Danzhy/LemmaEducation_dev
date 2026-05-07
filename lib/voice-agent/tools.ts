@@ -6,8 +6,12 @@ import {
   arrayModelScene,
   barModelScene,
   canvasAction,
+  compositeAreaModelScene,
+  coordinateDistanceScene,
+  curriculumCoach,
   dataDisplayScene,
   decimalGridScene,
+  doubleNumberLineScene,
   equationBalanceScene,
   factorTreeScene,
   fractionCompareScene,
@@ -22,10 +26,13 @@ import {
   mathCheckAnswer,
   mathCheckStep,
   mathSolveLinear,
+  misconceptionDiagnosis,
   numberLineScene,
   orderOfOperationsScene,
   placeValueChartScene,
   plotPointsOnPlane,
+  practiceSetGenerator,
+  percentBarScene,
   probabilityModelScene,
   ratioTableScene,
   slopeTriangleScene,
@@ -95,6 +102,103 @@ function assertSafeCanvasActionInput(input: Parameters<typeof canvasAction>[0]) 
 
 export function createVoiceAgentTools() {
   return [
+    tool({
+      name: 'curriculum_coach',
+      description:
+        'Choose a strong grade 3 to 7 tutoring move for a topic. Use this when a student seems stuck, the topic is broad, or you need to decide which visual or deterministic tool to use next.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          gradeLevel: { type: 'string' },
+          topic: {
+            type: 'string',
+            description:
+              'Topic such as fractions, decimals, percents, ratios, equations, geometry, coordinate graphing, data, or probability.',
+          },
+          studentGoal: { type: 'string' },
+          studentWork: { type: 'string' },
+        },
+        required: ['topic'],
+      },
+      async execute(input) {
+        const params = input as {
+          gradeLevel?: string
+          topic: string
+          studentGoal?: string
+          studentWork?: string
+        }
+        return stringifyResult(
+          curriculumCoach({
+            gradeLevel: params.gradeLevel,
+            topic: params.topic,
+            studentGoal: params.studentGoal,
+            studentWork: params.studentWork,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'misconception_diagnosis',
+      description:
+        'Diagnose likely grade 3 to 7 math misconceptions from student work before correcting them. Use this when a student explanation or answer sounds wrong but the next hint should be targeted.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          studentWork: { type: 'string' },
+          expectedAnswer: { type: 'string' },
+        },
+        required: ['topic', 'studentWork'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          studentWork: string
+          expectedAnswer?: string
+        }
+        return stringifyResult(
+          misconceptionDiagnosis({
+            topic: params.topic,
+            studentWork: params.studentWork,
+            expectedAnswer: params.expectedAnswer,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'practice_set_generator',
+      description:
+        'Generate a tiny targeted practice set for a grade 3 to 7 topic. Use only when the student asks for practice, review questions, or another example.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          difficulty: { type: 'string', enum: ['support', 'core', 'stretch'] },
+          count: { type: 'number' },
+        },
+        required: ['topic'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          difficulty?: 'support' | 'core' | 'stretch'
+          count?: number
+        }
+        return stringifyResult(
+          practiceSetGenerator({
+            topic: params.topic,
+            difficulty: params.difficulty,
+            count: params.count,
+          })
+        )
+      },
+    }),
     tool({
       name: 'math_calculate',
       description:
@@ -1210,6 +1314,183 @@ export function createVoiceAgentTools() {
             totalOutcomes: params.totalOutcomes,
             title: params.title,
             label: params.label,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'percent_bar',
+      description:
+        'Create a percent bar for part-whole percent reasoning, discounts, tax, tips, percent of a number, or decimal-percent connections.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          percent: { type: 'number' },
+          part: { type: 'number' },
+          total: { type: 'number' },
+          title: { type: 'string' },
+          label: { type: 'string' },
+        },
+        required: [],
+      },
+      async execute(input) {
+        const params = input as {
+          percent?: number
+          part?: number
+          total?: number
+          title?: string
+          label?: string
+        }
+        return stringifyResult(
+          percentBarScene({
+            percent: params.percent,
+            part: params.part,
+            total: params.total,
+            title: params.title,
+            label: params.label,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'double_number_line',
+      description:
+        'Create a double number line for ratios, unit rates, proportional reasoning, scale factors, and percent-of-a-number problems.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topLabel: { type: 'string' },
+          bottomLabel: { type: 'string' },
+          pairs: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                top: { type: 'number' },
+                bottom: { type: 'number' },
+                label: { type: 'string' },
+              },
+              required: ['top', 'bottom'],
+            },
+          },
+          title: { type: 'string' },
+        },
+        required: ['topLabel', 'bottomLabel', 'pairs'],
+      },
+      async execute(input) {
+        const params = input as {
+          topLabel: string
+          bottomLabel: string
+          pairs: Array<{ top: number; bottom: number; label?: string }>
+          title?: string
+        }
+        return stringifyResult(
+          doubleNumberLineScene({
+            topLabel: params.topLabel,
+            bottomLabel: params.bottomLabel,
+            pairs: params.pairs,
+            title: params.title,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'composite_area_model',
+      description:
+        'Create a composite area model from rectangles. Use for decomposing L-shapes, multi-rectangle figures, and area word problems.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          rectangles: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                xUnits: { type: 'number' },
+                yUnits: { type: 'number' },
+                widthUnits: { type: 'number' },
+                heightUnits: { type: 'number' },
+                label: { type: 'string' },
+              },
+              required: ['xUnits', 'yUnits', 'widthUnits', 'heightUnits'],
+            },
+          },
+          unitLabel: { type: 'string' },
+          title: { type: 'string' },
+        },
+        required: ['rectangles'],
+      },
+      async execute(input) {
+        const params = input as {
+          rectangles: Array<{
+            xUnits: number
+            yUnits: number
+            widthUnits: number
+            heightUnits: number
+            label?: string
+          }>
+          unitLabel?: string
+          title?: string
+        }
+        return stringifyResult(
+          compositeAreaModelScene({
+            rectangles: params.rectangles,
+            unitLabel: params.unitLabel,
+            title: params.title,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'coordinate_distance',
+      description:
+        'Draw two coordinate points and a distance model with horizontal and vertical changes. Use for coordinate distance, graph reading, and early Pythagorean reasoning.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          pointA: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              x: { type: 'number' },
+              y: { type: 'number' },
+            },
+            required: ['x', 'y'],
+          },
+          pointB: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              x: { type: 'number' },
+              y: { type: 'number' },
+            },
+            required: ['x', 'y'],
+          },
+          title: { type: 'string' },
+        },
+        required: ['pointA', 'pointB'],
+      },
+      async execute(input) {
+        const params = input as {
+          pointA: { x: number; y: number }
+          pointB: { x: number; y: number }
+          title?: string
+        }
+        return stringifyResult(
+          coordinateDistanceScene({
+            pointA: params.pointA,
+            pointB: params.pointB,
+            title: params.title,
           })
         )
       },

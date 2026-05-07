@@ -643,7 +643,7 @@ export default function TutorWorkspace({
                                 : 'Same tutor workspace, with tool-enabled realtime voice behind the scenes.'}
                             </p>
                             <p className="mt-2 text-[11px] leading-relaxed text-[#5C7069]">
-                              Structured board tools only: graphs, tables, long division, fractions, decimals, data, probability, conversions, diagrams, and short labels or highlights.
+                              Structured board tools only: graphs, tables, ratios, percents, geometry, fractions, data, probability, conversions, and short labels or highlights.
                             </p>
                           </div>
                         ) : null}
@@ -820,7 +820,7 @@ export default function TutorWorkspace({
                     {!session.isConnected ? (
                       <div className="rounded-[22px] border border-[#DCE7E2] bg-white/72 px-4 py-4 text-sm leading-relaxed text-[#5C7069]">
                         {mode === 'agent-lab'
-                          ? 'Start with mic for full voice tutoring, or start without mic to test typed prompts, board writing, graphs, long division, fractions, decimals, data, probability, conversions, and other structured math tools. The lab can teach on the board, but it does not free-sketch arbitrary drawings.'
+                          ? 'Start with mic for full voice tutoring, or start without mic to test typed prompts, board writing, graphs, ratios, percents, geometry, fractions, data, probability, conversions, and other structured math tools. The lab can teach on the board, but it does not free-sketch arbitrary drawings.'
                           : 'Start a session to speak, type, or upload a problem. Your board stays open while the tutor sits here on the edge.'}
                       </div>
                     ) : session.isPaused ? (

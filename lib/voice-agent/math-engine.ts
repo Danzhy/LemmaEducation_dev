@@ -4643,3 +4643,644 @@ export function probabilityModelScene(input: {
     canvasActions: actions,
   }
 }
+
+const CURRICULUM_GUIDE = {
+  place_value: {
+    label: 'Place value',
+    prerequisites: ['Read digits by place', 'Compare whole numbers', 'Understand regrouping'],
+    misconceptions: ['Treating digit value as the digit itself', 'Misaligning decimals', 'Rounding from the wrong place'],
+    tools: ['place_value_chart', 'decimal_grid', 'number_line'],
+    nextMove: 'Ask which place each digit is in before doing the operation.',
+  },
+  multiplication_division: {
+    label: 'Multiplication and division',
+    prerequisites: ['Equal groups', 'Skip counting', 'Basic multiplication facts'],
+    misconceptions: ['Mixing rows and columns', 'Dropping remainders', 'Forgetting place value in long division'],
+    tools: ['array_model', 'long_division', 'bar_model'],
+    nextMove: 'Make the equal groups visible, then connect the model to the equation.',
+  },
+  fractions: {
+    label: 'Fractions',
+    prerequisites: ['Equal parts', 'Numerator and denominator meaning', 'Equivalent fractions'],
+    misconceptions: ['Adding denominators', 'Comparing only numerators', 'Unequal partitioning'],
+    tools: ['fraction_strip', 'fraction_compare', 'fraction_operation', 'bar_model'],
+    nextMove: 'Ask what one whole is, then represent both fractions with equal-sized parts.',
+  },
+  decimals_percents: {
+    label: 'Decimals and percents',
+    prerequisites: ['Tenths and hundredths', 'Fractions out of 100', 'Multiplying and dividing by powers of 10'],
+    misconceptions: ['Thinking 0.8 is smaller than 0.75 because 8 is one digit', 'Moving decimal points without unit meaning'],
+    tools: ['decimal_grid', 'percent_bar', 'place_value_chart'],
+    nextMove: 'Anchor the value to hundredths or a percent bar before calculating.',
+  },
+  ratios_rates: {
+    label: 'Ratios and rates',
+    prerequisites: ['Multiplication facts', 'Equivalent fractions', 'Unit meaning'],
+    misconceptions: ['Adding instead of scaling', 'Mixing units', 'Comparing non-equivalent rows'],
+    tools: ['ratio_table', 'double_number_line', 'bar_model', 'unit_conversion'],
+    nextMove: 'Find the scale factor or unit rate, then keep both quantities moving together.',
+  },
+  expressions_equations: {
+    label: 'Expressions and equations',
+    prerequisites: ['Operation order', 'Equality', 'Inverse operations'],
+    misconceptions: ['Changing one side only', 'Combining unlike terms', 'Sign errors'],
+    tools: ['order_of_operations', 'equation_balance', 'solve_linear_on_canvas', 'math_check_step'],
+    nextMove: 'Ask what operation is being undone, then show why both sides must stay balanced.',
+  },
+  geometry_measurement: {
+    label: 'Geometry and measurement',
+    prerequisites: ['Shape attributes', 'Units', 'Area and perimeter difference'],
+    misconceptions: ['Confusing area and perimeter', 'Using wrong units', 'Counting boundary squares as area'],
+    tools: ['area_perimeter_model', 'composite_area_model', 'angle_diagram', 'geometry_figure'],
+    nextMove: 'Identify the measured quantity first: length, area, angle, or volume-style reasoning.',
+  },
+  coordinate_graphing: {
+    label: 'Coordinate graphing',
+    prerequisites: ['Ordered pairs', 'X before y', 'Number lines'],
+    misconceptions: ['Swapping x and y', 'Counting spaces incorrectly', 'Reading slope as points instead of change'],
+    tools: ['plot_points_on_plane', 'table_of_values', 'graph_function', 'slope_triangle', 'coordinate_distance'],
+    nextMove: 'Have the student say what the x-coordinate means before plotting y.',
+  },
+  data_probability: {
+    label: 'Data and probability',
+    prerequisites: ['Counting outcomes', 'Reading scales', 'Comparing quantities'],
+    misconceptions: ['Mean versus median confusion', 'Ignoring repeated values', 'Using favorable outcomes as the denominator'],
+    tools: ['data_display', 'statistics_summary', 'probability_model'],
+    nextMove: 'Start with what the values or outcomes represent before computing.',
+  },
+} as const
+
+type CurriculumTopic = keyof typeof CURRICULUM_GUIDE
+
+function resolveCurriculumTopic(topic: string): CurriculumTopic {
+  const normalized = topic.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  if (normalized in CURRICULUM_GUIDE) {
+    return normalized as CurriculumTopic
+  }
+
+  const aliases: Record<string, CurriculumTopic> = {
+    decimals: 'decimals_percents',
+    percents: 'decimals_percents',
+    percentages: 'decimals_percents',
+    ratios: 'ratios_rates',
+    rates: 'ratios_rates',
+    algebra: 'expressions_equations',
+    equations: 'expressions_equations',
+    expressions: 'expressions_equations',
+    geometry: 'geometry_measurement',
+    measurement: 'geometry_measurement',
+    graphing: 'coordinate_graphing',
+    coordinates: 'coordinate_graphing',
+    statistics: 'data_probability',
+    probability: 'data_probability',
+    data: 'data_probability',
+    multiplication: 'multiplication_division',
+    division: 'multiplication_division',
+  }
+
+  return aliases[normalized] ?? 'fractions'
+}
+
+export function curriculumCoach(input: {
+  gradeLevel?: string
+  topic: string
+  studentGoal?: string
+  studentWork?: string
+}) {
+  const topic = resolveCurriculumTopic(input.topic)
+  const guide = CURRICULUM_GUIDE[topic]
+  const work = input.studentWork?.trim()
+  const goal = input.studentGoal?.trim()
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel: input.gradeLevel?.trim() || 'grades 3 to 7',
+    prerequisiteCheck: guide.prerequisites.slice(0, 3),
+    likelyMisconceptions: guide.misconceptions.slice(0, 3),
+    recommendedTools: guide.tools,
+    nextTutorMove: guide.nextMove,
+    suggestedQuestion: goal
+      ? `Before we solve it, what part of "${goal}" feels most uncertain?`
+      : work
+        ? 'Can you point to the exact step where you felt unsure?'
+        : 'What do you already know, and what is the question asking for?',
+    teachingGuardrail:
+      'Use one short hint, one visual when helpful, and wait for the student to do the next bit of thinking.',
+  }
+}
+
+export function misconceptionDiagnosis(input: {
+  topic: string
+  studentWork: string
+  expectedAnswer?: string
+}) {
+  const topic = resolveCurriculumTopic(input.topic)
+  const studentWork = input.studentWork.trim().toLowerCase()
+  const expectedAnswer = input.expectedAnswer?.trim()
+  const findings: string[] = []
+
+  if (topic === 'fractions') {
+    if (/\d+\s*\/\s*\d+\s*[+\-]\s*\d+\s*\/\s*\d+/.test(studentWork) && /\/\s*\d+\s*[+\-]\s*\d+/.test(studentWork)) {
+      findings.push('May be adding or subtracting denominators instead of finding a common denominator.')
+    }
+    if (/\b(bigger denominator|larger denominator)\b/.test(studentWork)) {
+      findings.push('May be comparing denominators without checking the size of each part.')
+    }
+  }
+
+  if (topic === 'decimals_percents') {
+    if (/\b0\.\d+\b.*\b0\.\d+\b/.test(studentWork) && /\bmore digits\b|\blonger\b/.test(studentWork)) {
+      findings.push('May be comparing decimals by number of digits instead of place value.')
+    }
+    if (/%/.test(studentWork) && !/100|hundred/.test(studentWork)) {
+      findings.push('May not be anchoring percent to "out of 100."')
+    }
+  }
+
+  if (topic === 'expressions_equations') {
+    if (/=\s*.*=\s*/.test(studentWork)) {
+      findings.push('May be using the equals sign as a running calculator instead of a balance.')
+    }
+    if (/\bx\b.*\+\s*\d+\s*=\s*\d+/.test(studentWork) && !/both sides|subtract/.test(studentWork)) {
+      findings.push('May need the inverse-operation idea made explicit.')
+    }
+  }
+
+  if (topic === 'geometry_measurement') {
+    if (/area/.test(studentWork) && /perimeter/.test(studentWork)) {
+      findings.push('May be mixing area, which counts squares, with perimeter, which counts boundary length.')
+    }
+  }
+
+  if (topic === 'coordinate_graphing') {
+    if (/\(\s*-?\d+\s*,\s*-?\d+\s*\)/.test(studentWork) && /y.*first|up.*then.*across/.test(studentWork)) {
+      findings.push('May be reversing x and y when plotting points.')
+    }
+  }
+
+  if (topic === 'data_probability') {
+    if (/mean|average/.test(studentWork) && !/add|sum|total/.test(studentWork)) {
+      findings.push('May need to connect mean to "total shared equally."')
+    }
+    if (/probability|chance/.test(studentWork) && !/total|out of/.test(studentWork)) {
+      findings.push('May be missing the denominator: total possible outcomes.')
+    }
+  }
+
+  if (findings.length === 0) {
+    findings.push(CURRICULUM_GUIDE[topic].misconceptions[0])
+  }
+
+  return {
+    topic,
+    findings: findings.slice(0, 3),
+    expectedAnswer,
+    confidence: findings.length > 1 ? 'medium' : 'low',
+    nextHint: CURRICULUM_GUIDE[topic].nextMove,
+    recommendedTools: CURRICULUM_GUIDE[topic].tools.slice(0, 3),
+  }
+}
+
+export function practiceSetGenerator(input: {
+  topic: string
+  difficulty?: 'support' | 'core' | 'stretch'
+  count?: number
+}) {
+  const topic = resolveCurriculumTopic(input.topic)
+  const difficulty = input.difficulty ?? 'core'
+  const count = clamp(Math.trunc(input.count ?? 3), 1, 5)
+  const pools: Record<CurriculumTopic, Array<{ prompt: string; answer: string; hint: string; suggestedTool: string }>> = {
+    place_value: [
+      { prompt: 'What is the value of the 7 in 4,732?', answer: '700', hint: 'Name the place first.', suggestedTool: 'place_value_chart' },
+      { prompt: 'Write 3.46 in expanded form.', answer: '3 + 0.4 + 0.06', hint: 'Separate ones, tenths, and hundredths.', suggestedTool: 'place_value_chart' },
+      { prompt: 'Round 8,649 to the nearest hundred.', answer: '8,600', hint: 'Look at the tens place.', suggestedTool: 'number_line' },
+    ],
+    multiplication_division: [
+      { prompt: 'Show 6 x 8 as equal groups.', answer: '48', hint: 'Think 6 rows of 8.', suggestedTool: 'array_model' },
+      { prompt: 'Divide 847 by 6.', answer: '141 remainder 1', hint: 'Divide one place at a time.', suggestedTool: 'long_division' },
+      { prompt: 'A class has 5 groups of 7 students. How many students?', answer: '35', hint: 'Each group is the same size.', suggestedTool: 'array_model' },
+    ],
+    fractions: [
+      { prompt: 'Compare 3/4 and 5/8.', answer: '3/4 is greater', hint: 'Use a common denominator.', suggestedTool: 'fraction_compare' },
+      { prompt: 'Add 2/3 + 1/4.', answer: '11/12', hint: 'Find twelfths.', suggestedTool: 'fraction_operation' },
+      { prompt: 'Shade 5/6 of a bar.', answer: '5 out of 6 equal parts', hint: 'The denominator tells the number of equal parts.', suggestedTool: 'fraction_strip' },
+    ],
+    decimals_percents: [
+      { prompt: 'Which is greater: 0.8 or 0.75?', answer: '0.8', hint: 'Write both in hundredths.', suggestedTool: 'decimal_grid' },
+      { prompt: 'What is 35% as a fraction out of 100?', answer: '35/100', hint: 'Percent means out of 100.', suggestedTool: 'percent_bar' },
+      { prompt: 'Find 25% of 48.', answer: '12', hint: '25% is one fourth.', suggestedTool: 'percent_bar' },
+    ],
+    ratios_rates: [
+      { prompt: 'If 3 notebooks cost 12 dollars, what is the cost per notebook?', answer: '4 dollars', hint: 'Find the value for 1 notebook.', suggestedTool: 'double_number_line' },
+      { prompt: 'Complete the ratio: 2 cups for 5 people, 4 cups for ? people.', answer: '10 people', hint: 'Scale both parts by 2.', suggestedTool: 'ratio_table' },
+      { prompt: 'Convert 2.5 meters to centimeters.', answer: '250 cm', hint: '1 meter is 100 centimeters.', suggestedTool: 'unit_conversion' },
+    ],
+    expressions_equations: [
+      { prompt: 'Evaluate 3 + 4 x 2.', answer: '11', hint: 'Multiply before adding.', suggestedTool: 'order_of_operations' },
+      { prompt: 'Solve x + 7 = 19.', answer: 'x = 12', hint: 'Undo plus 7.', suggestedTool: 'equation_balance' },
+      { prompt: 'Simplify 4x + 3x.', answer: '7x', hint: 'Combine like terms.', suggestedTool: 'write_on_canvas' },
+    ],
+    geometry_measurement: [
+      { prompt: 'Find the area of a 7 by 4 rectangle.', answer: '28 square units', hint: 'Area counts unit squares.', suggestedTool: 'area_perimeter_model' },
+      { prompt: 'Find the perimeter of a 7 by 4 rectangle.', answer: '22 units', hint: 'Add all side lengths.', suggestedTool: 'area_perimeter_model' },
+      { prompt: 'A shape is made of 3 by 4 and 2 by 5 rectangles. What is the total area?', answer: '22 square units', hint: 'Find each rectangle area, then add.', suggestedTool: 'composite_area_model' },
+    ],
+    coordinate_graphing: [
+      { prompt: 'Plot (2, 3) and (5, 3). What is the horizontal distance?', answer: '3 units', hint: 'The y-values match, so compare x-values.', suggestedTool: 'coordinate_distance' },
+      { prompt: 'Make a table for y = 2x + 1 using x = 0, 1, 2.', answer: '(0,1), (1,3), (2,5)', hint: 'Substitute each x-value.', suggestedTool: 'table_of_values' },
+      { prompt: 'Find the slope from (1, 2) to (5, 6).', answer: '1', hint: 'Slope is rise over run.', suggestedTool: 'slope_triangle' },
+    ],
+    data_probability: [
+      { prompt: 'Find the mean of 4, 7, 3, 7, 9.', answer: '6', hint: 'Add, then divide by how many values.', suggestedTool: 'statistics_summary' },
+      { prompt: 'What is the probability of 3 favorable outcomes out of 8?', answer: '3/8', hint: 'Favorable over total.', suggestedTool: 'probability_model' },
+      { prompt: 'Which data value appears most often in 4, 7, 3, 7, 9?', answer: '7', hint: 'Mode means most frequent.', suggestedTool: 'statistics_summary' },
+    ],
+  }
+
+  const offset = difficulty === 'support' ? 0 : difficulty === 'core' ? 1 : 2
+  const items = Array.from({ length: count }, (_, index) => pools[topic][(index + offset) % pools[topic].length])
+
+  return {
+    topic,
+    difficulty,
+    items,
+    tutorMove: 'Give one item at a time. Let the student try before revealing the answer key.',
+  }
+}
+
+export function percentBarScene(input: {
+  percent?: number
+  part?: number
+  total?: number
+  title?: string
+  label?: string
+}): CanvasActionResult {
+  let percent = typeof input.percent === 'number' ? coerceFiniteNumber(input.percent) : undefined
+  const part = typeof input.part === 'number' ? coerceFiniteNumber(input.part) : undefined
+  const total = typeof input.total === 'number' ? coerceFiniteNumber(input.total) : undefined
+
+  if (percent === undefined && part !== undefined && total !== undefined && total > 0) {
+    percent = (part / total) * 100
+  }
+  if (percent === undefined || percent < 0 || percent > 1000) {
+    throw new Error('Percent bar needs a percent from 0 to 1000, or part and total with total > 0.')
+  }
+
+  const visualPercent = clamp(percent, 0, 100)
+  const barX = TOOL_SCENE.x + 88
+  const barY = TOOL_SCENE.y + 214
+  const barWidth = 480
+  const barHeight = 64
+  const shadedWidth = (visualPercent / 100) * barWidth
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Percent bar'),
+    textLabel(TOOL_SCENE.x + 62, TOOL_SCENE.y + 72, input.label?.trim() || 'Percent means part out of 100.', {
+      width: 470,
+      color: 'green',
+    }),
+    rectangle(barX, barY, barWidth, barHeight, {
+      color: 'blue',
+      fill: 'none',
+      dash: 'solid',
+      size: 'm',
+    }),
+    rectangle(barX, barY, shadedWidth, barHeight, {
+      color: 'green',
+      fill: 'solid',
+      opacity: 0.28,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(barX - 8, barY + barHeight + 18, '0%', {
+      width: 54,
+      color: 'grey',
+    }),
+    textLabel(barX + barWidth - 46, barY + barHeight + 18, '100%', {
+      width: 70,
+      color: 'grey',
+    }),
+    textLabel(barX + shadedWidth - 34, barY - 42, `${formatPercent(percent)}`, {
+      width: 110,
+      color: 'green',
+    }),
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Set up', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      [
+        part !== undefined && total !== undefined
+          ? `${formatNumber(part)} out of ${formatNumber(total)}`
+          : `${formatPercent(percent)} out of 100%`,
+        `Decimal: ${formatNumber(percent / 100, 4)}`,
+        percent > 100 ? 'The bar passes one whole.' : 'The shaded part shows the percent.',
+      ],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 34,
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
+  ]
+
+  return {
+    summary: `Prepared a percent bar for ${formatPercent(percent)}.`,
+    canvasActions: actions,
+  }
+}
+
+export function doubleNumberLineScene(input: {
+  topLabel: string
+  bottomLabel: string
+  pairs: Array<{ top: number; bottom: number; label?: string }>
+  title?: string
+}): CanvasActionResult {
+  const pairs = input.pairs
+    .map((pair) => ({
+      top: coerceFiniteNumber(pair.top),
+      bottom: coerceFiniteNumber(pair.bottom),
+      label: pair.label?.trim(),
+    }))
+    .slice(0, 7)
+    .sort((a, b) => a.top - b.top)
+
+  if (pairs.length < 2) {
+    throw new Error('Double number line needs at least two aligned pairs.')
+  }
+
+  const lineStartX = TOOL_SCENE.x + 112
+  const lineEndX = TOOL_SCENE.x + 560
+  const topY = TOOL_SCENE.y + 210
+  const bottomY = TOOL_SCENE.y + 330
+  const topValues = pairs.map((pair) => pair.top)
+  const minTop = Math.min(...topValues)
+  const maxTop = Math.max(...topValues)
+  const mapTop = (value: number) => mapToRange(value, minTop, maxTop, lineStartX, lineEndX)
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Double number line'),
+    textLabel(TOOL_SCENE.x + 46, topY - 16, input.topLabel.trim() || 'Top', {
+      width: 92,
+      color: 'green',
+    }),
+    textLabel(TOOL_SCENE.x + 46, bottomY - 16, input.bottomLabel.trim() || 'Bottom', {
+      width: 92,
+      color: 'green',
+    }),
+    lineSegment({ x: lineStartX, y: topY }, { x: lineEndX, y: topY }, { color: 'blue', size: 'm', dash: 'solid' }),
+    lineSegment({ x: lineStartX, y: bottomY }, { x: lineEndX, y: bottomY }, { color: 'blue', size: 'm', dash: 'solid' }),
+  ]
+
+  pairs.forEach((pair) => {
+    const x = mapTop(pair.top)
+    actions.push(
+      lineSegment({ x, y: topY - 10 }, { x, y: bottomY + 10 }, {
+        color: 'light-blue',
+        size: 's',
+        dash: 'dashed',
+      }),
+      textLabel(x - 28, topY - 48, formatNumber(pair.top), {
+        width: 70,
+        color: 'black',
+      }),
+      textLabel(x - 28, bottomY + 18, formatNumber(pair.bottom), {
+        width: 70,
+        color: 'black',
+      })
+    )
+    if (pair.label) {
+      actions.push(textLabel(x - 42, topY + 38, pair.label, { width: 110, color: 'grey' }))
+    }
+  })
+
+  const first = pairs[0]
+  const last = pairs[pairs.length - 1]
+  const topChange = last.top - first.top
+  const bottomChange = last.bottom - first.bottom
+  actions.push(
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Relationship', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      [
+        `${input.topLabel}: ${formatNumber(first.top)} to ${formatNumber(last.top)}`,
+        `${input.bottomLabel}: ${formatNumber(first.bottom)} to ${formatNumber(last.bottom)}`,
+        `Changes: ${formatNumber(topChange)} and ${formatNumber(bottomChange)}`,
+      ],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 34,
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: 'Prepared a double number line for proportional reasoning.',
+    canvasActions: actions,
+  }
+}
+
+export function compositeAreaModelScene(input: {
+  rectangles: Array<{ xUnits: number; yUnits: number; widthUnits: number; heightUnits: number; label?: string }>
+  unitLabel?: string
+  title?: string
+}): CanvasActionResult {
+  const unitLabel = input.unitLabel?.trim() || 'unit'
+  const pieces = input.rectangles
+    .slice(0, 6)
+    .map((piece) => ({
+      xUnits: Math.trunc(piece.xUnits),
+      yUnits: Math.trunc(piece.yUnits),
+      widthUnits: Math.trunc(piece.widthUnits),
+      heightUnits: Math.trunc(piece.heightUnits),
+      label: piece.label?.trim(),
+    }))
+
+  if (
+    pieces.length === 0 ||
+    pieces.some((piece) => piece.widthUnits <= 0 || piece.heightUnits <= 0 || piece.xUnits < 0 || piece.yUnits < 0)
+  ) {
+    throw new Error('Composite area needs positive rectangle dimensions and non-negative positions.')
+  }
+
+  const maxX = Math.max(...pieces.map((piece) => piece.xUnits + piece.widthUnits))
+  const maxY = Math.max(...pieces.map((piece) => piece.yUnits + piece.heightUnits))
+  if (maxX > 20 || maxY > 16) {
+    throw new Error('Composite area model supports a drawing up to 20 by 16 units.')
+  }
+
+  const cellSize = Math.min(34, Math.floor(360 / Math.max(maxX, maxY, 1)))
+  const originX = TOOL_SCENE.x + 98
+  const originY = TOOL_SCENE.y + 136
+  const colors: TutorCanvasColor[] = ['green', 'blue', 'orange', 'violet', 'red', 'grey']
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Composite area'),
+  ]
+  let totalArea = 0
+
+  pieces.forEach((piece, index) => {
+    const area = piece.widthUnits * piece.heightUnits
+    totalArea += area
+    const x = originX + piece.xUnits * cellSize
+    const y = originY + piece.yUnits * cellSize
+    const width = piece.widthUnits * cellSize
+    const height = piece.heightUnits * cellSize
+    actions.push(
+      rectangle(x, y, width, height, {
+        color: colors[index % colors.length],
+        fill: 'semi',
+        opacity: 0.14,
+        dash: 'solid',
+        size: 'm',
+        label: piece.label || `${area}`,
+      })
+    )
+    for (let column = 1; column < piece.widthUnits && piece.widthUnits <= 12; column += 1) {
+      const gridX = x + column * cellSize
+      actions.push(lineSegment({ x: gridX, y }, { x: gridX, y: y + height }, { color: 'light-blue', size: 's', dash: 'solid' }))
+    }
+    for (let row = 1; row < piece.heightUnits && piece.heightUnits <= 12; row += 1) {
+      const gridY = y + row * cellSize
+      actions.push(lineSegment({ x, y: gridY }, { x: x + width, y: gridY }, { color: 'light-blue', size: 's', dash: 'solid' }))
+    }
+  })
+
+  actions.push(
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Add the parts', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      [
+        ...pieces.slice(0, 4).map((piece, index) => `Part ${index + 1}: ${piece.widthUnits} x ${piece.heightUnits} = ${piece.widthUnits * piece.heightUnits}`),
+        `Total area: ${totalArea} square ${unitLabel}s`,
+      ],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 32,
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: `Prepared a composite area model with total area ${totalArea} square ${unitLabel}s.`,
+    canvasActions: actions,
+  }
+}
+
+export function coordinateDistanceScene(input: {
+  pointA: { x: number; y: number }
+  pointB: { x: number; y: number }
+  title?: string
+}): CanvasActionResult {
+  const pointA = {
+    x: coerceFiniteNumber(input.pointA.x),
+    y: coerceFiniteNumber(input.pointA.y),
+  }
+  const pointB = {
+    x: coerceFiniteNumber(input.pointB.x),
+    y: coerceFiniteNumber(input.pointB.y),
+  }
+  if (isNearlyEqual(pointA.x, pointB.x) && isNearlyEqual(pointA.y, pointB.y)) {
+    throw new Error('Coordinate distance needs two different points.')
+  }
+
+  const xDomain = expandNumericDomain([pointA.x, pointB.x, 0], { minSpan: 6, padding: 1 })
+  const yDomain = expandNumericDomain([pointA.y, pointB.y, 0], { minSpan: 6, padding: 1 })
+  const plane = buildCoordinatePlaneScene({
+    clearExisting: true,
+    title: input.title?.trim() || 'Coordinate distance',
+    xDomain,
+    yDomain,
+  })
+  const aCanvas = mapGraphCoordinateToCanvas(pointA, { x: xDomain, y: yDomain })
+  const bCanvas = mapGraphCoordinateToCanvas(pointB, { x: xDomain, y: yDomain })
+  const cornerCanvas = mapGraphCoordinateToCanvas({ x: pointB.x, y: pointA.y }, { x: xDomain, y: yDomain })
+  const dx = pointB.x - pointA.x
+  const dy = pointB.y - pointA.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+
+  const actions: TutorCanvasAction[] = [
+    ...plane.canvasActions,
+    lineSegment(aCanvas, bCanvas, { color: 'blue', size: 'm', dash: 'solid', label: 'distance' }),
+    lineSegment(aCanvas, cornerCanvas, { color: 'orange', size: 'm', dash: 'dashed', label: `horizontal ${formatNumber(Math.abs(dx))}` }),
+    lineSegment(cornerCanvas, bCanvas, { color: 'green', size: 'm', dash: 'dashed', label: `vertical ${formatNumber(Math.abs(dy))}` }),
+    point(aCanvas.x, aCanvas.y, {
+      label: `A(${formatNumber(pointA.x)}, ${formatNumber(pointA.y)})`,
+      color: 'blue',
+      labelPosition: 'bottom-left',
+      labelWidth: 130,
+    }),
+    point(bCanvas.x, bCanvas.y, {
+      label: `B(${formatNumber(pointB.x)}, ${formatNumber(pointB.y)})`,
+      color: 'blue',
+      labelPosition: 'top-right',
+      labelWidth: 130,
+    }),
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Distance', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      isNearlyEqual(dx, 0) || isNearlyEqual(dy, 0)
+        ? [`Change in x: ${formatNumber(Math.abs(dx))}`, `Change in y: ${formatNumber(Math.abs(dy))}`, `Distance: ${formatNumber(distance)}`]
+        : [`Horizontal: ${formatNumber(Math.abs(dx))}`, `Vertical: ${formatNumber(Math.abs(dy))}`, `Distance: about ${formatNumber(distance, 3)}`],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 34,
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
+  ]
+
+  return {
+    summary: `Prepared a coordinate-distance model with distance ${formatNumber(distance, 3)}.`,
+    canvasActions: actions,
+  }
+}
