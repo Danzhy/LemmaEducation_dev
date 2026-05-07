@@ -131,6 +131,29 @@ function EndIcon(props: SVGProps<SVGSVGElement>) {
 
 const GRADE_LEVEL_OPTIONS = ['Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7']
 
+const LAB_TOOL_RECIPES = [
+  {
+    label: 'Percent bar',
+    prompt: 'Draw a percent bar for 18 out of 60. Give one hint before the answer.',
+  },
+  {
+    label: 'Fraction mistake',
+    prompt: 'A student says 1/2 + 1/3 = 2/5. Diagnose the misconception and guide them with a visual.',
+  },
+  {
+    label: 'Ratio line',
+    prompt: 'Use a double number line for 3 notebooks costing $12 and help find the cost of 7 notebooks.',
+  },
+  {
+    label: 'Graph',
+    prompt: 'Graph y = x^2 - 4 from x = -4 to 4 and point out the intercepts.',
+  },
+  {
+    label: 'Area model',
+    prompt: 'Draw a composite area model for a 6 by 4 rectangle with a 2 by 3 rectangle attached.',
+  },
+]
+
 function formatToolName(name: string) {
   return name.replace(/_/g, ' ')
 }
@@ -949,6 +972,30 @@ export default function TutorWorkspace({
                             </button>
                           </div>
                         )}
+
+                        {mode === 'agent-lab' ? (
+                          <div className="rounded-[22px] border border-[#DCE7E2] bg-white/62 px-3.5 py-3">
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">
+                                Tool recipes
+                              </p>
+                              <span className="text-[11px] text-[#7A8C86]">lab only</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {LAB_TOOL_RECIPES.map((recipe) => (
+                                <button
+                                  key={recipe.label}
+                                  type="button"
+                                  onClick={() => handleTextSend(recipe.prompt)}
+                                  disabled={session.state === 'thinking' || session.isPaused}
+                                  className="rounded-full border border-[#C9DAD4] bg-[#F7FAF8] px-3 py-1.5 text-[11px] font-medium text-[#2A453E] transition-all hover:-translate-y-0.5 hover:border-[#16423C] hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                  {recipe.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
 
                         <TextInput
                           onSend={handleTextSend}
