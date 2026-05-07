@@ -23,6 +23,7 @@ type UseVoiceAgentTutorOptions = {
 }
 
 const CANVAS_CONTEXT_MARKER = 'LEMMA_CANVAS_CONTEXT'
+const MAX_TOOL_EVENTS = 80
 
 const CANVAS_COLORS = [
   'black',
@@ -557,14 +558,16 @@ export function useVoiceAgentTutor({
   )
 
   const appendToolEvent = useCallback((event: Omit<TutorToolEvent, 'id' | 'createdAt'>) => {
-    setToolEvents((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        createdAt: Date.now(),
-        ...event,
-      },
-    ])
+    setToolEvents((prev) =>
+      [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          createdAt: Date.now(),
+          ...event,
+        },
+      ].slice(-MAX_TOOL_EVENTS)
+    )
   }, [])
 
   const pause = useCallback(
