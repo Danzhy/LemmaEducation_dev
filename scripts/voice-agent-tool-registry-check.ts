@@ -37,6 +37,19 @@ const REQUIRED_TOOL_NAMES = [
   'write_on_canvas',
 ] as const
 
+const EXPECTED_CANVAS_ACTION_TYPES = [
+  'clear_tool_layer',
+  'place_text_label',
+  'place_math_block',
+  'place_point',
+  'draw_line_segment',
+  'draw_axes',
+  'draw_rectangle',
+  'highlight_region',
+  'plot_polyline',
+  'coordinate_plane',
+] as const
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message)
@@ -77,6 +90,15 @@ for (const tool of tools) {
     assert(required.includes(propertyName), `${name}.${propertyName} must be required in strict mode.`)
   }
 }
+
+const canvasTool = tools.find((tool) => tool.name === 'canvas_action')
+assert(canvasTool, 'canvas_action tool must stay registered.')
+const canvasActionType = canvasTool.parameters?.properties?.actionType as { enum?: unknown } | undefined
+assert(Array.isArray(canvasActionType?.enum), 'canvas_action.actionType must be an enum allowlist.')
+assert(
+  JSON.stringify([...canvasActionType.enum].sort()) === JSON.stringify([...EXPECTED_CANVAS_ACTION_TYPES].sort()),
+  'canvas_action.actionType enum drifted from the safe structured action allowlist.'
+)
 
 const instructionSource = readFileSync(new URL('../app/api/voice-agent/session/route.ts', import.meta.url), 'utf8')
 for (const toolName of names) {
