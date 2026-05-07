@@ -187,6 +187,10 @@ function summarizeToolValue(value: unknown) {
     const record = value as Record<string, unknown>
     if (typeof record.summary === 'string') return record.summary
     if (typeof record.spokenSummary === 'string') return record.spokenSummary
+    if (typeof record.equation === 'string') return record.equation
+    if (typeof record.rateLabel === 'string') return record.rateLabel
+    if (typeof record.simplified === 'string') return `Simplified: ${record.simplified}`
+    if (typeof record.likelyOperation === 'string') return `Plan: ${record.likelyOperation}`
     if (typeof record.suggestedQuestion === 'string') return record.suggestedQuestion
     if (Array.isArray(record.canvasActions)) {
       return `${record.canvasActions.length} board action${record.canvasActions.length === 1 ? '' : 's'} ready`
