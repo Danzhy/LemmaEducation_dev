@@ -27,10 +27,12 @@ import {
   percentBarScene,
   probabilityModelScene,
   ratioTableScene,
+  socraticMovePlanner,
   slopeTriangleScene,
   statisticsSummaryScene,
   tableOfValues,
   unitConversionScene,
+  wordProblemPlan,
 } from '../lib/voice-agent/math-engine'
 
 type SmokeCase = {
@@ -185,4 +187,19 @@ assert(diagnosis.findings.length > 0, 'misconception_diagnosis should return at 
 const practiceSet = practiceSetGenerator({ topic: 'geometry', count: 2 })
 assert(practiceSet.items.length === 2, 'practice_set_generator should honor requested count.')
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 4} checks).`)
+const wordPlan = wordProblemPlan({
+  problemText: 'A recipe uses 3 cups of flour for 12 muffins. How many cups are needed for 20 muffins?',
+  topic: 'ratios',
+})
+assert(
+  wordPlan.recommendedTools.includes('double_number_line') || wordPlan.recommendedTools.includes('ratio_table'),
+  'word_problem_plan should recommend a ratio visual for ratio word problems.'
+)
+
+const nextMove = socraticMovePlanner({ topic: 'fractions', studentWork: 'I got 2/5 for 1/2 + 1/3.' })
+assert(
+  nextMove.recommendedTool === 'misconception_diagnosis',
+  'socratic_move_planner should recommend misconception_diagnosis when student work is present.'
+)
+
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 6} checks).`)

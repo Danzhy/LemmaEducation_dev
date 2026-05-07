@@ -14,6 +14,8 @@ import type {
   MathStepCheckResult,
   PlotPointsResult,
   ValueTableResult,
+  SocraticMoveResult,
+  WordProblemPlanResult,
 } from '@/lib/voice-agent/types'
 import type {
   TutorCanvasAction,
@@ -4919,6 +4921,171 @@ export function practiceSetGenerator(input: {
     difficulty,
     items,
     tutorMove: 'Give one item at a time. Let the student try before revealing the answer key.',
+  }
+}
+
+function inferWordProblemTopic(problemText: string, explicitTopic?: string) {
+  if (explicitTopic?.trim()) return resolveCurriculumTopic(explicitTopic)
+
+  const text = problemText.toLowerCase()
+  if (/\b(percent|%|discount|tax|tip|sale)\b/.test(text)) return 'decimals_percents'
+  if (/\b(ratio|rate|per|each|every|recipe|speed|cost)\b/.test(text)) return 'ratios_rates'
+  if (/\b(fraction|half|third|fourth|fifth|sixth|eighth|\/)\b/.test(text)) return 'fractions'
+  if (/\b(equation|expression|variable|unknown|x\b|solve)\b/.test(text)) return 'expressions_equations'
+  if (/\b(area|perimeter|angle|rectangle|triangle|volume|length|width|height)\b/.test(text)) return 'geometry_measurement'
+  if (/\b(graph|coordinate|point|slope|ordered pair|x-axis|y-axis)\b/.test(text)) return 'coordinate_graphing'
+  if (/\b(mean|median|mode|range|data|probability|chance|outcome)\b/.test(text)) return 'data_probability'
+  if (/\b(place value|digit|round|decimal place)\b/.test(text)) return 'place_value'
+  if (/\b(group|groups|divide|share|remainder|product|times)\b/.test(text)) return 'multiplication_division'
+
+  return 'multiplication_division'
+}
+
+function extractWordProblemQuantities(problemText: string) {
+  const matches = problemText.match(/(?:\$|AED\s*)?-?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?\s*(?:%|[a-zA-Z]+)?/g) ?? []
+  return matches
+    .map((match) => match.trim().replace(/\s+/g, ' '))
+    .filter((match, index, values) => match.length > 0 && values.indexOf(match) === index)
+    .slice(0, 8)
+}
+
+function extractWordProblemQuestion(problemText: string) {
+  const sentences = problemText
+    .split(/(?<=[.?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+  const explicitQuestion = [...sentences].reverse().find((sentence) => sentence.includes('?'))
+  return explicitQuestion ?? sentences.at(-1) ?? problemText.trim()
+}
+
+function chooseWordProblemOperation(problemText: string, topic: CurriculumTopic) {
+  const text = problemText.toLowerCase()
+  if (topic === 'ratios_rates') return /\bper|each|unit\b/.test(text) ? 'find a unit rate or scale factor' : 'keep two quantities scaled together'
+  if (topic === 'decimals_percents') return 'connect part, whole, and percent'
+  if (topic === 'fractions') return /\btotal|altogether|left|remaining\b/.test(text) ? 'combine or compare fractional parts' : 'identify the whole and equal parts'
+  if (topic === 'geometry_measurement') return /\bperimeter\b/.test(text) ? 'add side lengths around the boundary' : 'decompose the shape and count square units'
+  if (topic === 'expressions_equations') return 'represent the unknown with a variable and keep equality balanced'
+  if (topic === 'coordinate_graphing') return 'map values to ordered pairs or changes on the coordinate plane'
+  if (topic === 'data_probability') return /\bprobability|chance\b/.test(text) ? 'favorable outcomes over total outcomes' : 'summarize or compare the data set'
+  if (topic === 'place_value') return 'use place value before calculating'
+  if (/\bleft|remain|less|fewer|difference\b/.test(text)) return 'subtract or compare'
+  if (/\baltogether|total|sum|combined|in all\b/.test(text)) return 'add or combine'
+  if (/\beach|groups of|times|product\b/.test(text)) return 'multiply equal groups'
+  if (/\bshare|split|divide|per\b/.test(text)) return 'divide into equal groups'
+  return 'identify the relationship before choosing an operation'
+}
+
+function chooseVisualModel(topic: CurriculumTopic, problemText: string) {
+  const tools = CURRICULUM_GUIDE[topic].tools
+  const text = problemText.toLowerCase()
+
+  if (topic === 'ratios_rates') return text.includes('line') ? 'double_number_line' : 'ratio_table'
+  if (topic === 'decimals_percents') return 'percent_bar'
+  if (topic === 'fractions') return text.includes('compare') ? 'fraction_compare' : 'fraction_strip'
+  if (topic === 'geometry_measurement') return text.includes('composite') || text.includes('attached') ? 'composite_area_model' : 'area_perimeter_model'
+  if (topic === 'expressions_equations') return 'equation_balance'
+  if (topic === 'coordinate_graphing') return 'plot_points_on_plane'
+  if (topic === 'data_probability') return text.includes('probability') ? 'probability_model' : 'data_display'
+  if (topic === 'multiplication_division') return text.includes('divide') ? 'long_division' : 'array_model'
+
+  return tools[0]
+}
+
+export function wordProblemPlan(input: {
+  problemText: string
+  gradeLevel?: string
+  topic?: string
+}): WordProblemPlanResult {
+  const problemText = input.problemText.trim().replace(/\s+/g, ' ')
+  if (!problemText) {
+    throw new Error('word_problem_plan needs the problem text.')
+  }
+
+  const topic = inferWordProblemTopic(problemText, input.topic)
+  const guide = CURRICULUM_GUIDE[topic]
+  const quantities = extractWordProblemQuantities(problemText)
+  const question = extractWordProblemQuestion(problemText)
+  const visualModel = chooseVisualModel(topic, problemText)
+  const likelyOperation = chooseWordProblemOperation(problemText, topic)
+
+  return {
+    topic,
+    label: guide.label,
+    quantities,
+    question,
+    likelyOperation,
+    visualModel,
+    recommendedTools: [visualModel, ...guide.tools.filter((toolName) => toolName !== visualModel)].slice(0, 4),
+    firstTutorMove: 'Ask the student to name the known quantities and the unknown before calculating.',
+    studentPrompt:
+      quantities.length > 0
+        ? `I see ${quantities.slice(0, 3).join(', ')}. Which one is the question asking us to find?`
+        : 'What numbers or measurements do we know, and what are we trying to find?',
+    guardrail:
+      'Do not solve the whole word problem immediately. Set up the relationship, choose one visual, and let the student make the next step.',
+  }
+}
+
+export function socraticMovePlanner(input: {
+  topic: string
+  gradeLevel?: string
+  studentWork?: string
+  tutorGoal?: 'start' | 'unstick' | 'check' | 'extend' | 'practice'
+}): SocraticMoveResult {
+  const topic = resolveCurriculumTopic(input.topic)
+  const guide = CURRICULUM_GUIDE[topic]
+  const work = input.studentWork?.trim() ?? ''
+  const goal = input.tutorGoal ?? (work ? 'unstick' : 'start')
+  const firstTool = guide.tools[0]
+
+  if (goal === 'check') {
+    return {
+      topic,
+      label: guide.label,
+      moveType: 'check',
+      recommendedTool: topic === 'expressions_equations' ? 'math_check_step' : 'math_check_answer',
+      teacherNote: 'Check only the current answer or step before deciding the next hint.',
+      sayThis: 'Let us check this step carefully.',
+      askThis: 'What did you do from the previous line to this line?',
+      waitFor: 'A student explanation of the operation or comparison they used.',
+    }
+  }
+
+  if (goal === 'practice') {
+    return {
+      topic,
+      label: guide.label,
+      moveType: 'practice',
+      recommendedTool: 'practice_set_generator',
+      teacherNote: 'Give one short problem at a time and keep the answer hidden until the student tries.',
+      sayThis: 'I will give you one quick practice problem.',
+      askThis: 'Try the first step out loud before we check it.',
+      waitFor: 'The student attempt, not a final perfect answer.',
+    }
+  }
+
+  if (work) {
+    return {
+      topic,
+      label: guide.label,
+      moveType: 'nudge',
+      recommendedTool: 'misconception_diagnosis',
+      teacherNote: guide.nextMove,
+      sayThis: 'I think we should look at the reasoning, not just the answer.',
+      askThis: 'Which part of your work are you most confident about, and which part feels shaky?',
+      waitFor: 'A specific step, phrase, or uncertainty from the student.',
+    }
+  }
+
+  return {
+    topic,
+    label: guide.label,
+    moveType: 'visualize',
+    recommendedTool: firstTool,
+    teacherNote: guide.nextMove,
+    sayThis: 'Let us make the structure visible before calculating.',
+    askThis: 'What do we know, what are we looking for, and what should the model show?',
+    waitFor: 'The student naming knowns, unknowns, or the relationship in their own words.',
   }
 }
 

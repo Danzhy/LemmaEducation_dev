@@ -35,11 +35,13 @@ import {
   percentBarScene,
   probabilityModelScene,
   ratioTableScene,
+  socraticMovePlanner,
   slopeTriangleScene,
   solveLinearOnCanvas,
   statisticsSummaryScene,
   tableOfValues,
   unitConversionScene,
+  wordProblemPlan,
   writeOnCanvas,
 } from '@/lib/voice-agent/math-engine'
 
@@ -195,6 +197,76 @@ export function createVoiceAgentTools() {
             topic: params.topic,
             difficulty: params.difficulty,
             count: params.count,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'word_problem_plan',
+      description:
+        'Plan how to tutor a grade 3 to 7 word problem before solving it. Use this to identify knowns, unknowns, operation clues, and the best visual model.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          problemText: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          topic: {
+            type: 'string',
+            description:
+              'Optional broad topic if already known, such as fractions, percents, ratios, equations, geometry, graphing, data, or probability.',
+          },
+        },
+        required: ['problemText'],
+      },
+      async execute(input) {
+        const params = input as {
+          problemText: string
+          gradeLevel?: string
+          topic?: string
+        }
+        return stringifyResult(
+          wordProblemPlan({
+            problemText: params.problemText,
+            gradeLevel: params.gradeLevel,
+            topic: params.topic,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'socratic_move_planner',
+      description:
+        'Choose the next Socratic tutoring move for grades 3 to 7. Use this before giving help when you need a concise probe, nudge, check, visual, or practice move.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          studentWork: { type: 'string' },
+          tutorGoal: {
+            type: 'string',
+            enum: ['start', 'unstick', 'check', 'extend', 'practice'],
+          },
+        },
+        required: ['topic'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          gradeLevel?: string
+          studentWork?: string
+          tutorGoal?: 'start' | 'unstick' | 'check' | 'extend' | 'practice'
+        }
+        return stringifyResult(
+          socraticMovePlanner({
+            topic: params.topic,
+            gradeLevel: params.gradeLevel,
+            studentWork: params.studentWork,
+            tutorGoal: params.tutorGoal,
           })
         )
       },

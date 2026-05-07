@@ -108,3 +108,27 @@ export type HintGeneratorResult = {
   why: string
   suggestedQuestion: string
 }
+
+export type WordProblemPlanResult = {
+  topic: string
+  label: string
+  quantities: string[]
+  question: string
+  likelyOperation: string
+  visualModel: string
+  recommendedTools: string[]
+  firstTutorMove: string
+  studentPrompt: string
+  guardrail: string
+}
+
+export type SocraticMoveResult = {
+  topic: string
+  label: string
+  moveType: 'probe' | 'visualize' | 'nudge' | 'check' | 'practice'
+  recommendedTool: string
+  teacherNote: string
+  sayThis: string
+  askThis: string
+  waitFor: string
+}
