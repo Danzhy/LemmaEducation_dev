@@ -2,6 +2,7 @@ import { tool, type Tool } from '@openai/agents'
 import {
   annotateGraphFeatures,
   angleDiagramScene,
+  areaPerimeterModelScene,
   arrayModelScene,
   barModelScene,
   canvasAction,
@@ -9,6 +10,7 @@ import {
   decimalGridScene,
   equationBalanceScene,
   factorTreeScene,
+  fractionCompareScene,
   fractionStripScene,
   geometryFigure,
   graphFunction,
@@ -23,6 +25,7 @@ import {
   placeValueChartScene,
   plotPointsOnPlane,
   ratioTableScene,
+  slopeTriangleScene,
   solveLinearOnCanvas,
   tableOfValues,
   writeOnCanvas,
@@ -986,6 +989,124 @@ export function createVoiceAgentTools() {
             negativeCount: params.negativeCount,
             title: params.title,
             expression: params.expression,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'fraction_compare',
+      description:
+        'Create side-by-side fraction bars and a common-denominator comparison. Use when students compare fractions or need to see which fraction is larger.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          leftNumerator: { type: 'number' },
+          leftDenominator: { type: 'number' },
+          rightNumerator: { type: 'number' },
+          rightDenominator: { type: 'number' },
+          title: { type: 'string' },
+        },
+        required: ['leftNumerator', 'leftDenominator', 'rightNumerator', 'rightDenominator'],
+      },
+      async execute(input) {
+        const params = input as {
+          leftNumerator: number
+          leftDenominator: number
+          rightNumerator: number
+          rightDenominator: number
+          title?: string
+        }
+        return stringifyResult(
+          fractionCompareScene({
+            leftNumerator: params.leftNumerator,
+            leftDenominator: params.leftDenominator,
+            rightNumerator: params.rightNumerator,
+            rightDenominator: params.rightDenominator,
+            title: params.title,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'area_perimeter_model',
+      description:
+        'Create a rectangle model with unit squares plus area and perimeter facts. Use for area, perimeter, tiling, rectangles, and measurement word problems.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          widthUnits: { type: 'number' },
+          heightUnits: { type: 'number' },
+          unitLabel: { type: 'string' },
+          title: { type: 'string' },
+          showUnitSquares: { type: 'boolean' },
+        },
+        required: ['widthUnits', 'heightUnits'],
+      },
+      async execute(input) {
+        const params = input as {
+          widthUnits: number
+          heightUnits: number
+          unitLabel?: string
+          title?: string
+          showUnitSquares?: boolean
+        }
+        return stringifyResult(
+          areaPerimeterModelScene({
+            widthUnits: params.widthUnits,
+            heightUnits: params.heightUnits,
+            unitLabel: params.unitLabel,
+            title: params.title,
+            showUnitSquares: params.showUnitSquares,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'slope_triangle',
+      description:
+        'Draw two points on a coordinate plane with a rise-run triangle and slope notes. Use for slope, rate of change, proportional graphs, and coordinate geometry.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          pointA: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              x: { type: 'number' },
+              y: { type: 'number' },
+            },
+            required: ['x', 'y'],
+          },
+          pointB: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              x: { type: 'number' },
+              y: { type: 'number' },
+            },
+            required: ['x', 'y'],
+          },
+          title: { type: 'string' },
+        },
+        required: ['pointA', 'pointB'],
+      },
+      async execute(input) {
+        const params = input as {
+          pointA: { x: number; y: number }
+          pointB: { x: number; y: number }
+          title?: string
+        }
+        return stringifyResult(
+          slopeTriangleScene({
+            pointA: params.pointA,
+            pointB: params.pointB,
+            title: params.title,
           })
         )
       },

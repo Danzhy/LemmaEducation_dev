@@ -3923,3 +3923,325 @@ export function integerChipsScene(input: {
     canvasActions: actions,
   }
 }
+
+function simplifyFractionParts(numerator: number, denominator: number) {
+  const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b))
+  const divisor = gcd(numerator, denominator) || 1
+  return {
+    numerator: numerator / divisor,
+    denominator: denominator / divisor,
+  }
+}
+
+export function fractionCompareScene(input: {
+  leftNumerator: number
+  leftDenominator: number
+  rightNumerator: number
+  rightDenominator: number
+  title?: string
+}): CanvasActionResult {
+  const leftNumerator = Math.trunc(input.leftNumerator)
+  const leftDenominator = Math.trunc(input.leftDenominator)
+  const rightNumerator = Math.trunc(input.rightNumerator)
+  const rightDenominator = Math.trunc(input.rightDenominator)
+
+  if (
+    leftNumerator < 0 ||
+    rightNumerator < 0 ||
+    leftDenominator <= 0 ||
+    rightDenominator <= 0 ||
+    leftDenominator > 16 ||
+    rightDenominator > 16
+  ) {
+    throw new Error('Fraction comparison supports non-negative fractions with denominators from 1 to 16.')
+  }
+
+  const leftValue = leftNumerator / leftDenominator
+  const rightValue = rightNumerator / rightDenominator
+  const comparison = isNearlyEqual(leftValue, rightValue)
+    ? '='
+    : leftValue > rightValue
+    ? '>'
+    : '<'
+  const barX = TOOL_SCENE.x + 122
+  const barY = TOOL_SCENE.y + 166
+  const barWidth = 430
+  const barHeight = 56
+  const rowGap = 92
+  const drawFractionBar = (
+    numerator: number,
+    denominator: number,
+    y: number,
+    label: string,
+    color: TutorCanvasColor
+  ) => {
+    const partWidth = barWidth / denominator
+    const parts: TutorCanvasAction[] = [
+      textLabel(barX - 76, y + 16, label, {
+        width: 64,
+        color,
+      }),
+    ]
+    for (let index = 0; index < denominator; index += 1) {
+      const shaded = index < numerator
+      parts.push(
+        rectangle(barX + index * partWidth, y, partWidth, barHeight, {
+          color: shaded ? color : 'blue',
+          fill: shaded ? 'solid' : 'none',
+          opacity: shaded ? 0.26 : undefined,
+          dash: 'solid',
+          size: 's',
+        })
+      )
+    }
+    return parts
+  }
+
+  const commonDenominator = leftDenominator * rightDenominator
+  const leftEquivalent = leftNumerator * rightDenominator
+  const rightEquivalent = rightNumerator * leftDenominator
+  const simplifiedLeft = simplifyFractionParts(leftNumerator, leftDenominator)
+  const simplifiedRight = simplifyFractionParts(rightNumerator, rightDenominator)
+
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Compare fractions'),
+    ...drawFractionBar(leftNumerator, leftDenominator, barY, `${leftNumerator}/${leftDenominator}`, 'green'),
+    ...drawFractionBar(rightNumerator, rightDenominator, barY + rowGap, `${rightNumerator}/${rightDenominator}`, 'orange'),
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Compare', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      [
+        `${leftNumerator}/${leftDenominator} ${comparison} ${rightNumerator}/${rightDenominator}`,
+        `Common denominator: ${commonDenominator}`,
+        `${leftEquivalent}/${commonDenominator} ${comparison} ${rightEquivalent}/${commonDenominator}`,
+      ],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 34,
+      }
+    ),
+    textLabel(
+      barX,
+      TOOL_SCENE.y + 408,
+      `${simplifiedLeft.numerator}/${simplifiedLeft.denominator} ${comparison} ${simplifiedRight.numerator}/${simplifiedRight.denominator}`,
+      {
+        width: 360,
+        color: 'green',
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
+  ]
+
+  return {
+    summary: `Prepared a fraction comparison for ${leftNumerator}/${leftDenominator} ${comparison} ${rightNumerator}/${rightDenominator}.`,
+    canvasActions: actions,
+  }
+}
+
+export function areaPerimeterModelScene(input: {
+  widthUnits: number
+  heightUnits: number
+  unitLabel?: string
+  title?: string
+  showUnitSquares?: boolean
+}): CanvasActionResult {
+  const widthUnits = Math.trunc(input.widthUnits)
+  const heightUnits = Math.trunc(input.heightUnits)
+  const unitLabel = input.unitLabel?.trim() || 'unit'
+
+  if (widthUnits <= 0 || heightUnits <= 0 || widthUnits > 20 || heightUnits > 20) {
+    throw new Error('Area and perimeter model supports dimensions from 1 to 20 units.')
+  }
+
+  const maxGrid = Math.max(widthUnits, heightUnits)
+  const cellSize = Math.min(42, Math.floor(300 / maxGrid))
+  const rectWidth = widthUnits * cellSize
+  const rectHeight = heightUnits * cellSize
+  const x = TOOL_SCENE.x + 142
+  const y = TOOL_SCENE.y + 152
+  const area = widthUnits * heightUnits
+  const perimeter = 2 * (widthUnits + heightUnits)
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(input.title?.trim() || 'Area and perimeter'),
+    rectangle(x, y, rectWidth, rectHeight, {
+      color: 'green',
+      fill: 'semi',
+      opacity: 0.14,
+      dash: 'solid',
+      size: 'm',
+    }),
+    textLabel(x + rectWidth / 2 - 70, y + rectHeight + 20, `${widthUnits} ${unitLabel}${widthUnits === 1 ? '' : 's'}`, {
+      width: 140,
+      color: 'green',
+    }),
+    textLabel(x + rectWidth + 18, y + rectHeight / 2 - 14, `${heightUnits} ${unitLabel}${heightUnits === 1 ? '' : 's'}`, {
+      width: 150,
+      color: 'green',
+    }),
+  ]
+
+  if (input.showUnitSquares !== false && widthUnits <= 12 && heightUnits <= 12) {
+    for (let column = 1; column < widthUnits; column += 1) {
+      const lineX = x + column * cellSize
+      actions.push(
+        lineSegment({ x: lineX, y }, { x: lineX, y: y + rectHeight }, {
+          color: 'light-blue',
+          size: 's',
+          dash: 'solid',
+        })
+      )
+    }
+    for (let row = 1; row < heightUnits; row += 1) {
+      const lineY = y + row * cellSize
+      actions.push(
+        lineSegment({ x, y: lineY }, { x: x + rectWidth, y: lineY }, {
+          color: 'light-blue',
+          size: 's',
+          dash: 'solid',
+        })
+      )
+    }
+  }
+
+  actions.push(
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Key facts', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      [
+        `Area = ${widthUnits} x ${heightUnits} = ${area} square ${unitLabel}s.`,
+        `Perimeter = 2(${widthUnits} + ${heightUnits}) = ${perimeter} ${unitLabel}s.`,
+      ],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 34,
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+  )
+
+  return {
+    summary: `Prepared an area and perimeter model with area ${area} and perimeter ${perimeter}.`,
+    canvasActions: actions,
+  }
+}
+
+export function slopeTriangleScene(input: {
+  pointA: { x: number; y: number }
+  pointB: { x: number; y: number }
+  title?: string
+}): CanvasActionResult {
+  const pointA = {
+    x: coerceFiniteNumber(input.pointA.x),
+    y: coerceFiniteNumber(input.pointA.y),
+  }
+  const pointB = {
+    x: coerceFiniteNumber(input.pointB.x),
+    y: coerceFiniteNumber(input.pointB.y),
+  }
+  if (isNearlyEqual(pointA.x, pointB.x) && isNearlyEqual(pointA.y, pointB.y)) {
+    throw new Error('Slope triangle needs two different points.')
+  }
+
+  const xDomain = expandNumericDomain([pointA.x, pointB.x, 0], { minSpan: 6, padding: 1 })
+  const yDomain = expandNumericDomain([pointA.y, pointB.y, 0], { minSpan: 6, padding: 1 })
+  const plane = buildCoordinatePlaneScene({
+    clearExisting: true,
+    title: input.title?.trim() || 'Slope triangle',
+    xDomain,
+    yDomain,
+  })
+  const aCanvas = mapGraphCoordinateToCanvas(pointA, { x: xDomain, y: yDomain })
+  const bCanvas = mapGraphCoordinateToCanvas(pointB, { x: xDomain, y: yDomain })
+  const cornerCanvas = mapGraphCoordinateToCanvas({ x: pointB.x, y: pointA.y }, { x: xDomain, y: yDomain })
+  const run = pointB.x - pointA.x
+  const rise = pointB.y - pointA.y
+  const slopeText = isNearlyEqual(run, 0)
+    ? 'undefined'
+    : formatNumber(rise / run, 3)
+
+  const actions: TutorCanvasAction[] = [
+    ...plane.canvasActions,
+    lineSegment(aCanvas, bCanvas, { color: 'blue', size: 'm', dash: 'solid' }),
+    lineSegment(aCanvas, cornerCanvas, {
+      color: 'orange',
+      size: 'm',
+      dash: 'dashed',
+      label: `run ${formatNumber(run)}`,
+    }),
+    lineSegment(cornerCanvas, bCanvas, {
+      color: 'green',
+      size: 'm',
+      dash: 'dashed',
+      label: `rise ${formatNumber(rise)}`,
+    }),
+    point(aCanvas.x, aCanvas.y, {
+      label: `A(${formatNumber(pointA.x)}, ${formatNumber(pointA.y)})`,
+      color: 'blue',
+      labelPosition: 'bottom-left',
+      labelWidth: 130,
+    }),
+    point(bCanvas.x, bCanvas.y, {
+      label: `B(${formatNumber(pointB.x)}, ${formatNumber(pointB.y)})`,
+      color: 'blue',
+      labelPosition: 'top-right',
+      labelWidth: 130,
+    }),
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Slope', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      [
+        `rise = ${formatNumber(rise)}`,
+        `run = ${formatNumber(run)}`,
+        `slope = rise/run = ${slopeText}`,
+      ],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 34,
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
+  ]
+
+  return {
+    summary: `Prepared a slope triangle with rise ${formatNumber(rise)}, run ${formatNumber(run)}, and slope ${slopeText}.`,
+    canvasActions: actions,
+  }
+}
