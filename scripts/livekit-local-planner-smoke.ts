@@ -13,6 +13,15 @@ type PlannerCase = {
 
 const cases: PlannerCase[] = [
   {
+    name: 'routes answer requests through disclosure gate before solving',
+    prompt: 'Just tell me the answer to 7 times 8.',
+    expectedTools: ['answer_disclosure_gate'],
+    inspect: (input) => {
+      assert.equal(input.hasStudentAttempt, false)
+      assert.equal(input.askedForFullSolution, true)
+    },
+  },
+  {
     name: 'routes linear graphs to graph_function with parsed expression and domain',
     prompt: 'Can you graph y = 2x + 1 from x = -3 to 3?',
     expectedTools: ['graph_function'],
@@ -86,6 +95,14 @@ for (const testCase of cases) {
 assert.match(
   buildLocalAssistantReply('graph y = x', [{ toolName: 'graph_function', input: {} }], []),
   /graph on the board/i
+)
+assert.match(
+  buildLocalAssistantReply(
+    'just tell me',
+    [{ toolName: 'answer_disclosure_gate', input: {} }],
+    [{ decision: 'hint_only', sayThis: 'I will start with a hint.' }]
+  ),
+  /start with a hint/
 )
 assert.match(
   buildLocalAssistantReply(

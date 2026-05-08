@@ -50,6 +50,26 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const fractions = extractFractions(prompt)
   const numbers = extractNumbers(prompt)
   const plans: LocalToolPlan[] = []
+  const asksForFullSolution =
+    /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(lower)
+  const hasStudentAttempt = /\b(i tried|i got|my answer|i think|check this|=)\b/.test(lower)
+
+  if (asksForFullSolution) {
+    plans.push({
+      toolName: 'answer_disclosure_gate',
+      input: {
+        studentRequest: prompt.slice(0, 240),
+        hasStudentAttempt,
+        attemptCount: hasStudentAttempt ? 1 : 0,
+        isCheckingAnswer: /\b(check|correct|right|wrong)\b/.test(lower),
+        askedForFullSolution: true,
+      },
+    })
+
+    if (!hasStudentAttempt) {
+      return plans
+    }
+  }
 
   if (/\b(animate|animation|step by step|write while|explain while|reveal)\b/i.test(prompt)) {
     plans.push({
@@ -290,6 +310,15 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'graph_function') {
     return 'I put the graph on the board. Start by reading the key points, then tell me which part you want to reason through first.'
+  }
+
+  if (firstTool === 'answer_disclosure_gate') {
+    const gate = outputs.find(
+      (output): output is { sayThis?: string; decision?: string } =>
+        Boolean(output && typeof output === 'object' && 'decision' in output)
+    )
+    if (gate?.sayThis) return gate.sayThis
+    return 'I will start with the next useful hint so you still get to do the thinking.'
   }
 
   if (firstTool === 'board_animation_plan') {
