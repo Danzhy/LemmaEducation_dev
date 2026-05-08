@@ -27,6 +27,7 @@ import {
   longDivisionScene,
   mathCheckAnswer,
   misconceptionDiagnosis,
+  mistakePatternClassifier,
   nextStepCoach,
   numberLineScene,
   orderOfOperationsScene,
@@ -201,6 +202,18 @@ assert(
 
 const diagnosis = misconceptionDiagnosis({ topic: 'fractions', studentWork: 'I added 1/2 + 1/3 and got 2/5.' })
 assert(diagnosis.findings.length > 0, 'misconception_diagnosis should return at least one finding.')
+
+const mistakePattern = mistakePatternClassifier({
+  topic: 'fractions',
+  studentWork: 'I added 1/2 + 1/3 and got 2/5.',
+  studentExplanation: 'I added the tops and bottoms.',
+  expectedAnswer: '5/6',
+})
+assert(
+  mistakePattern.primaryPattern === 'denominator_operation' &&
+    mistakePattern.recommendedTools.includes('fraction_operation'),
+  'mistake_pattern_classifier should identify denominator-operation errors.'
+)
 
 const ladder = hintLadder({
   topic: 'fractions',

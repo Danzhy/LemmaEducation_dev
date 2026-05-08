@@ -25,6 +25,7 @@ async function main() {
     'adaptive_review_plan',
     'session_mastery_snapshot',
     'answer_disclosure_gate',
+    'mistake_pattern_classifier',
     'next_step_coach',
     'board_animation_plan',
     'hint_ladder',
@@ -126,6 +127,15 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-session-mastery-snapshot' }
   )
+  const mistakePattern = await tools.mistake_pattern_classifier.execute(
+    {
+      topic: 'fractions',
+      studentWork: '1/2 + 1/3 = 2/5',
+      studentExplanation: 'I added the numerators and denominators.',
+      expectedAnswer: '5/6',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-mistake-pattern' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -161,6 +171,10 @@ async function main() {
 
   if (!JSON.stringify(masterySnapshot).includes('teacherReviewNote')) {
     throw new Error('session_mastery_snapshot did not return a teacher review note.')
+  }
+
+  if (!JSON.stringify(mistakePattern).includes('denominator_operation')) {
+    throw new Error('mistake_pattern_classifier did not classify the fraction denominator pattern.')
   }
 
   if (!JSON.stringify(answerGate).includes('hint_only')) {

@@ -34,6 +34,7 @@ import {
   mathCheckStep,
   mathSolveLinear,
   misconceptionDiagnosis,
+  mistakePatternClassifier,
   nextStepCoach,
   numberLineScene,
   orderOfOperationsScene,
@@ -505,6 +506,39 @@ export function createVoiceAgentTools() {
           misconceptionDiagnosis({
             topic: params.topic,
             studentWork: params.studentWork,
+            expectedAnswer: params.expectedAnswer,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'mistake_pattern_classifier',
+      description:
+        'Classify the kind of grade 3 to 7 math mistake visible in student work, then choose a targeted first tutor move and board tool. Use before correcting when the student asks why something is wrong.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          studentWork: { type: 'string' },
+          studentExplanation: { type: 'string' },
+          expectedAnswer: { type: 'string' },
+        },
+        required: ['topic', 'studentWork', 'studentExplanation', 'expectedAnswer'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          studentWork: string
+          studentExplanation: string
+          expectedAnswer?: string
+        }
+        return stringifyResult(
+          mistakePatternClassifier({
+            topic: params.topic,
+            studentWork: params.studentWork,
+            studentExplanation: params.studentExplanation,
             expectedAnswer: params.expectedAnswer,
           })
         )

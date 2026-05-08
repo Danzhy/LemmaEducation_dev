@@ -9,6 +9,7 @@ import type {
   GeometryFigureResult,
   GraphFunctionResult,
   HintGeneratorResult,
+  MistakePatternClassifierResult,
   HintLadderResult,
   LinearCanvasResult,
   LinearSolveResult,
@@ -5167,6 +5168,219 @@ export function misconceptionDiagnosis(input: {
     confidence: findings.length > 1 ? 'medium' : 'low',
     nextHint: CURRICULUM_GUIDE[topic].nextMove,
     recommendedTools: CURRICULUM_GUIDE[topic].tools.slice(0, 3),
+  }
+}
+
+function classifyMistakePattern(input: {
+  topic: CurriculumTopic
+  studentWork: string
+  studentExplanation: string
+  expectedAnswer?: string
+}): Pick<
+  MistakePatternClassifierResult,
+  'primaryPattern' | 'severity' | 'evidence' | 'likelyCause' | 'firstTutorMove' | 'diagnosticQuestion' | 'boardMove'
+> {
+  const text = `${input.studentWork} ${input.studentExplanation}`.toLowerCase()
+  const evidence: string[] = []
+
+  if (/\b(just answer|just tell|idk|don't know|do not know|guess)\b/.test(text) || input.studentExplanation.trim().length < 12) {
+    return {
+      primaryPattern: 'answer_without_reasoning',
+      severity: 'watch',
+      evidence: ['Little or no reasoning explanation was provided.'],
+      likelyCause: 'The student may be trying to finish before making the reasoning visible.',
+      firstTutorMove: 'Ask for one sentence explaining the chosen operation or comparison.',
+      diagnosticQuestion: 'What did you do first, and why did that step make sense?',
+      boardMove: 'Write "first step" and leave space for the student explanation.',
+    }
+  }
+
+  if (
+    input.topic === 'fractions' &&
+    /\d+\s*\/\s*\d+\s*[+\-]\s*\d+\s*\/\s*\d+/.test(text) &&
+    /\/\s*\d+\s*[+\-]\s*\d+/.test(text)
+  ) {
+    evidence.push('Fraction operation appears to combine denominators directly.')
+    return {
+      primaryPattern: 'denominator_operation',
+      severity: 'blocker',
+      evidence,
+      likelyCause: 'The student may not yet see that denominators name the size of the parts.',
+      firstTutorMove: 'Return to equal-sized parts before any arithmetic correction.',
+      diagnosticQuestion: 'If thirds and fourths are different-sized pieces, what common-sized piece could both use?',
+      boardMove: 'Draw or use a fraction operation model with a common denominator.',
+    }
+  }
+
+  if (input.topic === 'decimals_percents' && /\b0\.\d+\b.*\b0\.\d+\b/.test(text) && /\b(longer|more digits|bigger digits)\b/.test(text)) {
+    evidence.push('Decimal comparison refers to digit length instead of place value.')
+    return {
+      primaryPattern: 'decimal_place_value',
+      severity: 'reteach',
+      evidence,
+      likelyCause: 'The student may be reading decimal digits like whole-number digits.',
+      firstTutorMove: 'Line up tenths and hundredths before comparing.',
+      diagnosticQuestion: 'What is each number in hundredths?',
+      boardMove: 'Use a place value chart or decimal grid.',
+    }
+  }
+
+  if (input.topic === 'decimals_percents' && /%|percent/.test(text) && !/\bwhole|total|100|hundred\b/.test(text)) {
+    evidence.push('Percent work does not identify the whole.')
+    return {
+      primaryPattern: 'percent_whole',
+      severity: 'reteach',
+      evidence,
+      likelyCause: 'The student may be treating percent as a standalone number instead of part per 100 of a whole.',
+      firstTutorMove: 'Ask the student to name the whole before calculating.',
+      diagnosticQuestion: 'What is 100% in this problem?',
+      boardMove: 'Use a percent bar with part, whole, and percent labeled.',
+    }
+  }
+
+  if (/\bnegative|minus|subtract|opposite\b|-\d/.test(text) && /\b(right|left|direction|sign)\b/.test(text)) {
+    evidence.push('Signed-number language appears in the work.')
+    return {
+      primaryPattern: 'sign_direction',
+      severity: 'reteach',
+      evidence,
+      likelyCause: 'The student may be unsure how the sign controls movement or inverse operations.',
+      firstTutorMove: 'Make the signed change visible before simplifying.',
+      diagnosticQuestion: 'Does this signed change move us left or right, and how far?',
+      boardMove: 'Use integer_operation_scene or integer chips.',
+    }
+  }
+
+  if (input.topic === 'expressions_equations' && (/=\s*.*=/.test(text) || /\bboth sides\b/.test(text) === false && /\bx\b.*=/.test(text))) {
+    evidence.push('Equation work may not preserve the balance idea.')
+    return {
+      primaryPattern: 'equality_balance',
+      severity: 'blocker',
+      evidence,
+      likelyCause: 'The student may be doing operations to expressions without tracking equality.',
+      firstTutorMove: 'Ask what operation keeps both sides equal.',
+      diagnosticQuestion: 'What did you do to both sides from one line to the next?',
+      boardMove: 'Use an equation balance model or side-by-side step check.',
+    }
+  }
+
+  if (input.topic === 'ratios_rates' && /\b(add|plus|more)\b/.test(text) && !/\bscale|times|multiply|per one|unit\b/.test(text)) {
+    evidence.push('Ratio work uses additive language without scale or unit-rate language.')
+    return {
+      primaryPattern: 'unit_rate_scaling',
+      severity: 'reteach',
+      evidence,
+      likelyCause: 'The student may be adding instead of scaling both quantities together.',
+      firstTutorMove: 'Anchor the relationship with a unit rate or scale factor.',
+      diagnosticQuestion: 'What happens to both quantities when one quantity doubles?',
+      boardMove: 'Use a ratio table or double number line.',
+    }
+  }
+
+  if (input.topic === 'geometry_measurement' && /area/.test(text) && /perimeter/.test(text)) {
+    evidence.push('Area and perimeter both appear in the same explanation.')
+    return {
+      primaryPattern: 'area_perimeter_mixup',
+      severity: 'reteach',
+      evidence,
+      likelyCause: 'The student may be mixing square-unit counting with boundary length.',
+      firstTutorMove: 'Name the measured quantity before choosing a formula.',
+      diagnosticQuestion: 'Are we counting inside squares or the distance around the outside?',
+      boardMove: 'Use an area and perimeter model with units labeled.',
+    }
+  }
+
+  if (input.topic === 'coordinate_graphing' && /\(\s*-?\d+\s*,\s*-?\d+\s*\)/.test(text) && /\by\b.*first|up.*then.*across/.test(text)) {
+    evidence.push('Coordinate explanation may reverse x and y.')
+    return {
+      primaryPattern: 'coordinate_order',
+      severity: 'reteach',
+      evidence,
+      likelyCause: 'The student may not be anchoring ordered pairs as x first, then y.',
+      firstTutorMove: 'Ask the student to say what x controls before plotting y.',
+      diagnosticQuestion: 'Which coordinate tells us the horizontal move?',
+      boardMove: 'Plot the point on a coordinate plane and label x before y.',
+    }
+  }
+
+  if (input.topic === 'data_probability' && /probability|chance/.test(text) && !/\btotal|out of|all outcomes\b/.test(text)) {
+    evidence.push('Probability explanation does not name total outcomes.')
+    return {
+      primaryPattern: 'probability_denominator',
+      severity: 'reteach',
+      evidence,
+      likelyCause: 'The student may be counting favorable outcomes but not the full sample space.',
+      firstTutorMove: 'Ask for favorable outcomes and total outcomes separately.',
+      diagnosticQuestion: 'Out of all possible outcomes, how many are favorable?',
+      boardMove: 'Use a probability model with favorable and total outcomes.',
+    }
+  }
+
+  if (/\bwrong|mistake|check|not correct\b/.test(text) && input.expectedAnswer) {
+    evidence.push('Student is checking against an expected answer.')
+    return {
+      primaryPattern: 'arithmetic_slip',
+      severity: 'watch',
+      evidence,
+      likelyCause: 'The concept may be close, but one arithmetic or copy step needs checking.',
+      firstTutorMove: 'Check only one transition between two lines.',
+      diagnosticQuestion: 'Which step changed the value, and can we verify that calculation?',
+      boardMove: 'Use math_check_step or put the two lines side by side.',
+    }
+  }
+
+  return {
+    primaryPattern: 'unclear',
+    severity: 'watch',
+    evidence: ['No specific mistake pattern was confidently detected.'],
+    likelyCause: 'The student work may be incomplete or the issue may need one diagnostic question.',
+    firstTutorMove: CURRICULUM_GUIDE[input.topic].nextMove,
+    diagnosticQuestion: 'Can you explain the step where you felt least sure?',
+    boardMove: `Use ${CURRICULUM_GUIDE[input.topic].tools[0]} if the explanation stays unclear.`,
+  }
+}
+
+export function mistakePatternClassifier(input: {
+  topic: string
+  studentWork: string
+  studentExplanation: string
+  expectedAnswer?: string
+}): MistakePatternClassifierResult {
+  const topic = resolveCurriculumTopic(input.topic)
+  const guide = CURRICULUM_GUIDE[topic]
+  const classified = classifyMistakePattern({
+    topic,
+    studentWork: input.studentWork.trim(),
+    studentExplanation: input.studentExplanation.trim(),
+    expectedAnswer: input.expectedAnswer?.trim(),
+  })
+
+  const toolMap: Record<MistakePatternClassifierResult['primaryPattern'], string[]> = {
+    denominator_operation: ['fraction_operation', 'common_denominator', 'hint_ladder'],
+    decimal_place_value: ['place_value_chart', 'decimal_grid', 'hint_ladder'],
+    percent_whole: ['percent_bar', 'percent_of_number', 'hint_ladder'],
+    sign_direction: ['integer_operation_scene', 'number_line', 'integer_chips'],
+    equality_balance: ['equation_balance', 'math_check_step', 'solve_linear_on_canvas'],
+    unit_rate_scaling: ['ratio_table', 'double_number_line', 'unit_rate'],
+    area_perimeter_mixup: ['area_perimeter_model', 'composite_area_model', 'hint_ladder'],
+    coordinate_order: ['plot_points_on_plane', 'coordinate_distance', 'slope_triangle'],
+    probability_denominator: ['probability_model', 'data_display', 'hint_ladder'],
+    answer_without_reasoning: ['socratic_move_planner', 'write_on_canvas', 'hint_ladder'],
+    setup_unknown: ['word_problem_plan', 'bar_model', 'socratic_move_planner'],
+    arithmetic_slip: ['math_check_step', 'math_calculate', 'next_step_coach'],
+    unclear: [guide.tools[0], 'socratic_move_planner', 'next_step_coach'],
+  }
+
+  return {
+    topic,
+    label: guide.label,
+    ...classified,
+    recommendedTools: toolMap[classified.primaryPattern].slice(0, 3),
+    avoid: [
+      'Do not call the student wrong before naming the reasoning pattern.',
+      'Do not fix more than one step at a time.',
+      'Do not reveal the full solution unless the student has already tried and asks for it.',
+    ],
   }
 }
 

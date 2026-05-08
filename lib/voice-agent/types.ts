@@ -109,6 +109,33 @@ export type HintGeneratorResult = {
   suggestedQuestion: string
 }
 
+export type MistakePatternClassifierResult = {
+  topic: string
+  label: string
+  primaryPattern:
+    | 'denominator_operation'
+    | 'decimal_place_value'
+    | 'percent_whole'
+    | 'sign_direction'
+    | 'equality_balance'
+    | 'unit_rate_scaling'
+    | 'area_perimeter_mixup'
+    | 'coordinate_order'
+    | 'probability_denominator'
+    | 'answer_without_reasoning'
+    | 'setup_unknown'
+    | 'arithmetic_slip'
+    | 'unclear'
+  severity: 'watch' | 'reteach' | 'blocker'
+  evidence: string[]
+  likelyCause: string
+  firstTutorMove: string
+  diagnosticQuestion: string
+  recommendedTools: string[]
+  boardMove: string
+  avoid: string[]
+}
+
 export type HintLadderResult = {
   topic: string
   label: string

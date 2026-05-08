@@ -64,6 +64,19 @@ function extractIntegerOperation(text: string) {
   } as const
 }
 
+function inferLocalTopic(text: string) {
+  const lower = text.toLowerCase()
+  if (extractFractions(text).length > 0 || /\bfraction|denominator|numerator\b/.test(lower)) return 'fractions'
+  if (/\bdecimal|percent|%|hundredths|tenths\b/.test(lower)) return 'decimals and percents'
+  if (/\bratio|rate|per one|unit rate|scale\b/.test(lower)) return 'ratios'
+  if (/\bequation|variable|solve for x|\bx\b/.test(lower)) return 'equations'
+  if (/\bnegative|positive|integer|signed|minus\b|-\d/.test(lower)) return 'integers'
+  if (/\barea|perimeter|angle|geometry|rectangle|triangle\b/.test(lower)) return 'geometry'
+  if (/\bgraph|coordinate|slope|point|axis\b/.test(lower)) return 'graphing'
+  if (/\bmean|median|mode|probability|chance|data\b/.test(lower)) return 'data'
+  return text.slice(0, 120)
+}
+
 export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalToolPlan[] {
   const lower = prompt.toLowerCase()
   const fractions = extractFractions(prompt)
@@ -77,7 +90,9 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan)\b/.test(lower)
+    /\b(graph|plot|parabola|function|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan|integer|negative|positive|signed)\b/.test(lower)
+  const asksForMistakeHelp =
+    /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|why is this wrong)\b/.test(lower)
   const needsSafetyBoundary =
     /\b(cheat|test answers|exam answers|do my test|phone number|address|password|where do you live|meet me|private photo|secret|kill myself|hurt myself|self harm|suicide|abuse|violence)\b/.test(lower) ||
     (!hasSpecificMathAction &&
@@ -166,6 +181,19 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     if (!hasSpecificMathAction) {
       return plans
     }
+  }
+
+  if (asksForMistakeHelp && hasStudentAttempt) {
+    plans.push({
+      toolName: 'mistake_pattern_classifier',
+      input: {
+        topic: inferLocalTopic(prompt),
+        studentWork: prompt.slice(0, 700),
+        studentExplanation: prompt.slice(0, 700),
+        expectedAnswer: '',
+      },
+    })
+    return plans
   }
 
   if (/\b(animate|animation|step by step|write while|explain while|reveal)\b/i.test(prompt)) {
@@ -512,6 +540,16 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
         Boolean(output && typeof output === 'object' && 'sayThis' in output)
     )
     return boundary?.sayThis || 'I can help with math here. Send me a problem or a step you want to check.'
+  }
+
+  if (firstTool === 'mistake_pattern_classifier') {
+    const classified = outputs.find(
+      (output): output is { diagnosticQuestion?: string; primaryPattern?: string } =>
+        Boolean(output && typeof output === 'object' && 'diagnosticQuestion' in output)
+    )
+    return classified?.diagnosticQuestion
+      ? `I found the likely reasoning pattern. ${classified.diagnosticQuestion}`
+      : 'I checked the mistake pattern. Let us focus on one step and explain why it changes.'
   }
 
   if (firstTool === 'tutor_teaching_sequence') {

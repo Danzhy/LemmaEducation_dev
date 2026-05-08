@@ -26,6 +26,7 @@ const REQUIRED_TOOL_NAMES = [
   'answer_disclosure_gate',
   'board_animation_plan',
   'word_problem_plan',
+  'mistake_pattern_classifier',
   'misconception_diagnosis',
   'next_step_coach',
   'hint_ladder',

@@ -70,6 +70,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes wrong-work prompts to mistake pattern classifier',
+    prompt: 'I got 1/2 + 1/3 = 2/5. Why is this wrong?',
+    expectedTools: ['mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.topic, 'fractions')
+      assert.match(String(input.studentWork), /2\/5/)
+    },
+  },
+  {
     name: 'routes unit-rate word problems to rate and double number line',
     prompt: 'A store sells 3 notebooks for $6. What is the unit rate?',
     expectedTools: ['unit_rate', 'double_number_line'],
@@ -155,6 +164,14 @@ assert.match(
     [{ sayThis: 'I can help with math here.' }]
   ),
   /math here/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'why wrong',
+    [{ toolName: 'mistake_pattern_classifier', input: {} }],
+    [{ primaryPattern: 'denominator_operation', diagnosticQuestion: 'What common denominator could both fractions use?' }]
+  ),
+  /common denominator/
 )
 
 const hydratedReviewInput = hydrateLocalToolPlanInput(
