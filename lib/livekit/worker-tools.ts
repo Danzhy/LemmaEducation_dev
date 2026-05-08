@@ -68,6 +68,26 @@ export function serializeLiveKitWorkerToolEvent(event: WorkerToolEvent) {
   return JSON.stringify(createToolEventPayload(event))
 }
 
+async function safeSendToolEvent(env: LiveKitWorkerToolEnvironment, event: WorkerToolEvent) {
+  try {
+    await env.sendToolEvent?.(event)
+  } catch {
+    // Tool correctness should not depend on the optional UI telemetry stream.
+  }
+}
+
+async function safeDispatchCanvasActions(
+  env: LiveKitWorkerToolEnvironment,
+  actions: TutorCanvasAction[],
+  toolName: string
+) {
+  try {
+    await env.dispatchCanvasActions?.(actions, toolName)
+  } catch {
+    // The voice tutor can still explain if the board action transport is unavailable.
+  }
+}
+
 export function createLiveKitTutorToolContext(env: LiveKitWorkerToolEnvironment = {}): llm.ToolContext {
   const tools: llm.ToolContext = {}
   const maxToolCalls = env.maxToolCallsPerSession ?? DEFAULT_MAX_TOOL_CALLS_PER_SESSION
@@ -92,7 +112,7 @@ export function createLiveKitTutorToolContext(env: LiveKitWorkerToolEnvironment 
           throw new Error('This LiveKit tutor session has reached its tool-call safety budget.')
         }
 
-        await env.sendToolEvent?.({
+        await safeSendToolEvent(env, {
           type: 'tool_started',
           toolName,
           input,
@@ -106,7 +126,7 @@ export function createLiveKitTutorToolContext(env: LiveKitWorkerToolEnvironment 
           const actions = extractCanvasActionsFromToolResult(toolName, output).slice(0, Math.min(40, remainingCanvasActions))
           canvasActionsDispatched += actions.length
 
-          await env.sendToolEvent?.({
+          await safeSendToolEvent(env, {
             type: 'tool_completed',
             toolName,
             input,
@@ -120,13 +140,13 @@ export function createLiveKitTutorToolContext(env: LiveKitWorkerToolEnvironment 
           })
 
           if (actions.length > 0) {
-            await env.dispatchCanvasActions?.(actions, toolName)
+            await safeDispatchCanvasActions(env, actions, toolName)
           }
 
           return modelOutput
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Tool failed.'
-          await env.sendToolEvent?.({
+          await safeSendToolEvent(env, {
             type: 'tool_failed',
             toolName,
             input,
