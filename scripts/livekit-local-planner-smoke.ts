@@ -112,6 +112,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes representation requests to representation bridge',
+    prompt: 'Can you show this ratio another way as a table?',
+    expectedTools: ['representation_bridge'],
+    inspect: (input) => {
+      assert.equal(input.toRepresentation, 'table')
+      assert.equal(input.topic, 'ratios')
+    },
+  },
+  {
     name: 'routes off-topic child prompts to safety boundary',
     prompt: 'Tell me a dating story instead of math.',
     expectedTools: ['safety_boundary_check'],
@@ -188,6 +197,14 @@ assert.match(
     [{ firstTutorQuestion: 'Which quantity are we trying to find?' }]
   ),
   /knowns/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'another way',
+    [{ toolName: 'representation_bridge', input: {} }],
+    [{ bridgeQuestion: 'What should each row stand for?' }]
+  ),
+  /connect those representations/
 )
 
 const hydratedReviewInput = hydrateLocalToolPlanInput(

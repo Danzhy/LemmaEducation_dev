@@ -32,6 +32,7 @@ async function main() {
     'hint_ladder',
     'integer_operation_scene',
     'problem_understanding_map',
+    'representation_bridge',
     'graph_function',
     'fraction_strip',
     'percent_bar',
@@ -155,6 +156,16 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-tutor-turn-audit' }
   )
+  const bridge = await tools.representation_bridge.execute(
+    {
+      topic: 'ratios',
+      problemContext: '3 notebooks cost 12 dollars',
+      fromRepresentation: 'words',
+      toRepresentation: 'table',
+      studentWork: '',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-representation-bridge' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -202,6 +213,10 @@ async function main() {
 
   if (!JSON.stringify(turnAudit).includes('answer_dumping')) {
     throw new Error('tutor_turn_audit did not flag answer dumping.')
+  }
+
+  if (!JSON.stringify(bridge).includes('ratio_table')) {
+    throw new Error('representation_bridge did not recommend a ratio table.')
   }
 
   if (!JSON.stringify(answerGate).includes('hint_only')) {

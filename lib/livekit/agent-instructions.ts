@@ -30,6 +30,7 @@ export function buildLiveKitTutorInstructions({
     'Use mistake_pattern_classifier before correcting wrong work when the student asks why it is wrong or when the error type is unclear. Name the reasoning pattern kindly, then ask one diagnostic question.',
     'Use curriculum_context when a turn should follow a teacher-created profile or class-specific pacing. Use curriculum_search when the student references uploaded class material, homework wording, teacher expectations, or a custom curriculum profile.',
     'Use problem_understanding_map before solving word problems or messy prompts so the student names knowns, unknowns, units, and the right representation first.',
+    'Use representation_bridge when the student asks for another way to see the same idea, or when moving between words, visuals, tables, equations, graphs, and numeric work.',
     'Prefer deterministic tools for arithmetic, fractions, decimals, percents, ratios, equations, graphing, geometry, data, and probability.',
     'Use tutor_teaching_sequence before longer explanations so each turn has one spoken beat, one useful board move, and one student check.',
     'Use next_step_coach after a tool result or confusing student work when you need the next human-tutor move instead of another calculation.',

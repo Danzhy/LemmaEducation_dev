@@ -26,6 +26,7 @@ import type {
   TutorTeachingSequenceResult,
   WordProblemPlanResult,
   ProblemUnderstandingMapResult,
+  RepresentationBridgeResult,
   FractionSimplifyResult,
   PercentOfNumberResult,
   UnitRateResult,
@@ -5577,6 +5578,64 @@ export function problemUnderstandingMap(input: {
       'Do not introduce a formula until the relationship is clear.',
       'Do not rewrite the whole problem aloud if one sentence is enough.',
     ],
+  }
+}
+
+function normalizeRepresentation(value: string): RepresentationBridgeResult['fromRepresentation'] {
+  const normalized = value.trim().toLowerCase()
+  if (/word|verbal|story|sentence/.test(normalized)) return 'words'
+  if (/visual|model|diagram|bar|number line|chips|picture/.test(normalized)) return 'visual'
+  if (/table|chart|ratio table|values/.test(normalized)) return 'table'
+  if (/equation|expression|formula|symbol/.test(normalized)) return 'equation'
+  if (/graph|coordinate|plot|axis/.test(normalized)) return 'graph'
+  return 'numeric'
+}
+
+export function representationBridge(input: {
+  topic: string
+  problemContext: string
+  fromRepresentation: string
+  toRepresentation: string
+  studentWork?: string
+}): RepresentationBridgeResult {
+  const topic = resolveCurriculumTopic(input.topic || input.problemContext || input.studentWork || '')
+  const guide = CURRICULUM_GUIDE[topic]
+  const fromRepresentation = normalizeRepresentation(input.fromRepresentation)
+  const toRepresentation = normalizeRepresentation(input.toRepresentation)
+  const toolByTarget: Record<RepresentationBridgeResult['toRepresentation'], string> = {
+    words: 'write_on_canvas',
+    visual: guide.tools[0],
+    table: topic === 'ratios_rates' ? 'ratio_table' : topic === 'coordinate_graphing' ? 'table_of_values' : 'write_on_canvas',
+    equation: topic === 'expressions_equations' ? 'equation_balance' : 'write_on_canvas',
+    graph: topic === 'coordinate_graphing' ? 'graph_function' : 'plot_points_on_plane',
+    numeric: topic === 'fractions' ? 'fraction_simplify' : 'math_calculate',
+  }
+  const problemContext = input.problemContext.trim()
+
+  return {
+    topic,
+    label: guide.label,
+    fromRepresentation,
+    toRepresentation,
+    bridgeGoal: `Connect the ${fromRepresentation} form to the ${toRepresentation} form without changing the relationship.`,
+    recommendedTool: toolByTarget[toRepresentation],
+    translationSteps: [
+      `Name what each part of the ${fromRepresentation} form represents.`,
+      `Choose the matching part in the ${toRepresentation} form.`,
+      'Check that the quantities, units, or relationships still mean the same thing.',
+    ],
+    bridgeQuestion:
+      toRepresentation === 'equation'
+        ? 'What quantity should the variable represent?'
+        : toRepresentation === 'table'
+          ? 'What should each row or column stand for?'
+          : toRepresentation === 'graph'
+            ? 'What does x represent, and what does y represent?'
+            : 'Which part of the new representation matches the original problem?',
+    misconceptionWatch: guide.misconceptions.slice(0, 2),
+    boardNote: problemContext
+      ? `Keep this meaning: ${problemContext.slice(0, 120)}`
+      : `Keep the ${guide.label.toLowerCase()} relationship unchanged.`,
   }
 }
 

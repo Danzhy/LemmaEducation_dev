@@ -183,6 +183,20 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     }
   }
 
+  if (/\b(another way|different way|represent|representation|turn.*into|as a table|as an equation|as a graph|with a visual|show visually)\b/.test(lower)) {
+    plans.push({
+      toolName: 'representation_bridge',
+      input: {
+        topic: inferLocalTopic(prompt),
+        problemContext: prompt.slice(0, 500),
+        fromRepresentation: /word|story/.test(lower) ? 'words' : /table/.test(lower) ? 'table' : /graph/.test(lower) ? 'graph' : 'numeric',
+        toRepresentation: /table/.test(lower) ? 'table' : /equation|formula/.test(lower) ? 'equation' : /graph/.test(lower) ? 'graph' : /visual|model|diagram/.test(lower) ? 'visual' : 'words',
+        studentWork: prompt.slice(0, 500),
+      },
+    })
+    return plans
+  }
+
   if (asksForMistakeHelp && hasStudentAttempt) {
     plans.push({
       toolName: 'mistake_pattern_classifier',
@@ -562,6 +576,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'problem_understanding_map') {
     return 'I mapped the knowns, the unknown, and the useful representation first. Tell me which quantity the problem is asking us to find.'
+  }
+
+  if (firstTool === 'representation_bridge') {
+    return 'I planned how to connect those representations. Keep the meaning the same, then tell me which part matches across both forms.'
   }
 
   if (firstTool === 'tutor_teaching_sequence') {

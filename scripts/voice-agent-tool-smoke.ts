@@ -39,6 +39,7 @@ import {
   percentOfNumber,
   probabilityModelScene,
   ratioTableScene,
+  representationBridge,
   roundNumber,
   sessionMasterySnapshot,
   socraticMovePlanner,
@@ -247,6 +248,19 @@ assert(
   understandingMap.knownQuantities.length >= 3 &&
     understandingMap.representationCandidates.includes('ratio_table'),
   'problem_understanding_map should extract quantities and representation candidates.'
+)
+
+const bridge = representationBridge({
+  topic: 'ratios',
+  problemContext: '3 notebooks cost 12 dollars',
+  fromRepresentation: 'words',
+  toRepresentation: 'table',
+  studentWork: '',
+})
+assert(
+  bridge.recommendedTool === 'ratio_table' &&
+    bridge.bridgeQuestion.includes('row'),
+  'representation_bridge should connect word problems to ratio tables.'
 )
 
 const nextMove = socraticMovePlanner({ topic: 'fractions', studentWork: 'I got 2/5 for 1/2 + 1/3.' })

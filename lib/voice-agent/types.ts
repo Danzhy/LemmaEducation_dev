@@ -177,6 +177,19 @@ export type ProblemUnderstandingMapResult = {
   avoid: string[]
 }
 
+export type RepresentationBridgeResult = {
+  topic: string
+  label: string
+  fromRepresentation: 'words' | 'visual' | 'table' | 'equation' | 'graph' | 'numeric'
+  toRepresentation: 'words' | 'visual' | 'table' | 'equation' | 'graph' | 'numeric'
+  bridgeGoal: string
+  recommendedTool: string
+  translationSteps: string[]
+  bridgeQuestion: string
+  misconceptionWatch: string[]
+  boardNote: string
+}
+
 export type SocraticMoveResult = {
   topic: string
   label: string

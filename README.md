@@ -60,6 +60,7 @@ The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched whi
 - Structured canvas actions for graphs, fraction models, signed integers, number lines, ratios, percents, geometry, data, and short board notes
 - Deterministic math tools for calculation checks, linear equations, fraction simplification, common denominators, percent-of-number, unit rates, rounding, and decimal comparison
 - Problem-understanding maps for knowns, unknowns, units, and representation choices before solving
+- Representation bridges between words, visuals, tables, equations, graphs, and numeric work
 - Tutoring planner tools for word problems, misconceptions, curriculum moves, Socratic next steps, and targeted practice
 - Mistake-pattern classification for common grade 3-7 errors before correction
 - Tutor-turn audits to catch answer dumping, missing questions, and privacy risks in lab responses

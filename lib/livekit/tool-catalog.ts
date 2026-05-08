@@ -49,6 +49,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'problem_understanding_map',
   'probability_model',
   'ratio_table',
+  'representation_bridge',
   'round_number',
   'safety_boundary_check',
   'session_mastery_snapshot',

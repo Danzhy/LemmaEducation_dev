@@ -46,6 +46,7 @@ import {
   percentOfNumber,
   probabilityModelScene,
   ratioTableScene,
+  representationBridge,
   roundNumber,
   sessionMasterySnapshot,
   socraticMovePlanner,
@@ -668,6 +669,42 @@ export function createVoiceAgentTools() {
           problemUnderstandingMap({
             problemText: params.problemText,
             gradeLevel: params.gradeLevel,
+            studentWork: params.studentWork,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'representation_bridge',
+      description:
+        'Plan how to connect one math representation to another, such as words to table, visual model to equation, table to graph, or numeric work to a verbal explanation.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          problemContext: { type: 'string' },
+          fromRepresentation: { type: 'string' },
+          toRepresentation: { type: 'string' },
+          studentWork: { type: 'string' },
+        },
+        required: ['topic', 'problemContext', 'fromRepresentation', 'toRepresentation', 'studentWork'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          problemContext: string
+          fromRepresentation: string
+          toRepresentation: string
+          studentWork?: string
+        }
+        return stringifyResult(
+          representationBridge({
+            topic: params.topic,
+            problemContext: params.problemContext,
+            fromRepresentation: params.fromRepresentation,
+            toRepresentation: params.toRepresentation,
             studentWork: params.studentWork,
           })
         )
