@@ -5,6 +5,10 @@ import { getSessionUserId } from '@/lib/tutor/session-user'
 import { getAccessibleTutorSessionDetail, getTutorSessionOwnerUserId } from '@/lib/tutor/history'
 import { getCurrentUserProfile, isOnboardingComplete } from '@/lib/school/profiles'
 import { recordSessionAccessAudit } from '@/lib/school/access'
+import {
+  shouldShowRawToolPayloads,
+  summarizeToolEventForReview,
+} from '@/lib/tutor/tool-event-review'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,8 +85,10 @@ function formatToolEventLabel(eventType: string) {
 
 export default async function DashboardSessionDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ sessionId: string }>
+  searchParams?: Promise<{ debugTools?: string | string[] }>
 }) {
   const userId = await getSessionUserId()
   if (!userId) {
@@ -95,6 +101,9 @@ export default async function DashboardSessionDetailPage({
   }
 
   const { sessionId } = await params
+  const resolvedSearchParams: { debugTools?: string | string[] } = searchParams
+    ? await searchParams
+    : {}
   const ownerUserId = await getTutorSessionOwnerUserId(sessionId)
   const session = await getAccessibleTutorSessionDetail(userId, sessionId)
 
@@ -113,6 +122,11 @@ export default async function DashboardSessionDetailPage({
       viewerRole: profile.role,
     })
   }
+
+  const showRawToolPayloads = shouldShowRawToolPayloads(
+    profile.role,
+    resolvedSearchParams.debugTools
+  )
 
   return (
     <DashboardScaffold
@@ -248,25 +262,48 @@ export default async function DashboardSessionDetailPage({
                     No lab tool activity was saved for this session.
                   </div>
                 ) : (
-                  session.toolEvents.map((toolEvent) => (
-                    <div
-                      key={toolEvent.id}
-                      className="rounded-[22px] border border-[#DCE7E2] bg-[#FCFDFC] px-4 py-4"
-                    >
-                      <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-[#6B7F79]">
-                        <span>{formatToolEventLabel(toolEvent.eventType)}</span>
-                        <span>{toolEvent.toolName}</span>
-                        <span>{formatMessageTime(toolEvent.createdAt)}</span>
+                  session.toolEvents.map((toolEvent) => {
+                    const summary = summarizeToolEventForReview(toolEvent)
+
+                    return (
+                      <div
+                        key={toolEvent.id}
+                        className="rounded-[22px] border border-[#DCE7E2] bg-[#FCFDFC] px-4 py-4"
+                      >
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-[#6B7F79]">
+                          <span>{formatToolEventLabel(toolEvent.eventType)}</span>
+                          <span>{toolEvent.toolName}</span>
+                          <span>{formatMessageTime(toolEvent.createdAt)}</span>
+                        </div>
+                        <p className="mt-3 text-sm leading-relaxed text-[#14312A]">
+                          {summary.headline}
+                        </p>
+                        <ul className="mt-3 space-y-2 text-sm leading-relaxed text-[#4D625C]">
+                          {summary.details.map((detail) => (
+                            <li key={detail}>{detail}</li>
+                          ))}
+                        </ul>
+                        {showRawToolPayloads ? (
+                          <details className="mt-3 rounded-[16px] border border-[#E1EAE6] bg-[#F8FBF9] px-3 py-3">
+                            <summary className="cursor-pointer text-xs uppercase tracking-[0.18em] text-[#5C7069]">
+                              Raw admin debug payload
+                            </summary>
+                            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-[#41544E]">
+                              {JSON.stringify(
+                                {
+                                  input: toolEvent.input,
+                                  output: toolEvent.output,
+                                  metadata: toolEvent.metadata,
+                                },
+                                null,
+                                2
+                              )}
+                            </pre>
+                          </details>
+                        ) : null}
                       </div>
-                      {toolEvent.output ? (
-                        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-[#41544E]">
-                          {JSON.stringify(toolEvent.output, null, 2)}
-                        </pre>
-                      ) : (
-                        <p className="mt-3 text-sm text-[#5C7069]">No output payload saved.</p>
-                      )}
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </section>
@@ -279,8 +316,11 @@ export default async function DashboardSessionDetailPage({
                 </h2>
               </div>
               <div className="mt-5 space-y-3 text-sm leading-relaxed text-[#4D625C]">
-                <p>This session stores the transcript, practice time, math level, language, the latest saved board image, and any saved tool activity from the agent lab.</p>
+                <p>This session stores the transcript, practice time, math level, language, the latest saved board image, and summarized tool activity from the agent lab.</p>
                 <p>Authorized teachers and parents can review the same saved record without changing the student workspace itself.</p>
+                {profile.role === 'admin' ? (
+                  <p>Raw tool payloads stay hidden unless the admin debug flag is enabled for this page.</p>
+                ) : null}
                 {ownerUserId !== userId ? (
                   <p>Review access is logged so students can see when saved work is opened by a teacher or parent.</p>
                 ) : null}

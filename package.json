@@ -29,6 +29,7 @@
     "test:curriculum-pdf": "tsx scripts/curriculum-pdf-extract-smoke.ts",
     "test:learner-context": "tsx scripts/learner-context-db-smoke.ts",
     "test:learner-security": "tsx scripts/learner-context-security-check.ts",
+    "test:session-review": "node --import tsx scripts/session-review-tool-summary-smoke.ts",
     "test:tutor-human-experience": "tsx scripts/tutor-human-experience-regression.ts"
   },
   "overrides": {

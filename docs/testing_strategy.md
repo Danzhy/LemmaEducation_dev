@@ -37,6 +37,8 @@ This document outlines how to verify that all implemented features work correctl
 | Token 429 | Call token route when `tutor_usage` at cap | `429` + `QUOTA_EXCEEDED` |
 | Mid-session cap | Simulate tick returning quota exceeded | Session ends with friendly message; WebRTC disconnects |
 | Logging soft-fail | Break `log-message` or tick (bad session id in dev) | Tutor voice/text still usable; optional soft warning for usage log |
+| Session review tool privacy | Open a saved lab session with tool activity as a student, teacher, or parent | Tool activity shows concise summaries; raw inputs, outputs, curriculum excerpts, and learner-context payloads are not rendered |
+| Admin tool debug flag | Open the same saved session as an admin with `?debugTools=1` | Raw tool payloads are available inside collapsed admin-only debug details |
 | Feedback | Open `/feedback`, submit message | Success; row in `feedback` table |
 | Feedback rate limit | POST `/api/feedback` repeatedly from same IP (>8 / 15m) | `429 Too many requests` |
 | Single session | Open two tabs, Start in both | Second start auto-closes prior open DB session; no duplicate `ended_at IS NULL` rows |
@@ -203,6 +205,7 @@ If you add automated tests later, consider:
 | `languageInstructions` | Returns correct block for `en` |
 | `TutorAvatar` | Correct state and label for idle/listening/waiting/thinking/speaking |
 | `sendCanvasImage` | Builds correct `image_url` with mimeType |
+| `session-review-tool-summary` | Keeps saved tool activity auditable while hiding raw payloads from normal review |
 
 ---
 
