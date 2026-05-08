@@ -13,6 +13,7 @@ Lemma is an educational platform that captures the complete picture of a student
 - **Saved Session Review** - Revisit transcripts and board snapshots after each tutor session
 - **Role-Based Access** - Separate student, teacher, and parent dashboards with scoped visibility
 - **Voice Agent Lab** - Hidden `/tutor-agent-lab` route for testing a tool-enabled realtime tutor
+- **LiveKit Tutor Lab** - Hidden `/tutor-livekit-lab` route for testing a worker-based voice tutor
 
 ## Pilot Readiness
 
@@ -46,6 +47,33 @@ npm run test:voice-agent
 ```
 
 This runs smoke checks, registry/schema checks, and curriculum coverage checks for the experimental tool suite.
+
+## LiveKit Tutor Lab
+
+The hidden `/tutor-livekit-lab` route keeps the same tutor workspace while testing a LiveKit room plus a separate LiveKit agent worker. The browser receives a short-lived room token from `/api/livekit/session`; the worker joins through explicit agent dispatch and runs the same deterministic grade 3-7 math tools server-side before sending structured board actions back to the client.
+
+Required local variables:
+
+```bash
+LIVEKIT_URL=wss://...
+LIVEKIT_API_KEY=...
+LIVEKIT_API_SECRET=...
+LIVEKIT_AGENT_NAME=lemma-livekit-tutor
+OPENAI_API_KEY=...
+```
+
+Run the app and worker in separate terminals:
+
+```bash
+npm run dev -- --port 3013
+npm run dev:livekit-agent
+```
+
+Run the LiveKit tool smoke check with:
+
+```bash
+npm run test:livekit-agent
+```
 
 ## Tech Stack
 

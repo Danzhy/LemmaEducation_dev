@@ -18,6 +18,10 @@ function getToolRegistry() {
   return toolRegistry
 }
 
+export function getLiveKitToolDefinitions() {
+  return [...getToolRegistry().values()]
+}
+
 export function getLiveKitToolNames() {
   return [...getToolRegistry().keys()].sort()
 }

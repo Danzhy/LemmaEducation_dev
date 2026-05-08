@@ -10,11 +10,14 @@
     "build:fallback-minify": "node --max-old-space-size=8192 node_modules/next/dist/bin/next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "dev:livekit-agent": "tsx workers/livekit-tutor-agent.ts dev",
+    "start:livekit-agent": "tsx workers/livekit-tutor-agent.ts start",
     "migrate:waitlist": "node scripts/migrate-waitlist-schema.mjs",
     "test:voice-agent": "npm run test:voice-agent-tools && npm run test:voice-agent-registry && npm run test:voice-agent-coverage",
     "test:voice-agent-tools": "tsx scripts/voice-agent-tool-smoke.ts",
     "test:voice-agent-registry": "tsx scripts/voice-agent-tool-registry-check.ts",
-    "test:voice-agent-coverage": "tsx scripts/voice-agent-curriculum-coverage.ts"
+    "test:voice-agent-coverage": "tsx scripts/voice-agent-curriculum-coverage.ts",
+    "test:livekit-agent": "tsx scripts/livekit-agent-smoke.ts"
   },
   "overrides": {
     "brace-expansion": "^1.1.13",
@@ -24,6 +27,7 @@
     "@livekit/agents": "^1.4.0",
     "@livekit/agents-plugin-openai": "^1.4.0",
     "@livekit/protocol": "^1.45.8",
+    "@livekit/rtc-node": "^0.13.27",
     "@neondatabase/auth": "0.3.0-beta",
     "@neondatabase/neon-js": "^0.5.0-beta",
     "@neondatabase/serverless": "^0.10.3",
