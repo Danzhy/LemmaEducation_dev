@@ -20,14 +20,16 @@ function assertExcludes(path: string, needle: string) {
 
 const documentRoute = 'app/api/curriculum/documents/route.ts'
 const documentArchiveRoute = 'app/api/curriculum/documents/[documentId]/route.ts'
+const extractRoute = 'app/api/curriculum/extract/route.ts'
 const searchRoute = 'app/api/curriculum/search/route.ts'
 const profileRoute = 'app/api/tutor/agent-profiles/route.ts'
 const profileArchiveRoute = 'app/api/tutor/agent-profiles/[profileId]/route.ts'
 const curriculumSearch = 'lib/curriculum/search.ts'
+const curriculumPdf = 'lib/curriculum/pdf.ts'
 const liveKitRunner = 'lib/livekit/tool-runner.ts'
 const browserTools = 'lib/voice-agent/tools.ts'
 
-for (const path of [documentRoute, documentArchiveRoute, searchRoute, profileRoute, profileArchiveRoute]) {
+for (const path of [documentRoute, documentArchiveRoute, extractRoute, searchRoute, profileRoute, profileArchiveRoute]) {
   assertIncludes(path, 'getSessionUser()')
   assertIncludes(path, 'takeTutorApiRateLimit')
   assertExcludes(path, 'NEON_DATABASE_URL')
@@ -42,6 +44,12 @@ assertIncludes(documentRoute, 'visibility ===')
 assertIncludes(documentArchiveRoute, "profile?.role !== 'teacher' && profile?.role !== 'admin'")
 assertIncludes(documentArchiveRoute, 'owner_user_id = ${user.id}')
 assertIncludes(documentArchiveRoute, "SET status = 'archived'")
+assertIncludes(extractRoute, "profile?.role !== 'teacher' && profile?.role !== 'admin'")
+assertIncludes(extractRoute, "endpoint: 'curriculum-extract'")
+assertIncludes(extractRoute, 'MAX_CURRICULUM_PDF_BYTES')
+assertIncludes(extractRoute, "runtime = 'nodejs'")
+assertIncludes(curriculumPdf, 'looksLikePdf')
+assertIncludes(curriculumPdf, 'sanitizeCurriculumText')
 
 assertIncludes(profileRoute, "profile?.role !== 'teacher' && profile?.role !== 'admin'")
 assertIncludes(profileRoute, 'teacherOwnsClassroom')
@@ -63,4 +71,4 @@ assertIncludes(liveKitRunner, 'searchCurriculumForUser')
 assertIncludes(browserTools, "name: 'curriculum_search'")
 assertIncludes(browserTools, "fetch('/api/curriculum/search'")
 
-console.log(JSON.stringify({ ok: true, checked: 8 }))
+console.log(JSON.stringify({ ok: true, checked: 10 }))

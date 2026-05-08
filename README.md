@@ -48,6 +48,7 @@ Run the local helper check with:
 npm run test:curriculum-rag
 npm run test:curriculum-security
 npm run test:curriculum-db
+npm run test:curriculum-pdf
 ```
 
 ## Voice Agent Lab

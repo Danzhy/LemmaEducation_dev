@@ -43,6 +43,16 @@ function FormAlert({
   )
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+  }
+  return btoa(binary)
+}
+
 export function OnboardingForm({
   initialName,
   initialEmail,
@@ -327,26 +337,59 @@ export function CurriculumDocumentForm({ classrooms }: { classrooms: DashboardCl
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isReadingFile, setIsReadingFile] = useState(false)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     setError(null)
-    if (file.size > 500_000) {
+    setMessage(null)
+
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
+    if (isPdf && file.size > 4_000_000) {
+      setError('Use a PDF under 4 MB for now.')
+      return
+    }
+    if (!isPdf && file.size > 500_000) {
       setError('Use a text file under 500 KB for now.')
       return
     }
 
+    setIsReadingFile(true)
     try {
-      const text = await file.text()
+      let text = ''
+      if (isPdf) {
+        const dataBase64 = arrayBufferToBase64(await file.arrayBuffer())
+        const res = await fetch('/api/curriculum/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            mimeType: 'application/pdf',
+            dataBase64,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.ok || typeof data.text !== 'string') {
+          setError(data.message || 'Could not extract text from that PDF. Paste the text instead.')
+          return
+        }
+        text = data.text
+        setMessage(`Extracted ${data.pagesRead ?? 'the'} page${data.pagesRead === 1 ? '' : 's'} from ${file.name}.`)
+      } else {
+        text = await file.text()
+      }
+
       setSourceText(text)
       if (!title.trim()) {
         setTitle(file.name.replace(/\.[^.]+$/, '').slice(0, 120))
       }
       setSourceName(file.name.slice(0, 180))
     } catch {
-      setError('Could not read that file. Paste the text instead.')
+      setError(isPdf ? 'Could not extract that PDF. Paste the text instead.' : 'Could not read that file. Paste the text instead.')
+    } finally {
+      setIsReadingFile(false)
     }
   }
 
@@ -424,13 +467,14 @@ export function CurriculumDocumentForm({ classrooms }: { classrooms: DashboardCl
 
       <label className="block rounded-[18px] border border-dashed border-[#B8C8C2] bg-[#F8FBF9] px-4 py-4 text-sm text-[#5C7069]">
         <span className="block text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Upload text file</span>
-        <span className="mt-2 block">Optional. Supports small `.txt`, `.md`, or copied worksheet text files.</span>
+        <span className="mt-2 block">Optional. Supports small PDFs, `.txt`, `.md`, or copied worksheet text files.</span>
         <input
           type="file"
-          accept=".txt,.md,.markdown,.csv,.json,text/plain,text/markdown"
+          accept=".pdf,.txt,.md,.markdown,.csv,.json,application/pdf,text/plain,text/markdown"
           onChange={(event) => void handleFileUpload(event)}
           className="mt-3 block w-full text-sm text-[#14312A] file:mr-4 file:rounded-full file:border-0 file:bg-[#12352F] file:px-4 file:py-2 file:text-sm file:text-[#F2F5F4]"
         />
+        {isReadingFile ? <span className="mt-2 block text-[#16423C]">Reading document...</span> : null}
       </label>
 
       <div className="grid gap-3 sm:grid-cols-2">
