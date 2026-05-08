@@ -10,6 +10,17 @@ const ALLOWED_EVENT_TYPES = new Set([
   'tool_failed',
   'canvas_action',
 ])
+const MAX_TOOL_LOG_JSON_BYTES = 32_000
+const MAX_TOOL_LOG_METADATA_BYTES = 8_000
+
+function jsonByteLength(value: unknown) {
+  if (value === undefined || value === null) return 0
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).length
+  } catch {
+    return Number.POSITIVE_INFINITY
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -58,6 +69,17 @@ export async function POST(request: Request) {
           message: 'sessionId, eventType, and toolName are required.',
         },
         { status: 400 }
+      )
+    }
+
+    if (
+      jsonByteLength(body.input) > MAX_TOOL_LOG_JSON_BYTES ||
+      jsonByteLength(body.output) > MAX_TOOL_LOG_JSON_BYTES ||
+      jsonByteLength(body.metadata) > MAX_TOOL_LOG_METADATA_BYTES
+    ) {
+      return NextResponse.json(
+        { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Tool event payload is too large.' },
+        { status: 413 }
       )
     }
 

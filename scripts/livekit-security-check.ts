@@ -51,13 +51,18 @@ function main() {
   assertIncludes('workers/livekit-tutor-agent.ts', 'maxToolSteps: 6')
   assertIncludes('lib/livekit/worker-tools.ts', 'DEFAULT_MAX_TOOL_CALLS_PER_SESSION')
   assertIncludes('lib/livekit/worker-tools.ts', 'DEFAULT_MAX_CANVAS_ACTIONS_PER_SESSION')
+  assertIncludes('app/api/voice-agent/tool-log/route.ts', 'getSessionUserId()')
+  assertIncludes('app/api/voice-agent/tool-log/route.ts', 'takeTutorApiRateLimit')
+  assertIncludes('app/api/voice-agent/tool-log/route.ts', 'MAX_TOOL_LOG_JSON_BYTES')
+  assertIncludes('app/api/voice-agent/tool-log/route.ts', 'MAX_TOOL_LOG_METADATA_BYTES')
+  assertIncludes('app/api/voice-agent/tool-log/route.ts', 'PAYLOAD_TOO_LARGE')
 
   console.log(
     JSON.stringify(
       {
         ok: true,
         checkedClientFiles: clientFiles.length,
-        checkedServerGuards: 19,
+        checkedServerGuards: 24,
       },
       null,
       2
