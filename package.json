@@ -19,7 +19,8 @@
     "test:voice-agent-coverage": "tsx scripts/voice-agent-curriculum-coverage.ts",
     "test:livekit-agent": "tsx scripts/livekit-agent-smoke.ts",
     "test:livekit-security": "tsx scripts/livekit-security-check.ts",
-    "test:tutor-strategies": "tsx scripts/tutor-strategy-eval.ts"
+    "test:tutor-strategies": "tsx scripts/tutor-strategy-eval.ts",
+    "test:tutor-human-experience": "tsx scripts/tutor-human-experience-regression.ts"
   },
   "overrides": {
     "brace-expansion": "^1.1.13",
