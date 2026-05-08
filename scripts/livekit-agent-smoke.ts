@@ -30,6 +30,7 @@ async function main() {
     'board_animation_plan',
     'hint_ladder',
     'integer_operation_scene',
+    'problem_understanding_map',
     'graph_function',
     'fraction_strip',
     'percent_bar',
@@ -136,6 +137,14 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-mistake-pattern' }
   )
+  const problemMap = await tools.problem_understanding_map.execute(
+    {
+      problemText: 'A recipe uses 3 cups of flour for 12 muffins. How many cups are needed for 20 muffins?',
+      gradeLevel: 'Grade 6',
+      studentWork: '',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-problem-understanding-map' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -175,6 +184,10 @@ async function main() {
 
   if (!JSON.stringify(mistakePattern).includes('denominator_operation')) {
     throw new Error('mistake_pattern_classifier did not classify the fraction denominator pattern.')
+  }
+
+  if (!JSON.stringify(problemMap).includes('knownQuantities')) {
+    throw new Error('problem_understanding_map did not return known quantities.')
   }
 
   if (!JSON.stringify(answerGate).includes('hint_only')) {

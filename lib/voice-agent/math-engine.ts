@@ -24,6 +24,7 @@ import type {
   BoardAnimationPlanResult,
   TutorTeachingSequenceResult,
   WordProblemPlanResult,
+  ProblemUnderstandingMapResult,
   FractionSimplifyResult,
   PercentOfNumberResult,
   UnitRateResult,
@@ -5516,6 +5517,66 @@ function chooseVisualModel(topic: CurriculumTopic, problemText: string) {
   if (topic === 'multiplication_division') return text.includes('divide') ? 'long_division' : 'array_model'
 
   return tools[0]
+}
+
+function extractUnitsOrLabels(problemText: string) {
+  const matches = [...problemText.matchAll(/-?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?\s*([a-zA-Z][a-zA-Z-]*)/g)]
+    .map((match) => match[1].toLowerCase())
+    .filter((unit) => !['x', 'y'].includes(unit))
+  const labelWords = problemText
+    .toLowerCase()
+    .match(/\b(cups?|muffins?|notebooks?|dollars?|meters?|centimeters?|students?|groups?|minutes?|hours?|miles?|books?|tiles?|squares?|outcomes?)\b/g)
+  return [...new Set([...(labelWords ?? []), ...matches])].slice(0, 8)
+}
+
+export function problemUnderstandingMap(input: {
+  problemText: string
+  gradeLevel?: string
+  studentWork?: string
+}): ProblemUnderstandingMapResult {
+  const problemText = input.problemText.trim().replace(/\s+/g, ' ')
+  if (!problemText) {
+    throw new Error('problem_understanding_map needs the problem text.')
+  }
+
+  const topic = inferWordProblemTopic(problemText)
+  const guide = CURRICULUM_GUIDE[topic]
+  const knownQuantities = extractWordProblemQuantities(problemText)
+  const likelyUnknown = extractWordProblemQuestion(problemText)
+  const unitsOrLabels = extractUnitsOrLabels(problemText)
+  const visualModel = chooseVisualModel(topic, problemText)
+  const missingInformation: string[] = []
+
+  if (knownQuantities.length === 0) missingInformation.push('No clear quantities were detected.')
+  if (!/\?/.test(problemText)) missingInformation.push('The exact question may need to be restated.')
+  if (topic === 'ratios_rates' && unitsOrLabels.length < 2) {
+    missingInformation.push('The two related units or labels are not both clear yet.')
+  }
+  if (topic === 'fractions' && !/\bwhole|total|all together|altogether\b/i.test(problemText)) {
+    missingInformation.push('The whole may need to be named before using fractions.')
+  }
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel: input.gradeLevel?.trim() || 'grades 3 to 7',
+    knownQuantities,
+    likelyUnknown,
+    unitsOrLabels,
+    missingInformation,
+    representationCandidates: [visualModel, ...guide.tools.filter((toolName) => toolName !== visualModel)].slice(0, 3),
+    firstTutorQuestion:
+      knownQuantities.length > 0
+        ? `Which quantity are we trying to find: ${likelyUnknown}`
+        : 'What numbers or measurements does the problem give us?',
+    studentRestatementFrame:
+      'We know ___. We need to find ___. The relationship is ___.',
+    avoid: [
+      'Do not calculate before the student names the unknown.',
+      'Do not introduce a formula until the relationship is clear.',
+      'Do not rewrite the whole problem aloud if one sentence is enough.',
+    ],
+  }
 }
 
 export function wordProblemPlan(input: {

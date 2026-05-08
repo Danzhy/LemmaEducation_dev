@@ -41,6 +41,7 @@ import {
   placeValueChartScene,
   plotPointsOnPlane,
   practiceSetGenerator,
+  problemUnderstandingMap,
   percentBarScene,
   percentOfNumber,
   probabilityModelScene,
@@ -604,6 +605,36 @@ export function createVoiceAgentTools() {
             problemText: params.problemText,
             gradeLevel: params.gradeLevel,
             topic: params.topic,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'problem_understanding_map',
+      description:
+        'Break a word problem or messy student prompt into known quantities, likely unknown, units, missing information, and useful visual representations before solving.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          problemText: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          studentWork: { type: 'string' },
+        },
+        required: ['problemText', 'gradeLevel', 'studentWork'],
+      },
+      async execute(input) {
+        const params = input as {
+          problemText: string
+          gradeLevel: string
+          studentWork: string
+        }
+        return stringifyResult(
+          problemUnderstandingMap({
+            problemText: params.problemText,
+            gradeLevel: params.gradeLevel,
+            studentWork: params.studentWork,
           })
         )
       },

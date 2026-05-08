@@ -46,6 +46,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'place_value_chart',
   'plot_points_on_plane',
   'practice_set_generator',
+  'problem_understanding_map',
   'probability_model',
   'ratio_table',
   'round_number',

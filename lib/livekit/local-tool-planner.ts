@@ -415,6 +415,14 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
 
   if (/word problem|plan|recipe|muffin/.test(lower)) {
     plans.push({
+      toolName: 'problem_understanding_map',
+      input: {
+        problemText: prompt,
+        gradeLevel,
+        studentWork: '',
+      },
+    })
+    plans.push({
       toolName: 'word_problem_plan',
       input: {
         problemText: prompt,
@@ -550,6 +558,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     return classified?.diagnosticQuestion
       ? `I found the likely reasoning pattern. ${classified.diagnosticQuestion}`
       : 'I checked the mistake pattern. Let us focus on one step and explain why it changes.'
+  }
+
+  if (firstTool === 'problem_understanding_map') {
+    return 'I mapped the knowns, the unknown, and the useful representation first. Tell me which quantity the problem is asking us to find.'
   }
 
   if (firstTool === 'tutor_teaching_sequence') {

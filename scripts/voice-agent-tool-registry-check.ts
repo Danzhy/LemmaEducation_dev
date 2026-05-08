@@ -25,6 +25,7 @@ const REQUIRED_TOOL_NAMES = [
   'tutor_teaching_sequence',
   'answer_disclosure_gate',
   'board_animation_plan',
+  'problem_understanding_map',
   'word_problem_plan',
   'mistake_pattern_classifier',
   'misconception_diagnosis',

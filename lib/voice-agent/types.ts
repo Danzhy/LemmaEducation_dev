@@ -163,6 +163,20 @@ export type WordProblemPlanResult = {
   guardrail: string
 }
 
+export type ProblemUnderstandingMapResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  knownQuantities: string[]
+  likelyUnknown: string
+  unitsOrLabels: string[]
+  missingInformation: string[]
+  representationCandidates: string[]
+  firstTutorQuestion: string
+  studentRestatementFrame: string
+  avoid: string[]
+}
+
 export type SocraticMoveResult = {
   topic: string
   label: string

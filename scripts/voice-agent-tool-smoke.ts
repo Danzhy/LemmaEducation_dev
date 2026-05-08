@@ -34,6 +34,7 @@ import {
   placeValueChartScene,
   plotPointsOnPlane,
   practiceSetGenerator,
+  problemUnderstandingMap,
   percentBarScene,
   percentOfNumber,
   probabilityModelScene,
@@ -234,6 +235,17 @@ const wordPlan = wordProblemPlan({
 assert(
   wordPlan.recommendedTools.includes('double_number_line') || wordPlan.recommendedTools.includes('ratio_table'),
   'word_problem_plan should recommend a ratio visual for ratio word problems.'
+)
+
+const understandingMap = problemUnderstandingMap({
+  problemText: 'A recipe uses 3 cups of flour for 12 muffins. How many cups are needed for 20 muffins?',
+  gradeLevel: 'Grade 6',
+  studentWork: '',
+})
+assert(
+  understandingMap.knownQuantities.length >= 3 &&
+    understandingMap.representationCandidates.includes('ratio_table'),
+  'problem_understanding_map should extract quantities and representation candidates.'
 )
 
 const nextMove = socraticMovePlanner({ topic: 'fractions', studentWork: 'I got 2/5 for 1/2 + 1/3.' })

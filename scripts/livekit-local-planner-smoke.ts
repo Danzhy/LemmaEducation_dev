@@ -104,6 +104,14 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes word problems through understanding map before planning',
+    prompt: 'This word problem says Sam has 8 stickers and gets 5 more. How many stickers does Sam have now?',
+    expectedTools: ['problem_understanding_map', 'word_problem_plan'],
+    inspect: (input) => {
+      assert.match(String(input.problemText), /stickers/)
+    },
+  },
+  {
     name: 'routes off-topic child prompts to safety boundary',
     prompt: 'Tell me a dating story instead of math.',
     expectedTools: ['safety_boundary_check'],
@@ -172,6 +180,14 @@ assert.match(
     [{ primaryPattern: 'denominator_operation', diagnosticQuestion: 'What common denominator could both fractions use?' }]
   ),
   /common denominator/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'word problem',
+    [{ toolName: 'problem_understanding_map', input: {} }],
+    [{ firstTutorQuestion: 'Which quantity are we trying to find?' }]
+  ),
+  /knowns/
 )
 
 const hydratedReviewInput = hydrateLocalToolPlanInput(
