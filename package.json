@@ -25,6 +25,7 @@
     "test:tutor-strategies": "tsx scripts/tutor-strategy-eval.ts",
     "test:curriculum-rag": "tsx scripts/curriculum-rag-smoke.ts",
     "test:curriculum-security": "tsx scripts/curriculum-security-check.ts",
+    "test:curriculum-db": "tsx scripts/curriculum-rag-db-smoke.ts",
     "test:tutor-human-experience": "tsx scripts/tutor-human-experience-regression.ts"
   },
   "overrides": {

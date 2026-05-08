@@ -47,6 +47,7 @@ Run the local helper check with:
 ```bash
 npm run test:curriculum-rag
 npm run test:curriculum-security
+npm run test:curriculum-db
 ```
 
 ## Voice Agent Lab
