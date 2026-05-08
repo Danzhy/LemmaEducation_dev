@@ -27,6 +27,7 @@ async function main() {
     'next_step_coach',
     'board_animation_plan',
     'hint_ladder',
+    'integer_operation_scene',
     'graph_function',
     'fraction_strip',
     'percent_bar',
@@ -105,6 +106,15 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-adaptive-review-plan' }
   )
+  const integerOperation = await tools.integer_operation_scene.execute(
+    {
+      left: -3,
+      right: 5,
+      operation: 'add',
+      title: 'Integer operation',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-integer-operation' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -132,6 +142,10 @@ async function main() {
 
   if (!JSON.stringify(reviewPlan).includes('diagnosticQuestion')) {
     throw new Error('adaptive_review_plan did not return a review plan.')
+  }
+
+  if (!JSON.stringify(integerOperation).includes('"result":2')) {
+    throw new Error('integer_operation_scene did not return the signed integer result.')
   }
 
   if (!JSON.stringify(answerGate).includes('hint_only')) {

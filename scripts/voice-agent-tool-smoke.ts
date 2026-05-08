@@ -22,6 +22,7 @@ import {
   fractionStripScene,
   graphFunction,
   integerChipsScene,
+  integerOperationScene,
   hintLadder,
   longDivisionScene,
   mathCheckAnswer,
@@ -109,6 +110,10 @@ const smokeCases: SmokeCase[] = [
   {
     name: 'integer_chips',
     run: () => integerChipsScene({ positiveCount: 5, negativeCount: 3 }),
+  },
+  {
+    name: 'integer_operation_scene',
+    run: () => integerOperationScene({ left: -3, right: 5, operation: 'add' }),
   },
   {
     name: 'ratio_table',

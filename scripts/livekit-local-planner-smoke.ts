@@ -59,6 +59,16 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes signed integer operations to integer operation scene',
+    prompt: 'Can you show -3 + 5 on a number line?',
+    expectedTools: ['integer_operation_scene'],
+    inspect: (input) => {
+      assert.equal(input.left, -3)
+      assert.equal(input.right, 5)
+      assert.equal(input.operation, 'add')
+    },
+  },
+  {
     name: 'routes unit-rate word problems to rate and double number line',
     prompt: 'A store sells 3 notebooks for $6. What is the unit rate?',
     expectedTools: ['unit_rate', 'double_number_line'],

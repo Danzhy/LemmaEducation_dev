@@ -28,6 +28,7 @@ import type {
   DecimalCompareResult,
   RoundNumberResult,
   CommonDenominatorResult,
+  IntegerOperationResult,
 } from '@/lib/voice-agent/types'
 import type {
   TutorCanvasAction,
@@ -3948,6 +3949,97 @@ export function integerChipsScene(input: {
   return {
     summary: `Prepared integer chips with value ${value}.`,
     canvasActions: actions,
+  }
+}
+
+export function integerOperationScene(input: {
+  left: number
+  right: number
+  operation: 'add' | 'subtract'
+  title?: string
+}): IntegerOperationResult {
+  const left = Math.trunc(coerceFiniteNumber(input.left))
+  const right = Math.trunc(coerceFiniteNumber(input.right))
+  if (Math.abs(left) > 50 || Math.abs(right) > 50) {
+    throw new Error('Integer operation model supports values from -50 to 50.')
+  }
+
+  const signedChange = input.operation === 'subtract' ? -right : right
+  const result = left + signedChange
+  const expression = `${left} ${input.operation === 'subtract' ? '-' : '+'} ${right} = ${result}`
+  const minValue = Math.min(0, left, result, left + signedChange) - 2
+  const maxValue = Math.max(0, left, result, left + signedChange) + 2
+  const numberLine = numberLineScene({
+    start: minValue,
+    end: maxValue,
+    highlightValues: [left, result, 0],
+    hopPairs: [
+      {
+        from: left,
+        to: result,
+        label: signedChange >= 0 ? `+${signedChange}` : `${signedChange}`,
+      },
+    ],
+    title: input.title?.trim() || 'Integer operation',
+  })
+  const positiveChipsBeforeCancel = [left, signedChange].filter((value) => value > 0).reduce((sum, value) => sum + value, 0)
+  const negativeChipsBeforeCancel = [left, signedChange].filter((value) => value < 0).reduce((sum, value) => sum + Math.abs(value), 0)
+  const zeroPairs = Math.min(positiveChipsBeforeCancel, negativeChipsBeforeCancel)
+
+  numberLine.canvasActions.splice(
+    -1,
+    0,
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, expression, {
+      width: NOTE_FRAME.width - 32,
+      color: result < 0 ? 'red' : 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      [
+        `Start at ${left}.`,
+        input.operation === 'subtract'
+          ? `Subtracting ${right} means move ${formatNumber(Math.abs(signedChange))} ${signedChange >= 0 ? 'right' : 'left'}.`
+          : `Adding ${right} means move ${formatNumber(Math.abs(signedChange))} ${signedChange >= 0 ? 'right' : 'left'}.`,
+        `Land on ${result}.`,
+      ],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 34,
+      }
+    )
+  )
+
+  return {
+    expression,
+    left,
+    right,
+    operation: input.operation,
+    signedChange,
+    result,
+    steps: [
+      `Start at ${left}.`,
+      input.operation === 'subtract'
+        ? `Change subtraction into adding the opposite: ${left} + ${signedChange}.`
+        : `Add the signed change: ${left} + ${signedChange}.`,
+      `Move ${Math.abs(signedChange)} step${Math.abs(signedChange) === 1 ? '' : 's'} ${signedChange >= 0 ? 'right' : 'left'}.`,
+      `The result is ${result}.`,
+    ],
+    chipModel: {
+      positiveChipsBeforeCancel,
+      negativeChipsBeforeCancel,
+      zeroPairs,
+    },
+    suggestedQuestion: 'Which direction did the signed change move us, and why?',
+    canvasActions: numberLine.canvasActions,
   }
 }
 

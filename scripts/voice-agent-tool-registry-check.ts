@@ -39,6 +39,7 @@ const REQUIRED_TOOL_NAMES = [
   'unit_rate',
   'decimal_compare',
   'round_number',
+  'integer_operation_scene',
   'graph_function',
   'percent_bar',
   'double_number_line',

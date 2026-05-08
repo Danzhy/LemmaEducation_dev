@@ -45,6 +45,19 @@ function pickPlaceValue(lower: string) {
   return 'tens'
 }
 
+function extractIntegerOperation(text: string) {
+  const match = text.match(/(-?\d+)\s*([+-])\s*(-?\d+)/)
+  if (!match) return null
+  const left = Number(match[1])
+  const right = Number(match[3])
+  if (!Number.isInteger(left) || !Number.isInteger(right)) return null
+  return {
+    left,
+    right,
+    operation: match[2] === '-' ? 'subtract' : 'add',
+  } as const
+}
+
 export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalToolPlan[] {
   const lower = prompt.toLowerCase()
   const fractions = extractFractions(prompt)
@@ -191,6 +204,23 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
         showXIntercepts: /intercept|root|zero/.test(lower),
         showYIntercept: /intercept|y-axis|where it starts/.test(lower),
         showVertex: /vertex|parabola|\^2|squared/.test(lower),
+      },
+    })
+    return plans
+  }
+
+  const integerOperation = extractIntegerOperation(prompt)
+  if (
+    integerOperation &&
+    /\b(integer|negative|positive|signed|number line|chips|add|subtract|plus|minus)\b|-\d/.test(lower)
+  ) {
+    plans.push({
+      toolName: 'integer_operation_scene',
+      input: {
+        left: integerOperation.left,
+        right: integerOperation.right,
+        operation: integerOperation.operation,
+        title: 'Integer operation',
       },
     })
     return plans
@@ -433,6 +463,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'double_number_line' || firstTool === 'unit_rate') {
     return 'I set up the rate visually. Look for the value per 1 unit first, then scale from there.'
+  }
+
+  if (firstTool === 'integer_operation_scene') {
+    return 'I put the signed integer move on the number line. Say which direction the change moves before we decide the answer.'
   }
 
   if (firstTool.includes('fraction') || firstTool === 'common_denominator') {

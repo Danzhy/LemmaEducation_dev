@@ -275,3 +275,20 @@ export type CommonDenominatorResult = {
   suggestedTool: 'fraction_operation' | 'fraction_compare'
   suggestedQuestion: string
 }
+
+export type IntegerOperationResult = {
+  expression: string
+  left: number
+  right: number
+  operation: 'add' | 'subtract'
+  signedChange: number
+  result: number
+  steps: string[]
+  chipModel: {
+    positiveChipsBeforeCancel: number
+    negativeChipsBeforeCancel: number
+    zeroPairs: number
+  }
+  suggestedQuestion: string
+  canvasActions: TutorCanvasAction[]
+}

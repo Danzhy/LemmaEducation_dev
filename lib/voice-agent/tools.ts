@@ -27,6 +27,7 @@ import {
   hintGenerator,
   hintLadder,
   integerChipsScene,
+  integerOperationScene,
   longDivisionScene,
   mathCalculate,
   mathCheckAnswer,
@@ -1781,6 +1782,39 @@ export function createVoiceAgentTools() {
             negativeCount: params.negativeCount,
             title: params.title,
             expression: params.expression,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'integer_operation_scene',
+      description:
+        'Model integer addition or subtraction on a number line, including the signed change and zero-pair chip counts. Use for grade 6 to 7 signed-number reasoning before giving an answer.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          left: { type: 'number' },
+          right: { type: 'number' },
+          operation: { type: 'string', enum: ['add', 'subtract'] },
+          title: { type: 'string' },
+        },
+        required: ['left', 'right', 'operation', 'title'],
+      },
+      async execute(input) {
+        const params = input as {
+          left: number
+          right: number
+          operation: 'add' | 'subtract'
+          title?: string
+        }
+        return stringifyResult(
+          integerOperationScene({
+            left: params.left,
+            right: params.right,
+            operation: params.operation,
+            title: params.title,
           })
         )
       },

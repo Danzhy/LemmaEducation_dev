@@ -57,7 +57,7 @@ npm run test:curriculum-pdf
 The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched while testing a tool-enabled realtime tutor. The lab currently includes:
 
 - A shared tutor workspace with typed or microphone startup
-- Structured canvas actions for graphs, fraction models, number lines, ratios, percents, geometry, data, and short board notes
+- Structured canvas actions for graphs, fraction models, signed integers, number lines, ratios, percents, geometry, data, and short board notes
 - Deterministic math tools for calculation checks, linear equations, fraction simplification, common denominators, percent-of-number, unit rates, rounding, and decimal comparison
 - Tutoring planner tools for word problems, misconceptions, curriculum moves, Socratic next steps, and targeted practice
 - Curriculum context and search for teacher-uploaded notes, PDFs, and custom class instructions
