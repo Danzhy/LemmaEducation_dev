@@ -6,6 +6,8 @@ import type { TutorCanvasAction, TutorToolEvent } from '@/lib/tutor/session-adap
 import { getLiveKitToolDefinitions, runLiveKitTutorTool } from '@/lib/livekit/tool-runner'
 
 const MAX_TOOL_RESULT_BYTES = 24_000
+const DEFAULT_MAX_TOOL_CALLS_PER_SESSION = 96
+const DEFAULT_MAX_CANVAS_ACTIONS_PER_SESSION = 700
 
 type LiveKitWorkerToolDefinition = {
   name: string
@@ -21,6 +23,8 @@ type WorkerToolEvent = Omit<TutorToolEvent, 'id' | 'createdAt'> & {
 export type LiveKitWorkerToolEnvironment = {
   sendToolEvent?: (event: WorkerToolEvent) => Promise<void>
   dispatchCanvasActions?: (actions: TutorCanvasAction[], toolName: string) => Promise<void>
+  maxToolCallsPerSession?: number
+  maxCanvasActionsPerSession?: number
 }
 
 function jsonByteLength(value: unknown) {
@@ -66,6 +70,10 @@ export function serializeLiveKitWorkerToolEvent(event: WorkerToolEvent) {
 
 export function createLiveKitTutorToolContext(env: LiveKitWorkerToolEnvironment = {}): llm.ToolContext {
   const tools: llm.ToolContext = {}
+  const maxToolCalls = env.maxToolCallsPerSession ?? DEFAULT_MAX_TOOL_CALLS_PER_SESSION
+  const maxCanvasActions = env.maxCanvasActionsPerSession ?? DEFAULT_MAX_CANVAS_ACTIONS_PER_SESSION
+  let toolCalls = 0
+  let canvasActionsDispatched = 0
 
   for (const toolDef of getLiveKitToolDefinitions() as LiveKitWorkerToolDefinition[]) {
     const toolName = toolDef.name
@@ -78,17 +86,25 @@ export function createLiveKitTutorToolContext(env: LiveKitWorkerToolEnvironment 
       },
       execute: async (input, options) => {
         const callId = options.toolCallId
+        toolCalls += 1
+
+        if (toolCalls > maxToolCalls) {
+          throw new Error('This LiveKit tutor session has reached its tool-call safety budget.')
+        }
+
         await env.sendToolEvent?.({
           type: 'tool_started',
           toolName,
           input,
-          metadata: { callId },
+          metadata: { callId, toolCalls, maxToolCalls },
         })
 
         try {
           const output = await runLiveKitTutorTool(toolName, input)
           const modelOutput = compactToolResultForModel(output)
-          const actions = extractCanvasActionsFromToolResult(toolName, output).slice(0, 40)
+          const remainingCanvasActions = Math.max(0, maxCanvasActions - canvasActionsDispatched)
+          const actions = extractCanvasActionsFromToolResult(toolName, output).slice(0, Math.min(40, remainingCanvasActions))
+          canvasActionsDispatched += actions.length
 
           await env.sendToolEvent?.({
             type: 'tool_completed',
@@ -98,6 +114,8 @@ export function createLiveKitTutorToolContext(env: LiveKitWorkerToolEnvironment 
             metadata: {
               callId,
               renderedActions: actions.length,
+              canvasActionsDispatched,
+              maxCanvasActions,
             },
           })
 
