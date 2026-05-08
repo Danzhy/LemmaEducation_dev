@@ -19,6 +19,7 @@ const REQUIRED_TOOL_NAMES = [
   'curriculum_search',
   'learner_context',
   'adaptive_review_plan',
+  'session_mastery_snapshot',
   'safety_boundary_check',
   'socratic_move_planner',
   'tutor_teaching_sequence',

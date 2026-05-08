@@ -62,6 +62,7 @@ The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched whi
 - Tutoring planner tools for word problems, misconceptions, curriculum moves, Socratic next steps, and targeted practice
 - Curriculum context and search for teacher-uploaded notes, PDFs, and custom class instructions
 - Learner context plus adaptive review planning for recent topics, struggle signals, and micro-practice
+- Session mastery snapshots for concise teacher-safe learning handoffs in hidden labs
 - A lab-only tool trace and recipe chips for fast local QA
 
 Run the voice-agent checks with:

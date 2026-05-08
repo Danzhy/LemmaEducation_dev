@@ -38,6 +38,7 @@ import {
   probabilityModelScene,
   ratioTableScene,
   roundNumber,
+  sessionMasterySnapshot,
   socraticMovePlanner,
   slopeTriangleScene,
   statisticsSummaryScene,
@@ -266,6 +267,20 @@ assert(
     reviewPlan.firstBoardTool === 'fraction_strip' &&
     reviewPlan.microPractice.length === 2,
   'adaptive_review_plan should turn learner history into a concrete review path.'
+)
+
+const masterySnapshot = sessionMasterySnapshot({
+  topic: 'ratios',
+  gradeLevel: 'Grade 6',
+  transcriptExcerpt: 'I know this is a unit rate because it tells us the value for one notebook.',
+  studentWork: '3 notebooks cost $12, so 1 notebook costs $4.',
+  toolSummary: 'unit_rate returned 4 dollars per notebook.',
+})
+assert(
+  masterySnapshot.confidence === 'high' &&
+    masterySnapshot.nextPractice.length === 2 &&
+    masterySnapshot.privacyNote.includes('personal details'),
+  'session_mastery_snapshot should produce a teacher-safe learning handoff.'
 )
 
 const answerGate = answerDisclosureGate({

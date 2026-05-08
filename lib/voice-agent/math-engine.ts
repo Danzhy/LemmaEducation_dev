@@ -16,6 +16,7 @@ import type {
   MathStepCheckResult,
   NextStepCoachResult,
   AdaptiveReviewPlanResult,
+  SessionMasterySnapshotResult,
   PlotPointsResult,
   ValueTableResult,
   SocraticMoveResult,
@@ -5710,6 +5711,74 @@ export function adaptiveReviewPlan(input: {
       'Do not give a long recap before the student tries.',
       'Do not reveal practice answers until the student attempts the first step.',
     ],
+  }
+}
+
+function hasStrongStudentEvidence(text: string) {
+  return /\b(because|so|therefore|i know|that means|same value|both sides|scale factor|unit rate|common denominator|out of 100)\b/i.test(text)
+}
+
+function hasUncertaintyEvidence(text: string) {
+  return /\b(stuck|confused|not sure|don't know|do not know|guess|maybe|wrong|mistake|help)\b/i.test(text)
+}
+
+export function sessionMasterySnapshot(input: {
+  topic: string
+  gradeLevel?: string
+  transcriptExcerpt?: string
+  studentWork?: string
+  toolSummary?: string
+}): SessionMasterySnapshotResult {
+  const topic = resolveCurriculumTopic(input.topic)
+  const guide = CURRICULUM_GUIDE[topic]
+  const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
+  const combined = [input.transcriptExcerpt, input.studentWork, input.toolSummary]
+    .map((value) => value?.trim() ?? '')
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 1400)
+  const strongEvidence = hasStrongStudentEvidence(combined)
+  const uncertainEvidence = hasUncertaintyEvidence(combined)
+  const diagnosis = misconceptionDiagnosis({
+    topic,
+    studentWork: input.studentWork?.trim() || combined || guide.misconceptions[0],
+  })
+  const confidence: SessionMasterySnapshotResult['confidence'] =
+    strongEvidence && !uncertainEvidence ? 'high' : strongEvidence || !uncertainEvidence ? 'medium' : 'low'
+  const practice = practiceSetGenerator({
+    topic,
+    difficulty: confidence === 'low' ? 'support' : confidence === 'high' ? 'stretch' : 'core',
+    count: 2,
+  }).items
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel,
+    confidence,
+    evidence: [
+      strongEvidence
+        ? 'Student used reasoning language or named a relationship.'
+        : 'No strong reasoning explanation was detected in the excerpt.',
+      input.studentWork?.trim() ? 'Student work was available for review.' : 'No student work excerpt was provided.',
+      input.toolSummary?.trim() ? 'Tool output was available as supporting evidence.' : 'No tool summary was provided.',
+    ],
+    needsReview: confidence === 'high' ? [] : diagnosis.findings.slice(0, 3),
+    nextPractice: practice.map((item) => ({
+      prompt: item.prompt,
+      hint: item.hint,
+      suggestedTool: item.suggestedTool,
+    })),
+    suggestedNextTutorMove:
+      confidence === 'high'
+        ? 'Offer one extension problem and ask the student to explain the changed condition.'
+        : guide.nextMove,
+    teacherReviewNote:
+      confidence === 'high'
+        ? `Likely secure on ${guide.label.toLowerCase()} in this excerpt, but confirm with one independent problem.`
+        : `Review ${guide.label.toLowerCase()} with a short diagnostic before moving faster.`,
+    privacyNote:
+      'This snapshot should summarize learning signals only. Do not include sensitive personal details in teacher or parent views.',
   }
 }
 

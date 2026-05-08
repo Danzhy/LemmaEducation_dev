@@ -23,6 +23,7 @@ async function main() {
     'curriculum_context',
     'learner_context',
     'adaptive_review_plan',
+    'session_mastery_snapshot',
     'answer_disclosure_gate',
     'next_step_coach',
     'board_animation_plan',
@@ -115,6 +116,16 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-integer-operation' }
   )
+  const masterySnapshot = await tools.session_mastery_snapshot.execute(
+    {
+      topic: 'ratios',
+      gradeLevel: 'Grade 6',
+      transcriptExcerpt: 'I know this is a unit rate because it is the cost for one notebook.',
+      studentWork: '3 notebooks cost $12, so one notebook is $4.',
+      toolSummary: 'unit_rate returned 4.',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-session-mastery-snapshot' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -146,6 +157,10 @@ async function main() {
 
   if (!JSON.stringify(integerOperation).includes('"result":2')) {
     throw new Error('integer_operation_scene did not return the signed integer result.')
+  }
+
+  if (!JSON.stringify(masterySnapshot).includes('teacherReviewNote')) {
+    throw new Error('session_mastery_snapshot did not return a teacher review note.')
   }
 
   if (!JSON.stringify(answerGate).includes('hint_only')) {

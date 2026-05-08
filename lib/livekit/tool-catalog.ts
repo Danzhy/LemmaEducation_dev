@@ -49,6 +49,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'ratio_table',
   'round_number',
   'safety_boundary_check',
+  'session_mastery_snapshot',
   'slope_triangle',
   'socratic_move_planner',
   'solve_linear_on_canvas',

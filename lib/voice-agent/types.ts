@@ -195,6 +195,23 @@ export type AdaptiveReviewPlanResult = {
   avoid: string[]
 }
 
+export type SessionMasterySnapshotResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  confidence: 'low' | 'medium' | 'high'
+  evidence: string[]
+  needsReview: string[]
+  nextPractice: Array<{
+    prompt: string
+    hint: string
+    suggestedTool: string
+  }>
+  suggestedNextTutorMove: string
+  teacherReviewNote: string
+  privacyNote: string
+}
+
 export type AnswerDisclosureGateResult = {
   decision: 'hint_only' | 'next_step_only' | 'solution_allowed'
   reason: string

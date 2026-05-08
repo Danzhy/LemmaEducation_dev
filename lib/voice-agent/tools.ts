@@ -45,6 +45,7 @@ import {
   probabilityModelScene,
   ratioTableScene,
   roundNumber,
+  sessionMasterySnapshot,
   socraticMovePlanner,
   slopeTriangleScene,
   solveLinearOnCanvas,
@@ -409,6 +410,42 @@ export function createVoiceAgentTools() {
             topics: Array.isArray(params.topics) ? params.topics : [],
             struggleSignals: Array.isArray(params.struggleSignals) ? params.struggleSignals : [],
             recentExcerpts: Array.isArray(params.recentExcerpts) ? params.recentExcerpts : [],
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'session_mastery_snapshot',
+      description:
+        'Create a concise learning snapshot from the current tutoring excerpt: confidence, evidence, review needs, next practice, and a teacher-safe note. Use near the end of a session or before saving handoff context.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          transcriptExcerpt: { type: 'string' },
+          studentWork: { type: 'string' },
+          toolSummary: { type: 'string' },
+        },
+        required: ['topic', 'gradeLevel', 'transcriptExcerpt', 'studentWork', 'toolSummary'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          gradeLevel: string
+          transcriptExcerpt: string
+          studentWork: string
+          toolSummary: string
+        }
+        return stringifyResult(
+          sessionMasterySnapshot({
+            topic: params.topic,
+            gradeLevel: params.gradeLevel,
+            transcriptExcerpt: params.transcriptExcerpt,
+            studentWork: params.studentWork,
+            toolSummary: params.toolSummary,
           })
         )
       },
