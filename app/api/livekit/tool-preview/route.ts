@@ -5,7 +5,7 @@ import { getSessionUserId } from '@/lib/tutor/session-user'
 import { createTutorDbTimeout } from '@/lib/tutor/db-timeout'
 import { extractCanvasActionsFromToolResult } from '@/lib/tutor/canvas-action-parser'
 import { LIVEKIT_TUTOR_TOOL_NAMES } from '@/lib/livekit/tool-catalog'
-import { runLiveKitTutorTool } from '@/lib/livekit/tool-runner'
+import { runLiveKitTutorToolWithMetrics } from '@/lib/livekit/tool-runner'
 
 const MAX_TOOL_INPUT_BYTES = 12_000
 
@@ -66,13 +66,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const output = await runLiveKitTutorTool(toolName, body?.input ?? {})
+    const { output, metrics } = await runLiveKitTutorToolWithMetrics(toolName, body?.input ?? {})
     const canvasActions = extractCanvasActionsFromToolResult(toolName, output, 80)
 
     return jsonResponse({
       ok: true,
       output,
       canvasActions,
+      toolMeta: {
+        toolName,
+        ...metrics,
+        canvasActionCount: canvasActions.length,
+      },
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tool failed.'

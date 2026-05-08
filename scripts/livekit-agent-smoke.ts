@@ -93,9 +93,16 @@ async function main() {
 
   const started = events.filter((event) => event.type === 'tool_started').length
   const completed = events.filter((event) => event.type === 'tool_completed').length
+  const completedWithTiming = events.filter(
+    (event) => event.type === 'tool_completed' && typeof event.metadata?.durationMs === 'number'
+  ).length
 
   if (started < 5 || completed < 5) {
     throw new Error('LiveKit worker tool events were not emitted correctly.')
+  }
+
+  if (completedWithTiming < 5) {
+    throw new Error('LiveKit worker tool events did not include execution timing metadata.')
   }
 
   const telemetryFailureTools = createLiveKitTutorToolContext({

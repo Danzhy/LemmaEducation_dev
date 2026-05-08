@@ -5,7 +5,7 @@ import { getSessionUserId } from '@/lib/tutor/session-user'
 import { getQuotaSnapshot } from '@/lib/tutor/quota'
 import { createTutorDbTimeout } from '@/lib/tutor/db-timeout'
 import { extractCanvasActionsFromToolResult } from '@/lib/tutor/canvas-action-parser'
-import { runLiveKitTutorTool } from '@/lib/livekit/tool-runner'
+import { runLiveKitTutorToolWithMetrics } from '@/lib/livekit/tool-runner'
 import { LIVEKIT_TUTOR_TOOL_NAMES } from '@/lib/livekit/tool-catalog'
 
 const MAX_TOOL_INPUT_BYTES = 12_000
@@ -124,13 +124,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const output = await runLiveKitTutorTool(toolName, input)
+    const { output, metrics } = await runLiveKitTutorToolWithMetrics(toolName, input)
     const canvasActions = extractCanvasActionsFromToolResult(
       toolName,
       output,
       MAX_CANVAS_ACTIONS_PER_RESULT
     )
-    return NextResponse.json({ ok: true, output, canvasActions })
+    return NextResponse.json({
+      ok: true,
+      output,
+      canvasActions,
+      toolMeta: {
+        toolName,
+        ...metrics,
+        canvasActionCount: canvasActions.length,
+      },
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tool failed.'
     return NextResponse.json({ ok: false, code: 'TOOL_FAILED', message }, { status: 400 })

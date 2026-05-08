@@ -113,6 +113,7 @@ async function callServerLiveKitTool(sessionId: string | null, toolName: string,
     ok?: boolean
     output?: unknown
     canvasActions?: TutorCanvasAction[]
+    toolMeta?: Record<string, unknown>
     message?: string
   }
 
@@ -123,6 +124,7 @@ async function callServerLiveKitTool(sessionId: string | null, toolName: string,
   return {
     output: body.output,
     canvasActions: Array.isArray(body.canvasActions) ? body.canvasActions : [],
+    toolMeta: body.toolMeta && typeof body.toolMeta === 'object' ? body.toolMeta : {},
   }
 }
 
@@ -551,7 +553,7 @@ export function useLiveKitTutor({
             toolName: plan.toolName,
             input: plan.input,
             output: result.output,
-            metadata: { callId, source: 'local-typed-lab' },
+            metadata: { callId, source: 'local-typed-lab', ...result.toolMeta },
           })
           queueCanvasActions(result.canvasActions.slice(0, MAX_CANVAS_ACTIONS_PER_RESULT), plan.toolName)
         }
@@ -611,13 +613,18 @@ export function useLiveKitTutor({
             toolName,
             input,
             output: result.output,
-            metadata: { callId, source: 'livekit-rpc' },
+            metadata: { callId, source: 'livekit-rpc', ...result.toolMeta },
           })
 
           const actions = result.canvasActions.slice(0, MAX_CANVAS_ACTIONS_PER_RESULT)
           queueCanvasActions(actions, toolName)
 
-          return JSON.stringify({ ok: true, output: result.output, canvasActions: actions })
+          return JSON.stringify({
+            ok: true,
+            output: result.output,
+            canvasActions: actions,
+            toolMeta: result.toolMeta,
+          })
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Tool failed.'
           appendToolEvent({
