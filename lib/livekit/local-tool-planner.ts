@@ -55,6 +55,8 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const hasStudentAttempt = /\b(i tried|i got|my answer|i think|check this|=)\b/.test(lower)
   const asksForCurriculumContext =
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
+  const asksForLearnerContext =
+    /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
     /\b(graph|plot|parabola|function|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan)\b/.test(lower)
   const needsSafetyBoundary =
@@ -88,6 +90,29 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     })
 
     if (!hasStudentAttempt) {
+      return plans
+    }
+  }
+
+  if (asksForLearnerContext) {
+    plans.push({
+      toolName: 'learner_context',
+      input: {
+        sessionId: '',
+        reason: prompt.slice(0, 240),
+      },
+    })
+
+    if (!hasSpecificMathAction && !asksForCurriculumContext) {
+      plans.push({
+        toolName: 'socratic_move_planner',
+        input: {
+          topic: 'review from recent learner history',
+          gradeLevel,
+          studentWork: '',
+          tutorGoal: 'diagnose',
+        },
+      })
       return plans
     }
   }
@@ -365,6 +390,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'board_animation_plan') {
     return 'I set up a staged board reveal. I will show one useful mark at a time, then pause so you can make the next move.'
+  }
+
+  if (firstTool === 'learner_context') {
+    return 'I checked your recent tutoring history. I will use it quietly to choose a good review path and start with one diagnostic question.'
   }
 
   if (firstTool === 'curriculum_context' || firstTool === 'curriculum_search') {

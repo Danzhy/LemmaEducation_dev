@@ -8,6 +8,10 @@ import {
   buildCurriculumContextToolResult,
   getLabTutorCurriculumContextPackForUser,
 } from '@/lib/curriculum/context'
+import {
+  getLearnerContextForUser,
+  getLearnerContextUserId,
+} from '@/lib/tutor/learner-context'
 
 const MAX_TOOL_INPUT_BYTES = 12_000
 
@@ -37,6 +41,7 @@ function getToolRegistry() {
     )
     registry.set('curriculum_context', createCurriculumContextTool())
     registry.set('curriculum_search', createCurriculumSearchTool())
+    registry.set('learner_context', createLearnerContextTool())
     toolRegistry = registry
   }
   return toolRegistry
@@ -68,6 +73,54 @@ function createCurriculumContextTool(): ToolWithInvoke {
 
       const pack = await getLabTutorCurriculumContextPackForUser(userId)
       return JSON.stringify(buildCurriculumContextToolResult(pack))
+    },
+  } as unknown as ToolWithInvoke
+}
+
+function createLearnerContextTool(): ToolWithInvoke {
+  return {
+    name: 'learner_context',
+    description:
+      'Load concise recent tutoring history for this signed-in learner: recent topics, struggle signals, useful tools, and suggested tutor adjustments. Use this when the student says "last time", asks to continue, asks what they struggle with, or when adapting a review session without exposing old private history verbatim.',
+    strict: true,
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: 'Optional active tutor session id so the server can exclude the current session from history.',
+        },
+        reason: {
+          type: 'string',
+          description: 'Why learner history is relevant for this tutoring turn.',
+        },
+      },
+      required: ['sessionId', 'reason'],
+    },
+    async invoke(context: unknown, input: string) {
+      const parsed = JSON.parse(input || '{}') as {
+        sessionId?: unknown
+        reason?: unknown
+      }
+      const runContext = (context ?? {}) as LiveKitToolRunContext
+      const sessionId = typeof parsed.sessionId === 'string' && parsed.sessionId ? parsed.sessionId : runContext.sessionId
+      const userId = await getLearnerContextUserId({
+        userId: runContext.userId,
+        sessionId,
+      })
+      if (!userId) {
+        throw new Error('Learner context needs a signed-in user or tutor session context.')
+      }
+
+      const result = await getLearnerContextForUser({
+        userId,
+        sessionId,
+      })
+      return JSON.stringify({
+        ...result,
+        reason: typeof parsed.reason === 'string' ? parsed.reason.slice(0, 240) : '',
+      })
     },
   } as unknown as ToolWithInvoke
 }

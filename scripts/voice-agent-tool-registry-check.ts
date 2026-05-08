@@ -17,6 +17,7 @@ const REQUIRED_TOOL_NAMES = [
   'curriculum_coach',
   'curriculum_context',
   'curriculum_search',
+  'learner_context',
   'safety_boundary_check',
   'socratic_move_planner',
   'tutor_teaching_sequence',

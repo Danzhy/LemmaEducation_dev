@@ -68,6 +68,14 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes review prompts through learner context before planning',
+    prompt: 'Can we continue from last time and review what I struggled with?',
+    expectedTools: ['learner_context', 'socratic_move_planner'],
+    inspect: (input) => {
+      assert.match(String(input.reason), /last time/)
+    },
+  },
+  {
     name: 'routes class-specific prompts through curriculum context and search first',
     prompt: 'My teacher said the homework wants a ratio table: 3 cups for 12 muffins, how many cups for 20 muffins?',
     expectedTools: ['curriculum_context', 'curriculum_search', 'double_number_line'],

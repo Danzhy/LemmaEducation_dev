@@ -161,6 +161,27 @@ async function getCurriculumContextFromBrowser() {
   return body
 }
 
+async function getLearnerContextFromBrowser(input: {
+  sessionId?: string
+  reason?: string
+}) {
+  if (typeof window === 'undefined') {
+    throw new Error('Learner context must run through the server-owned LiveKit tool runner outside the browser.')
+  }
+
+  const response = await fetch('/api/tutor/learner-context', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const message = typeof body?.message === 'string' ? body.message : 'Could not load learner context.'
+    throw new Error(message)
+  }
+  return body
+}
+
 const STRUCTURED_CANVAS_ACTIONS = new Set([
   'clear_tool_layer',
   'place_text_label',
@@ -310,6 +331,36 @@ export function createVoiceAgentTools() {
       },
       async execute() {
         return stringifyResult(await getCurriculumContextFromBrowser())
+      },
+    }),
+    tool({
+      name: 'learner_context',
+      description:
+        'Load concise recent tutoring history for this signed-in learner: recent topics, struggle signals, useful tools, and suggested tutor adjustments. Use this when the student says "last time", asks to continue, asks what they struggle with, or when adapting a review session without exposing old private history verbatim.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          sessionId: {
+            type: 'string',
+            description: 'Optional active tutor session id so the server can exclude the current session from history.',
+          },
+          reason: {
+            type: 'string',
+            description: 'Why learner history is relevant for this tutoring turn.',
+          },
+        },
+        required: ['sessionId', 'reason'],
+      },
+      async execute(input) {
+        const params = input as { sessionId?: string; reason?: string }
+        return stringifyResult(
+          await getLearnerContextFromBrowser({
+            sessionId: params.sessionId,
+            reason: params.reason,
+          })
+        )
       },
     }),
     tool({

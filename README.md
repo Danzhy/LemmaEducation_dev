@@ -15,6 +15,7 @@ Lemma is an educational platform that captures the complete picture of a student
 - **Voice Agent Lab** - Hidden `/tutor-agent-lab` route for testing a tool-enabled realtime tutor
 - **LiveKit Tutor Lab** - Hidden `/tutor-livekit-lab` route for testing a worker-based voice tutor
 - **Curriculum RAG Lab** - Teacher-uploaded curriculum context and custom tutor profiles for hidden agent labs
+- **Learner Context Lab** - Signed-in lab tutors can quietly review recent sessions and recurring struggle signals
 
 ## Pilot Readiness
 
@@ -60,12 +61,15 @@ The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched whi
 - Deterministic math tools for calculation checks, linear equations, fraction simplification, common denominators, percent-of-number, unit rates, rounding, and decimal comparison
 - Tutoring planner tools for word problems, misconceptions, curriculum moves, Socratic next steps, and targeted practice
 - Curriculum context and search for teacher-uploaded notes, PDFs, and custom class instructions
+- Learner context for recent session topics, struggle signals, and tutor adjustments
 - A lab-only tool trace and recipe chips for fast local QA
 
 Run the voice-agent checks with:
 
 ```bash
 npm run test:voice-agent
+npm run test:learner-context
+npm run test:learner-security
 ```
 
 This runs smoke checks, registry/schema checks, and curriculum coverage checks for the experimental tool suite.
