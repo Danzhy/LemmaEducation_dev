@@ -20,6 +20,7 @@ async function main() {
     'math_check_step',
     'math_solve_linear',
     'tutor_teaching_sequence',
+    'curriculum_context',
     'answer_disclosure_gate',
     'next_step_coach',
     'board_animation_plan',

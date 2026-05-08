@@ -143,6 +143,24 @@ async function searchCurriculumFromBrowser(input: {
   return body
 }
 
+async function getCurriculumContextFromBrowser() {
+  if (typeof window === 'undefined') {
+    throw new Error('Curriculum context must run through the server-owned LiveKit tool runner outside the browser.')
+  }
+
+  const response = await fetch('/api/curriculum/context', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const message = typeof body?.message === 'string' ? body.message : 'Could not load curriculum context.'
+    throw new Error(message)
+  }
+  return body
+}
+
 const STRUCTURED_CANVAS_ACTIONS = new Set([
   'clear_tool_layer',
   'place_text_label',
@@ -272,6 +290,26 @@ export function createVoiceAgentTools() {
             limit: params.limit,
           })
         )
+      },
+    }),
+    tool({
+      name: 'curriculum_context',
+      description:
+        'Load the active teacher-created tutor profile and available curriculum document titles for this signed-in student or teacher. Use this before curriculum-specific tutoring, local typed lab planning, or when deciding how a custom class tutor should adapt vocabulary, pacing, and examples.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          reason: {
+            type: 'string',
+            description: 'Why the tutor needs curriculum context for this turn.',
+          },
+        },
+        required: ['reason'],
+      },
+      async execute() {
+        return stringifyResult(await getCurriculumContextFromBrowser())
       },
     }),
     tool({

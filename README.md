@@ -33,7 +33,7 @@ The dev app now includes the core guardrails needed for a limited pilot with rea
 
 ## Curriculum RAG Lab
 
-The dev labs can now read teacher-provided curriculum context without changing the stable tutor page. Teachers can upload lesson text through `POST /api/curriculum/documents`, create custom lab tutor profiles through `POST /api/tutor/agent-profiles`, and the hidden agent labs can use `curriculum_search` before answering class-specific questions. Apply `migrations/007_curriculum_rag_and_agent_profiles.sql` to enable the pgvector-backed tables.
+The dev labs can now read teacher-provided curriculum context without changing the stable tutor page. Teachers can upload lesson text or small PDFs, create custom lab tutor profiles through `POST /api/tutor/agent-profiles`, and the hidden agent labs can use `curriculum_context` plus `curriculum_search` before answering class-specific questions. Apply `migrations/007_curriculum_rag_and_agent_profiles.sql` to enable the pgvector-backed tables.
 
 Required for embeddings:
 
@@ -59,7 +59,7 @@ The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched whi
 - Structured canvas actions for graphs, fraction models, number lines, ratios, percents, geometry, data, and short board notes
 - Deterministic math tools for calculation checks, linear equations, fraction simplification, common denominators, percent-of-number, unit rates, rounding, and decimal comparison
 - Tutoring planner tools for word problems, misconceptions, curriculum moves, Socratic next steps, and targeted practice
-- Curriculum search for teacher-uploaded notes and custom class instructions
+- Curriculum context and search for teacher-uploaded notes, PDFs, and custom class instructions
 - A lab-only tool trace and recipe chips for fast local QA
 
 Run the voice-agent checks with:

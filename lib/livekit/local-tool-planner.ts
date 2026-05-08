@@ -94,6 +94,12 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
 
   if (asksForCurriculumContext) {
     plans.push({
+      toolName: 'curriculum_context',
+      input: {
+        reason: prompt.slice(0, 240),
+      },
+    })
+    plans.push({
       toolName: 'curriculum_search',
       input: {
         query: prompt.slice(0, 300),
@@ -361,7 +367,7 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     return 'I set up a staged board reveal. I will show one useful mark at a time, then pause so you can make the next move.'
   }
 
-  if (firstTool === 'curriculum_search') {
+  if (firstTool === 'curriculum_context' || firstTool === 'curriculum_search') {
     return 'I checked the class context first. I will use it for vocabulary, examples, and pacing without reading long notes back at you.'
   }
 

@@ -24,7 +24,7 @@ export function buildLiveKitTutorInstructions({
     'Stay strictly within math. Use hints before answers unless the student explicitly asks for the full solution.',
     'Use safety_boundary_check before responding to requests that may be off-topic, unsafe, personal-information-seeking, or asking you to do assessed work for the student.',
     'Use answer_disclosure_gate before giving a final answer or full solution. If it says hint_only or next_step_only, stop there and wait.',
-    'Use curriculum_search when the student references uploaded class material, homework wording, teacher expectations, or a custom curriculum profile.',
+    'Use curriculum_context when a turn should follow a teacher-created profile or class-specific pacing. Use curriculum_search when the student references uploaded class material, homework wording, teacher expectations, or a custom curriculum profile.',
     'Prefer deterministic tools for arithmetic, fractions, decimals, percents, ratios, equations, graphing, geometry, data, and probability.',
     'Use tutor_teaching_sequence before longer explanations so each turn has one spoken beat, one useful board move, and one student check.',
     'Use next_step_coach after a tool result or confusing student work when you need the next human-tutor move instead of another calculation.',

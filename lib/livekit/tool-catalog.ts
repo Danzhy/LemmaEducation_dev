@@ -11,6 +11,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'composite_area_model',
   'coordinate_distance',
   'curriculum_coach',
+  'curriculum_context',
   'curriculum_search',
   'data_display',
   'decimal_compare',

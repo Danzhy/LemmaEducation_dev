@@ -4,6 +4,10 @@ import {
   getCurriculumSearchUserId,
   searchCurriculumForUser,
 } from '@/lib/curriculum/search'
+import {
+  buildCurriculumContextToolResult,
+  getLabTutorCurriculumContextPackForUser,
+} from '@/lib/curriculum/context'
 
 const MAX_TOOL_INPUT_BYTES = 12_000
 
@@ -31,10 +35,41 @@ function getToolRegistry() {
     const registry = new Map(
       (createVoiceAgentTools() as ToolWithInvoke[]).map((toolDef) => [toolDef.name, toolDef])
     )
+    registry.set('curriculum_context', createCurriculumContextTool())
     registry.set('curriculum_search', createCurriculumSearchTool())
     toolRegistry = registry
   }
   return toolRegistry
+}
+
+function createCurriculumContextTool(): ToolWithInvoke {
+  return {
+    name: 'curriculum_context',
+    description:
+      'Load the active teacher-created tutor profile and available curriculum document titles for this signed-in student or teacher. Use this before curriculum-specific tutoring, local typed lab planning, or when deciding how a custom class tutor should adapt vocabulary, pacing, and examples.',
+    strict: true,
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Why the tutor needs curriculum context for this turn.',
+        },
+      },
+      required: ['reason'],
+    },
+    async invoke(context: unknown) {
+      const runContext = (context ?? {}) as LiveKitToolRunContext
+      const userId = await getCurriculumSearchUserId(runContext)
+      if (!userId) {
+        throw new Error('Curriculum context needs a signed-in user or tutor session context.')
+      }
+
+      const pack = await getLabTutorCurriculumContextPackForUser(userId)
+      return JSON.stringify(buildCurriculumContextToolResult(pack))
+    },
+  } as unknown as ToolWithInvoke
 }
 
 function createCurriculumSearchTool(): ToolWithInvoke {

@@ -68,12 +68,11 @@ const cases: PlannerCase[] = [
     },
   },
   {
-    name: 'routes class-specific prompts through curriculum search first',
+    name: 'routes class-specific prompts through curriculum context and search first',
     prompt: 'My teacher said the homework wants a ratio table: 3 cups for 12 muffins, how many cups for 20 muffins?',
-    expectedTools: ['curriculum_search', 'double_number_line'],
+    expectedTools: ['curriculum_context', 'curriculum_search', 'double_number_line'],
     inspect: (input) => {
-      assert.equal(input.limit, 4)
-      assert.match(String(input.query), /homework/)
+      assert.match(String(input.reason), /homework/)
     },
   },
   {
