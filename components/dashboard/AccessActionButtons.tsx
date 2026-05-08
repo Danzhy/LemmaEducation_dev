@@ -124,3 +124,70 @@ export function UnlinkGuardianButton({
     </div>
   )
 }
+
+function ArchiveLabContextButton({
+  endpoint,
+  label,
+  confirmation,
+}: {
+  endpoint: string
+  label: string
+  confirmation: string
+}) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleArchive = async () => {
+    if (!window.confirm(confirmation)) return
+
+    setError(null)
+    setIsSubmitting(true)
+    try {
+      const res = await fetch(endpoint, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        setError(data.message || 'Could not archive item.')
+        return
+      }
+      window.location.reload()
+    } catch {
+      setError('Could not archive item.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => void handleArchive()}
+        disabled={isSubmitting}
+        className="rounded-full border border-[#D8B8B1] bg-[#FCF2F0] px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[#8B3A2E] transition-colors hover:bg-[#F7E5E1] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isSubmitting ? 'Archiving...' : label}
+      </button>
+      <ActionMessage message={error} tone="error" />
+    </div>
+  )
+}
+
+export function ArchiveCurriculumDocumentButton({ documentId }: { documentId: string }) {
+  return (
+    <ArchiveLabContextButton
+      endpoint={`/api/curriculum/documents/${documentId}`}
+      label="Archive"
+      confirmation="Archive this curriculum document? Hidden lab tutors will stop using it."
+    />
+  )
+}
+
+export function ArchiveTutorProfileButton({ profileId }: { profileId: string }) {
+  return (
+    <ArchiveLabContextButton
+      endpoint={`/api/tutor/agent-profiles/${profileId}`}
+      label="Archive"
+      confirmation="Archive this tutor profile? Hidden lab tutors will stop using it."
+    />
+  )
+}

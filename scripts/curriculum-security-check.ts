@@ -19,13 +19,15 @@ function assertExcludes(path: string, needle: string) {
 }
 
 const documentRoute = 'app/api/curriculum/documents/route.ts'
+const documentArchiveRoute = 'app/api/curriculum/documents/[documentId]/route.ts'
 const searchRoute = 'app/api/curriculum/search/route.ts'
 const profileRoute = 'app/api/tutor/agent-profiles/route.ts'
+const profileArchiveRoute = 'app/api/tutor/agent-profiles/[profileId]/route.ts'
 const curriculumSearch = 'lib/curriculum/search.ts'
 const liveKitRunner = 'lib/livekit/tool-runner.ts'
 const browserTools = 'lib/voice-agent/tools.ts'
 
-for (const path of [documentRoute, searchRoute, profileRoute]) {
+for (const path of [documentRoute, documentArchiveRoute, searchRoute, profileRoute, profileArchiveRoute]) {
   assertIncludes(path, 'getSessionUser()')
   assertIncludes(path, 'takeTutorApiRateLimit')
   assertExcludes(path, 'NEON_DATABASE_URL')
@@ -37,10 +39,16 @@ assertIncludes(documentRoute, "profile?.role !== 'teacher' && profile?.role !== 
 assertIncludes(documentRoute, 'canAttachClassroom')
 assertIncludes(documentRoute, 'MAX_CHUNKS_PER_DOCUMENT')
 assertIncludes(documentRoute, 'visibility ===')
+assertIncludes(documentArchiveRoute, "profile?.role !== 'teacher' && profile?.role !== 'admin'")
+assertIncludes(documentArchiveRoute, 'owner_user_id = ${user.id}')
+assertIncludes(documentArchiveRoute, "SET status = 'archived'")
 
 assertIncludes(profileRoute, "profile?.role !== 'teacher' && profile?.role !== 'admin'")
 assertIncludes(profileRoute, 'teacherOwnsClassroom')
 assertIncludes(profileRoute, 'instructions.length < 20')
+assertIncludes(profileArchiveRoute, "profile?.role !== 'teacher' && profile?.role !== 'admin'")
+assertIncludes(profileArchiveRoute, 'owner_user_id = ${user.id}')
+assertIncludes(profileArchiveRoute, "SET status = 'archived'")
 
 assertIncludes(searchRoute, 'searchCurriculumForUser')
 assertIncludes(curriculumSearch, 'document.owner_user_id = ${input.userId}')
@@ -55,4 +63,4 @@ assertIncludes(liveKitRunner, 'searchCurriculumForUser')
 assertIncludes(browserTools, "name: 'curriculum_search'")
 assertIncludes(browserTools, "fetch('/api/curriculum/search'")
 
-console.log(JSON.stringify({ ok: true, checked: 6 }))
+console.log(JSON.stringify({ ok: true, checked: 8 }))

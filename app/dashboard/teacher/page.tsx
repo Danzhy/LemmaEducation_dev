@@ -7,7 +7,11 @@ import {
   TutorProfileForm,
   type DashboardClassOption,
 } from '@/components/dashboard/DashboardForms'
-import { RemoveStudentButton } from '@/components/dashboard/AccessActionButtons'
+import {
+  ArchiveCurriculumDocumentButton,
+  ArchiveTutorProfileButton,
+  RemoveStudentButton,
+} from '@/components/dashboard/AccessActionButtons'
 import { getCurrentUserProfile, isOnboardingComplete } from '@/lib/school/profiles'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { getTeacherDashboardData } from '@/lib/school/access'
@@ -175,10 +179,15 @@ export default async function TeacherDashboardPage() {
                   ) : (
                     curriculum.documents.map((document) => (
                       <div key={document.id} className="rounded-[16px] border border-[#E1EAE6] bg-[#F8FBF9] px-4 py-3">
-                        <p className="text-sm text-[#14312A]">{document.title}</p>
-                        <p className="mt-1 text-xs text-[#5C7069]">
-                          {document.status} · {document.totalChunks} section{document.totalChunks === 1 ? '' : 's'} · {formatSessionDate(document.updatedAt)}
-                        </p>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-sm text-[#14312A]">{document.title}</p>
+                            <p className="mt-1 text-xs text-[#5C7069]">
+                              {document.status} · {document.totalChunks} section{document.totalChunks === 1 ? '' : 's'} · {formatSessionDate(document.updatedAt)}
+                            </p>
+                          </div>
+                          <ArchiveCurriculumDocumentButton documentId={document.id} />
+                        </div>
                       </div>
                     ))
                   )}
@@ -195,10 +204,15 @@ export default async function TeacherDashboardPage() {
                   ) : (
                     curriculum.profiles.map((profile) => (
                       <div key={profile.id} className="rounded-[16px] border border-[#E1EAE6] bg-[#F8FBF9] px-4 py-3">
-                        <p className="text-sm text-[#14312A]">{profile.name}</p>
-                        <p className="mt-1 text-xs text-[#5C7069]">
-                          {profile.gradeBand ?? 'All grades'} · {profile.scope} · {formatSessionDate(profile.updatedAt)}
-                        </p>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-sm text-[#14312A]">{profile.name}</p>
+                            <p className="mt-1 text-xs text-[#5C7069]">
+                              {profile.gradeBand ?? 'All grades'} · {profile.scope} · {formatSessionDate(profile.updatedAt)}
+                            </p>
+                          </div>
+                          <ArchiveTutorProfileButton profileId={profile.id} />
+                        </div>
                       </div>
                     ))
                   )}
