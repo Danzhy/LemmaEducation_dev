@@ -56,6 +56,56 @@ async function main() {
     throw new Error('LiveKit worker tool events were not emitted correctly.')
   }
 
+  const telemetryFailureTools = createLiveKitTutorToolContext({
+    sendToolEvent: async () => {
+      throw new Error('simulated telemetry outage')
+    },
+  })
+  const resilientResult = await telemetryFailureTools.math_calculate.execute(
+    { expression: '8 * 7' },
+    { ctx: {} as never, toolCallId: 'smoke-telemetry-outage' }
+  )
+
+  if (!JSON.stringify(resilientResult).includes('56')) {
+    throw new Error('Tool failed when optional telemetry failed.')
+  }
+
+  const budgetedTools = createLiveKitTutorToolContext({ maxToolCallsPerSession: 1 })
+  await budgetedTools.math_calculate.execute(
+    { expression: '1 + 1' },
+    { ctx: {} as never, toolCallId: 'smoke-budget-1' }
+  )
+
+  let budgetRejected = false
+  try {
+    await budgetedTools.math_calculate.execute(
+      { expression: '2 + 2' },
+      { ctx: {} as never, toolCallId: 'smoke-budget-2' }
+    )
+  } catch {
+    budgetRejected = true
+  }
+
+  if (!budgetRejected) {
+    throw new Error('Tool-call safety budget did not reject an extra call.')
+  }
+
+  const canvasBudget: TutorCanvasAction[] = []
+  const canvasBudgetTools = createLiveKitTutorToolContext({
+    maxCanvasActionsPerSession: 1,
+    dispatchCanvasActions: async (actions) => {
+      canvasBudget.push(...actions)
+    },
+  })
+  await canvasBudgetTools.graph_function.execute(
+    { expression: 'x' },
+    { ctx: {} as never, toolCallId: 'smoke-canvas-budget' }
+  )
+
+  if (canvasBudget.length > 1) {
+    throw new Error('Canvas-action budget allowed too many actions.')
+  }
+
   console.log(
     JSON.stringify(
       {
@@ -63,6 +113,7 @@ async function main() {
         toolCount: Object.keys(tools).length,
         events: events.length,
         canvasActions: canvasActions.length,
+        budgetRejected,
       },
       null,
       2
