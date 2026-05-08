@@ -18,6 +18,7 @@
     "test:voice-agent-registry": "tsx scripts/voice-agent-tool-registry-check.ts",
     "test:voice-agent-coverage": "tsx scripts/voice-agent-curriculum-coverage.ts",
     "test:livekit-agent": "tsx scripts/livekit-agent-smoke.ts",
+    "test:livekit-planner": "tsx scripts/livekit-local-planner-smoke.ts",
     "test:livekit-security": "tsx scripts/livekit-security-check.ts",
     "test:tutor-strategies": "tsx scripts/tutor-strategy-eval.ts",
     "test:tutor-human-experience": "tsx scripts/tutor-human-experience-regression.ts"
