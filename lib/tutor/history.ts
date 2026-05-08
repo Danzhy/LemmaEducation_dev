@@ -2,6 +2,13 @@ import { getNeonSql } from '@/lib/tutor/db'
 import { getQuotaSnapshot } from '@/lib/tutor/quota'
 import { canViewStudentRecords } from '@/lib/school/access'
 
+const UUID_V4ISH_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+export function isTutorSessionId(value: string) {
+  return UUID_V4ISH_PATTERN.test(value)
+}
+
 type SessionRow = {
   id: string
   started_at: Date | string
@@ -161,6 +168,10 @@ export async function listTutorSessionsForUser(userId: string) {
 }
 
 export async function getTutorSessionDetailForUser(userId: string, sessionId: string) {
+  if (!isTutorSessionId(sessionId)) {
+    return null
+  }
+
   const sql = getNeonSql()
 
   const sessionRows = await sql`
@@ -274,6 +285,10 @@ export async function getAccessibleTutorSessionDetail(viewerUserId: string, sess
 }
 
 export async function getTutorSessionOwnerUserId(sessionId: string) {
+  if (!isTutorSessionId(sessionId)) {
+    return null
+  }
+
   const sql = getNeonSql()
   const ownerRows = await sql`
     SELECT user_id
