@@ -15,6 +15,8 @@ import type {
   PlotPointsResult,
   ValueTableResult,
   SocraticMoveResult,
+  BoardAnimationPlanResult,
+  TutorTeachingSequenceResult,
   WordProblemPlanResult,
   FractionSimplifyResult,
   PercentOfNumberResult,
@@ -5300,6 +5302,236 @@ export function socraticMovePlanner(input: {
     sayThis: 'Let us make the structure visible before calculating.',
     askThis: 'What do we know, what are we looking for, and what should the model show?',
     waitFor: 'The student naming knowns, unknowns, or the relationship in their own words.',
+  }
+}
+
+function inferTeachingPhase(goal: string, hasStudentWork: boolean): TutorTeachingSequenceResult['phase'] {
+  const normalized = goal.toLowerCase()
+  if (/check|verify|answer|correct/.test(normalized)) return 'check'
+  if (/practice|try|review|drill/.test(normalized)) return 'guided_practice'
+  if (/extend|challenge|harder|why/.test(normalized)) return 'extend'
+  if (hasStudentWork || /stuck|confus|mistake|wrong/.test(normalized)) return 'diagnose'
+  return 'model'
+}
+
+function choosePhaseMove(phase: TutorTeachingSequenceResult['phase']) {
+  if (phase === 'diagnose') {
+    return {
+      opening: 'Let us find the exact step that needs attention.',
+      boardAction: 'Circle or rewrite the current step, then compare it to the previous one.',
+      check: 'What changed from the previous line to this line?',
+    }
+  }
+  if (phase === 'guided_practice') {
+    return {
+      opening: 'I will set up one similar problem, and you do the first move.',
+      boardAction: 'Write a short worked setup with the final step hidden.',
+      check: 'What should the next step be, and why?',
+    }
+  }
+  if (phase === 'check') {
+    return {
+      opening: 'Let us check the reasoning before judging the answer.',
+      boardAction: 'Put the student answer beside the expected relationship.',
+      check: 'Does each part of the answer match the question?',
+    }
+  }
+  if (phase === 'extend') {
+    return {
+      opening: 'Now let us connect the idea to a slightly harder version.',
+      boardAction: 'Keep the same visual model and change one number or constraint.',
+      check: 'What stayed the same, and what changed?',
+    }
+  }
+  return {
+    opening: 'Let us make the structure visible before calculating.',
+    boardAction: 'Draw the simplest model that shows the knowns and the unknown.',
+    check: 'What do we know, and what are we trying to find?',
+  }
+}
+
+export function tutorTeachingSequence(input: {
+  topic: string
+  gradeLevel?: string
+  studentGoal?: string
+  studentWork?: string
+}): TutorTeachingSequenceResult {
+  const topic = resolveCurriculumTopic(input.topic)
+  const guide = CURRICULUM_GUIDE[topic]
+  const studentWork = input.studentWork?.trim() ?? ''
+  const goal = input.studentGoal?.trim() ?? ''
+  const phase = inferTeachingPhase(goal || studentWork, Boolean(studentWork))
+  const phaseMove = choosePhaseMove(phase)
+  const recommendedTool =
+    phase === 'diagnose'
+      ? 'misconception_diagnosis'
+      : phase === 'check'
+        ? topic === 'expressions_equations'
+          ? 'math_check_step'
+          : 'math_check_answer'
+        : phase === 'guided_practice'
+          ? 'practice_set_generator'
+          : guide.tools[0]
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel: input.gradeLevel?.trim() || 'grades 3 to 7',
+    phase,
+    recommendedTool,
+    spokenBeats: [
+      phaseMove.opening,
+      guide.nextMove,
+      'I will pause after the next question so the student does the thinking.',
+    ],
+    boardPlan: [
+      {
+        stage: 'orient',
+        action: 'Name the knowns, unknown, and topic in one short line.',
+        purpose: 'Reduce working-memory load before the student calculates.',
+      },
+      {
+        stage: 'model',
+        action: phaseMove.boardAction,
+        purpose: 'Make the reasoning visible without overfilling the board.',
+      },
+      {
+        stage: 'highlight',
+        action: `Watch for: ${guide.misconceptions[0]}.`,
+        purpose: 'Target the most likely misconception without blaming the student.',
+      },
+      {
+        stage: 'student_turn',
+        action: phaseMove.check,
+        purpose: 'Return control to the student quickly.',
+      },
+    ],
+    checksForUnderstanding: [
+      phaseMove.check,
+      'Can you explain why that step keeps the value or relationship the same?',
+      'What would you write next if I stayed quiet for ten seconds?',
+    ],
+    guardrails: [
+      'Use one visual or deterministic tool before giving a long explanation.',
+      'Do not reveal the full solution unless the student asks for it.',
+      'Ask one question, then wait.',
+    ],
+  }
+}
+
+function chooseAnimationRenderer(input: {
+  visualType: string
+  wantsOfflineVideo?: boolean
+}): BoardAnimationPlanResult['renderer'] {
+  const visualType = input.visualType.toLowerCase()
+  if (input.wantsOfflineVideo && /transform|proof|derivation|sequence|animation|video/.test(visualType)) {
+    return 'manim_offline_candidate'
+  }
+  return 'tldraw_step_reveal'
+}
+
+export function boardAnimationPlan(input: {
+  concept: string
+  visualType?: string
+  gradeLevel?: string
+  wantsOfflineVideo?: boolean
+}): BoardAnimationPlanResult {
+  const concept = input.concept.trim().replace(/\s+/g, ' ')
+  if (!concept) {
+    throw new Error('board_animation_plan needs a concept or problem.')
+  }
+
+  const visualType = input.visualType?.trim() || 'structured board reveal'
+  const renderer = chooseAnimationRenderer({
+    visualType,
+    wantsOfflineVideo: input.wantsOfflineVideo,
+  })
+  const title = concept.length > 48 ? `${concept.slice(0, 45).trim()}...` : concept
+  const stageLines = [
+    '1. Set up the knowns',
+    '2. Reveal the model',
+    '3. Highlight the key step',
+    '4. Ask the student to continue',
+  ]
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome(title),
+    rectangle(TOOL_SCENE.x + 72, TOOL_SCENE.y + 120, 520, 250, {
+      color: 'light-blue',
+      fill: 'semi',
+      opacity: 0.1,
+      dash: 'solid',
+      size: 's',
+      label: visualType,
+    }),
+    ...noteParagraph(TOOL_SCENE.x + 96, TOOL_SCENE.y + 168, stageLines, {
+      width: 460,
+      color: 'black',
+      lineHeight: 42,
+    }),
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Tutor timing', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      ['Speak one beat.', 'Reveal one mark.', 'Ask one question.'],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 34,
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
+  ]
+
+  return {
+    title,
+    renderer,
+    reason:
+      renderer === 'manim_offline_candidate'
+        ? 'Manim is better for polished offline concept animations, but not for low-latency live tutoring turns.'
+        : 'tldraw step reveal is the safer live-tutoring default because it is instant, structured, and auditable.',
+    stages: [
+      {
+        stage: 'setup',
+        say: 'Let us write what we know first.',
+        boardAction: 'Show knowns and unknown in one short line.',
+        timingMs: 800,
+      },
+      {
+        stage: 'reveal',
+        say: 'Now I will add the model one piece at a time.',
+        boardAction: 'Reveal the visual structure without solving everything.',
+        timingMs: 1200,
+      },
+      {
+        stage: 'annotate',
+        say: 'This is the step I want you to notice.',
+        boardAction: 'Highlight the relationship or operation.',
+        timingMs: 900,
+      },
+      {
+        stage: 'pause',
+        say: 'Your turn: what should happen next?',
+        boardAction: 'Stop drawing and wait for student reasoning.',
+        timingMs: 1600,
+      },
+    ],
+    canvasActions: actions,
+    implementationNotes: [
+      'Use this as a live board storyboard, not arbitrary drawing permission.',
+      'For true Manim rendering, run offline/server-side and return a video artifact only after sandboxing generated code.',
+      'Do not block voice response while a long animation renderer is working.',
+    ],
   }
 }
 

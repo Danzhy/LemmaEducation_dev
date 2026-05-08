@@ -143,6 +143,34 @@ function planLocalToolTurn(prompt: string, gradeLevel: string): LocalToolPlan[] 
   const numbers = extractNumbers(prompt)
   const plans: LocalToolPlan[] = []
 
+  if (/\b(animate|animation|step by step|write while|explain while|reveal)\b/i.test(prompt)) {
+    plans.push({
+      toolName: 'board_animation_plan',
+      input: {
+        concept: prompt.slice(0, 220),
+        visualType: /graph|plot|coordinate|parabola|function/.test(lower)
+          ? 'coordinate graph reveal'
+          : /fraction|percent|ratio/.test(lower)
+            ? 'part-whole visual reveal'
+            : 'structured board reveal',
+        gradeLevel,
+        wantsOfflineVideo: /manim|video|polished/.test(lower),
+      },
+    })
+    if (!/\b(graph|plot|parabola|function)\b/i.test(prompt)) {
+      plans.push({
+        toolName: 'tutor_teaching_sequence',
+        input: {
+          topic: prompt.slice(0, 160),
+          gradeLevel,
+          studentGoal: prompt.slice(0, 220),
+          studentWork: '',
+        },
+      })
+      return plans
+    }
+  }
+
   if (/\b(graph|plot|parabola|function)\b/i.test(prompt)) {
     const expression = extractGraphExpression(prompt) || 'x'
     const domain = extractGraphDomain(prompt)
@@ -363,6 +391,14 @@ function buildLocalAssistantReply(prompt: string, plans: LocalToolPlan[], output
 
   if (firstTool === 'graph_function') {
     return 'I put the graph on the board. Start by reading the key points, then tell me which part you want to reason through first.'
+  }
+
+  if (firstTool === 'board_animation_plan') {
+    return 'I set up a staged board reveal. I will show one useful mark at a time, then pause so you can make the next move.'
+  }
+
+  if (firstTool === 'tutor_teaching_sequence') {
+    return 'I planned this like a tutor turn: one short explanation, one board move, and one question for you to answer.'
   }
 
   if (firstTool === 'solve_linear_on_canvas') {

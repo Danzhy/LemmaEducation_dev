@@ -133,6 +133,36 @@ export type SocraticMoveResult = {
   waitFor: string
 }
 
+export type TutorTeachingSequenceResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  phase: 'diagnose' | 'model' | 'guided_practice' | 'check' | 'extend'
+  recommendedTool: string
+  spokenBeats: string[]
+  boardPlan: Array<{
+    stage: 'orient' | 'model' | 'highlight' | 'student_turn'
+    action: string
+    purpose: string
+  }>
+  checksForUnderstanding: string[]
+  guardrails: string[]
+}
+
+export type BoardAnimationPlanResult = {
+  title: string
+  renderer: 'tldraw_step_reveal' | 'manim_offline_candidate'
+  reason: string
+  stages: Array<{
+    stage: 'setup' | 'reveal' | 'annotate' | 'pause'
+    say: string
+    boardAction: string
+    timingMs: number
+  }>
+  canvasActions: TutorCanvasAction[]
+  implementationNotes: string[]
+}
+
 export type FractionSimplifyResult = {
   original: string
   simplified: string

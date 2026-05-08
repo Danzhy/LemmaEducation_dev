@@ -3,6 +3,7 @@ import {
   areaPerimeterModelScene,
   arrayModelScene,
   barModelScene,
+  boardAnimationPlan,
   commonDenominator,
   compositeAreaModelScene,
   coordinateDistanceScene,
@@ -36,6 +37,7 @@ import {
   slopeTriangleScene,
   statisticsSummaryScene,
   tableOfValues,
+  tutorTeachingSequence,
   unitRate,
   unitConversionScene,
   wordProblemPlan,
@@ -208,6 +210,30 @@ assert(
   'socratic_move_planner should recommend misconception_diagnosis when student work is present.'
 )
 
+const teachingSequence = tutorTeachingSequence({
+  topic: 'fractions',
+  gradeLevel: 'Grade 5',
+  studentGoal: 'I am stuck adding unlike denominators.',
+  studentWork: '1/2 + 1/3 = 2/5',
+})
+assert(
+  teachingSequence.recommendedTool === 'misconception_diagnosis' &&
+    teachingSequence.boardPlan.length >= 3,
+  'tutor_teaching_sequence should plan a diagnostic tutor turn with board stages.'
+)
+
+const animationPlan = boardAnimationPlan({
+  concept: 'Explain equivalent fractions with a staged bar model',
+  visualType: 'part-whole visual reveal',
+  gradeLevel: 'Grade 4',
+  wantsOfflineVideo: false,
+})
+assertCanvasResult('board_animation_plan', animationPlan)
+assert(
+  animationPlan.renderer === 'tldraw_step_reveal' && animationPlan.stages.length === 4,
+  'board_animation_plan should default to a live tldraw step reveal.'
+)
+
 const simplifiedFraction = fractionSimplify({ numerator: 18, denominator: 24 })
 assert(simplifiedFraction.simplified === '3/4', 'fraction_simplify should reduce 18/24 to 3/4.')
 
@@ -234,4 +260,4 @@ assert(
   'common_denominator should convert 1/2 and 1/3 to sixths.'
 )
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 12} checks).`)
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 14} checks).`)

@@ -49,6 +49,8 @@ import {
   unitConversionScene,
   wordProblemPlan,
   writeOnCanvas,
+  boardAnimationPlan,
+  tutorTeachingSequence,
 } from '@/lib/voice-agent/math-engine'
 
 function stringifyResult(result: unknown) {
@@ -273,6 +275,72 @@ export function createVoiceAgentTools() {
             gradeLevel: params.gradeLevel,
             studentWork: params.studentWork,
             tutorGoal: params.tutorGoal,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'tutor_teaching_sequence',
+      description:
+        'Plan a short human-like tutoring sequence for grades 3 to 7. Use this before a complex explanation so the tutor speaks one beat, draws one useful thing, asks one question, and waits.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          studentGoal: { type: 'string' },
+          studentWork: { type: 'string' },
+        },
+        required: ['topic', 'gradeLevel', 'studentGoal', 'studentWork'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          gradeLevel: string
+          studentGoal: string
+          studentWork: string
+        }
+        return stringifyResult(
+          tutorTeachingSequence({
+            topic: params.topic,
+            gradeLevel: params.gradeLevel,
+            studentGoal: params.studentGoal,
+            studentWork: params.studentWork,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'board_animation_plan',
+      description:
+        'Create a safe staged board-reveal plan for live tutoring, or mark a concept as an offline Manim candidate. Use this for requests like write while explaining, animate the idea, or reveal the graph step by step.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          concept: { type: 'string' },
+          visualType: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          wantsOfflineVideo: { type: 'boolean' },
+        },
+        required: ['concept', 'visualType', 'gradeLevel', 'wantsOfflineVideo'],
+      },
+      async execute(input) {
+        const params = input as {
+          concept: string
+          visualType: string
+          gradeLevel: string
+          wantsOfflineVideo: boolean
+        }
+        return stringifyResult(
+          boardAnimationPlan({
+            concept: params.concept,
+            visualType: params.visualType,
+            gradeLevel: params.gradeLevel,
+            wantsOfflineVideo: params.wantsOfflineVideo,
           })
         )
       },

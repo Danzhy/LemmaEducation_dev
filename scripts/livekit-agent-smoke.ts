@@ -19,6 +19,8 @@ async function main() {
     'math_calculate',
     'math_check_step',
     'math_solve_linear',
+    'tutor_teaching_sequence',
+    'board_animation_plan',
     'graph_function',
     'fraction_strip',
     'percent_bar',
@@ -40,6 +42,24 @@ async function main() {
     { expression: '2*x + 1' },
     { ctx: {} as never, toolCallId: 'smoke-graph' }
   )
+  const teachingResult = await tools.tutor_teaching_sequence.execute(
+    {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      studentGoal: 'I need help adding unlike denominators.',
+      studentWork: '1/2 + 1/3 = 2/5',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-teaching-sequence' }
+  )
+  const animationResult = await tools.board_animation_plan.execute(
+    {
+      concept: 'Explain equivalent fractions with a staged reveal',
+      visualType: 'part-whole visual reveal',
+      gradeLevel: 'Grade 4',
+      wantsOfflineVideo: false,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-animation-plan' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -49,10 +69,18 @@ async function main() {
     throw new Error('graph_function did not produce board-renderable actions.')
   }
 
+  if (!JSON.stringify(teachingResult).includes('boardPlan')) {
+    throw new Error('tutor_teaching_sequence did not return a board plan.')
+  }
+
+  if (!JSON.stringify(animationResult).includes('tldraw_step_reveal')) {
+    throw new Error('board_animation_plan did not default to the live board renderer.')
+  }
+
   const started = events.filter((event) => event.type === 'tool_started').length
   const completed = events.filter((event) => event.type === 'tool_completed').length
 
-  if (started < 2 || completed < 2) {
+  if (started < 4 || completed < 4) {
     throw new Error('LiveKit worker tool events were not emitted correctly.')
   }
 
