@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth/current-user'
-import { getCurrentUserProfile } from '@/lib/school/profiles'
 import { getNeonSql } from '@/lib/tutor/db'
 import { takeTutorApiRateLimit } from '@/lib/tutor/api-rate-limit'
 import {
@@ -29,14 +28,6 @@ export async function POST(request: Request) {
     const user = await getSessionUser()
     if (!user) {
       return NextResponse.json({ ok: false, code: 'UNAUTHORIZED', message: 'Please sign in.' }, { status: 401 })
-    }
-
-    const profile = await getCurrentUserProfile()
-    if (profile?.role !== 'teacher' && profile?.role !== 'admin') {
-      return NextResponse.json(
-        { ok: false, code: 'FORBIDDEN', message: 'Only teachers can extract curriculum documents.' },
-        { status: 403 }
-      )
     }
 
     const sql = getNeonSql()

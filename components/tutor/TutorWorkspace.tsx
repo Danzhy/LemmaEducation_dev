@@ -130,6 +130,7 @@ function EndIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 const GRADE_LEVEL_OPTIONS = ['Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7']
+const LAB_UPLOADED_DOCUMENT_CONTEXT_CHARS = 6000
 
 type TutorWorkspaceProps = {
   mode: 'stable' | 'agent-lab' | 'livekit-lab'
@@ -154,6 +155,12 @@ export default function TutorWorkspace({
   const [uploadedImage, setUploadedImage] = useState<{
     base64: string
     mimeType: string
+  } | null>(null)
+  const [uploadedDocument, setUploadedDocument] = useState<{
+    fileName: string
+    text: string
+    pagesRead: number
+    totalPages: number
   } | null>(null)
 
   const embeddedBoardRef = useRef<EmbeddedBoardRef>(null)
@@ -404,12 +411,41 @@ export default function TutorWorkspace({
     setUploadedImage({ base64, mimeType })
   }
 
+  const buildUploadedDocumentContext = useCallback(
+    (studentText = '') => {
+      if ((mode !== 'agent-lab' && mode !== 'livekit-lab') || !uploadedDocument?.text.trim()) {
+        return studentText
+      }
+
+      const excerpt = uploadedDocument.text
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, LAB_UPLOADED_DOCUMENT_CONTEXT_CHARS)
+      const context = [
+        studentText.trim(),
+        `Uploaded document excerpt from ${uploadedDocument.fileName}:`,
+        excerpt,
+        'Use this excerpt as context for this turn. Do not quote it all back. Help the student reason through the math.',
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+      return context
+    },
+    [mode, uploadedDocument]
+  )
+
   const handleSendImageOnly = () => {
     if (session.isPaused) return
     if (uploadedImage) {
       if (streamCanvas && session.isConnected && editor) void sendCanvasToTutor(true)
-      session.sendImage(uploadedImage.base64, uploadedImage.mimeType)
+      const documentContext = buildUploadedDocumentContext()
+      if (documentContext.trim()) {
+        session.sendTextWithImage(documentContext, uploadedImage.base64, uploadedImage.mimeType)
+      } else {
+        session.sendImage(uploadedImage.base64, uploadedImage.mimeType)
+      }
       setUploadedImage(null)
+      setUploadedDocument(null)
     }
   }
 
@@ -417,14 +453,18 @@ export default function TutorWorkspace({
     if (session.isPaused) return
     if (streamCanvas && session.isConnected && editor) void sendCanvasToTutor(true)
     if (uploadedImage) {
-      session.sendTextWithImage(text, uploadedImage.base64, uploadedImage.mimeType)
+      session.sendTextWithImage(buildUploadedDocumentContext(text), uploadedImage.base64, uploadedImage.mimeType)
       setUploadedImage(null)
+      setUploadedDocument(null)
     } else {
       session.sendText(text)
     }
   }
 
-  const clearUploadedImage = () => setUploadedImage(null)
+  const clearUploadedImage = () => {
+    setUploadedImage(null)
+    setUploadedDocument(null)
+  }
 
   const handleStartTutoring = async (audioMode: 'microphone' | 'silent' = 'microphone') => {
     if (isStartingSession || session.isConnected) return
@@ -856,6 +896,11 @@ export default function TutorWorkspace({
                           leadingAccessory={
                             <FileUpload
                               onUpload={handleUpload}
+                              onDocumentExtracted={
+                                mode === 'agent-lab' || mode === 'livekit-lab'
+                                  ? setUploadedDocument
+                                  : undefined
+                              }
                               onError={setError}
                               disabled={session.state === 'thinking' || session.isPaused}
                               variant="icon"

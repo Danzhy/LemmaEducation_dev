@@ -33,6 +33,16 @@ const isAcceptedFile = (file: File) => {
   )
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+  }
+  return btoa(binary)
+}
+
 /**
  * Converts the first page of a PDF to a PNG image using pdfjs-dist.
  * Uses dynamic import of the main build and CDN worker for Next.js compatibility.
@@ -68,6 +78,12 @@ async function convertPdfFirstPageToImage(
 
 interface FileUploadProps {
   onUpload: (base64: string, mimeType: string) => void
+  onDocumentExtracted?: (document: {
+    fileName: string
+    text: string
+    pagesRead: number
+    totalPages: number
+  } | null) => void
   onError?: (message: string) => void
   disabled?: boolean
   className?: string
@@ -76,6 +92,7 @@ interface FileUploadProps {
 
 export default function FileUpload({
   onUpload,
+  onDocumentExtracted,
   onError,
   disabled = false,
   className = '',
@@ -105,6 +122,7 @@ export default function FileUpload({
           ))
 
       if (isImage) {
+        onDocumentExtracted?.(null)
         const reader = new FileReader()
         reader.onload = () => {
           const result = reader.result as string
@@ -119,7 +137,29 @@ export default function FileUpload({
 
       if (isPdf) {
         setIsConverting(true)
+        onDocumentExtracted?.(null)
         try {
+          if (onDocumentExtracted) {
+            const dataBase64 = arrayBufferToBase64(await file.arrayBuffer())
+            const response = await fetch('/api/curriculum/extract', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: file.name,
+                mimeType: ACCEPTED_PDF_TYPE,
+                dataBase64,
+              }),
+            })
+            const body = await response.json().catch(() => ({}))
+            if (response.ok && body.ok && typeof body.text === 'string') {
+              onDocumentExtracted({
+                fileName: typeof body.fileName === 'string' ? body.fileName : file.name,
+                text: body.text,
+                pagesRead: typeof body.pagesRead === 'number' ? body.pagesRead : 0,
+                totalPages: typeof body.totalPages === 'number' ? body.totalPages : 0,
+              })
+            }
+          }
           const { base64, mimeType } = await convertPdfFirstPageToImage(file)
           onUpload(base64, mimeType)
         } catch (err) {
@@ -132,7 +172,7 @@ export default function FileUpload({
         }
       }
     },
-    [onUpload, onError]
+    [onDocumentExtracted, onUpload, onError]
   )
 
   const handleChange = useCallback(
