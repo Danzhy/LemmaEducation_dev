@@ -21,6 +21,7 @@ const REQUIRED_TOOL_NAMES = [
   'adaptive_review_plan',
   'session_mastery_snapshot',
   'tutor_turn_audit',
+  'student_check_question',
   'safety_boundary_check',
   'socratic_move_planner',
   'tutor_teaching_sequence',

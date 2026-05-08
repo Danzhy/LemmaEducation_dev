@@ -53,6 +53,7 @@ import {
   slopeTriangleScene,
   solveLinearOnCanvas,
   statisticsSummaryScene,
+  studentCheckQuestion,
   tableOfValues,
   unitRate,
   unitConversionScene,
@@ -484,6 +485,55 @@ export function createVoiceAgentTools() {
             assistantDraft: params.assistantDraft,
             topic: params.topic,
             toolUsed: params.toolUsed,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'student_check_question',
+      description:
+        'Create one targeted check-for-understanding question for a grade 3 to 7 math tutoring turn, plus evidence to listen for and what to do if the student struggles or succeeds.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          studentWork: { type: 'string' },
+          recentToolName: { type: 'string' },
+          recentToolResult: { type: 'string' },
+          checkType: {
+            type: 'string',
+            enum: ['concept', 'next_step', 'error_spotting', 'transfer'],
+          },
+        },
+        required: [
+          'topic',
+          'gradeLevel',
+          'studentWork',
+          'recentToolName',
+          'recentToolResult',
+          'checkType',
+        ],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          gradeLevel: string
+          studentWork: string
+          recentToolName: string
+          recentToolResult: string
+          checkType: string
+        }
+        return stringifyResult(
+          studentCheckQuestion({
+            topic: params.topic,
+            gradeLevel: params.gradeLevel,
+            studentWork: params.studentWork,
+            recentToolName: params.recentToolName,
+            recentToolResult: params.recentToolResult,
+            checkType: params.checkType,
           })
         )
       },

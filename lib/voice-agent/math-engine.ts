@@ -35,6 +35,7 @@ import type {
   RoundNumberResult,
   CommonDenominatorResult,
   IntegerOperationResult,
+  StudentCheckQuestionResult,
 } from '@/lib/voice-agent/types'
 import type {
   TutorCanvasAction,
@@ -6011,6 +6012,135 @@ export function nextStepCoach(input: {
     avoid: [
       'Do not start with a formula unless the student already named the relationship.',
       'Do not fill the board with every step at once.',
+    ],
+  }
+}
+
+function inferStudentCheckType(input: {
+  checkType?: string
+  studentWork?: string
+  recentToolResult?: string
+}): StudentCheckQuestionResult['checkType'] {
+  const explicit = input.checkType?.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  if (
+    explicit === 'concept' ||
+    explicit === 'next_step' ||
+    explicit === 'error_spotting' ||
+    explicit === 'transfer'
+  ) {
+    return explicit
+  }
+
+  const combined = `${input.studentWork ?? ''} ${input.recentToolResult ?? ''}`.toLowerCase()
+  if (/\bwrong|mistake|incorrect|not right|check\b/.test(combined)) return 'error_spotting'
+  if (/\bnext|then|after this|now what|continue\b/.test(combined)) return 'next_step'
+  if (/\banother|different|similar|new numbers|same idea\b/.test(combined)) return 'transfer'
+  return 'concept'
+}
+
+function getTopicCheckTemplate(topic: CurriculumTopic, checkType: StudentCheckQuestionResult['checkType']) {
+  const conceptTemplates: Record<CurriculumTopic, string> = {
+    place_value: 'What does the key digit or place represent in the whole number?',
+    multiplication_division: 'What equal groups or sharing situation does this represent?',
+    fractions: 'What is the whole, and what size are the parts we are using?',
+    decimals_percents: 'What does this value mean in tenths, hundredths, or out of 100?',
+    ratios_rates: 'What two quantities are staying in the same relationship?',
+    expressions_equations: 'What operation is being undone, and how do we keep both sides balanced?',
+    geometry_measurement: 'Are we measuring length around, square units inside, or an angle?',
+    coordinate_graphing: 'What does x represent, and what does y represent?',
+    data_probability: 'What do the values, outcomes, or categories represent?',
+  }
+  const nextStepTemplates: Record<CurriculumTopic, string> = {
+    place_value: 'Which place should we look at next, and why?',
+    multiplication_division: 'What is the next equal group, partial quotient, or sharing step?',
+    fractions: 'What common-sized part or equivalent fraction should we use next?',
+    decimals_percents: 'Should we rewrite this as hundredths, a decimal, or a percent next?',
+    ratios_rates: 'Should we find the unit rate or scale both quantities next?',
+    expressions_equations: 'What operation would undo the last change on both sides?',
+    geometry_measurement: 'What measurement should we calculate first?',
+    coordinate_graphing: 'Which point, table row, or change should we plot or compare next?',
+    data_probability: 'What total or comparison should we calculate next?',
+  }
+  const errorTemplates: Record<CurriculumTopic, string> = {
+    place_value: 'Which place value could make this answer too large or too small?',
+    multiplication_division: 'Where could an equal group, remainder, or place-value step have changed?',
+    fractions: 'Did the work change the size of the pieces, or only the number of pieces?',
+    decimals_percents: 'Did the work compare place values or just digits?',
+    ratios_rates: 'Did both quantities scale by the same factor?',
+    expressions_equations: 'Was the same operation done to both sides?',
+    geometry_measurement: 'Did the work use the right measurement type and unit?',
+    coordinate_graphing: 'Were x and y used in the correct order?',
+    data_probability: 'Did the work use the correct total as the denominator or comparison group?',
+  }
+  const transferTemplates: Record<CurriculumTopic, string> = {
+    place_value: 'How would the answer change if the key digit moved one place left or right?',
+    multiplication_division: 'How would you solve a nearby problem with one number changed?',
+    fractions: 'How would the strategy work with different denominators?',
+    decimals_percents: 'How would you use the same idea for a new decimal or percent?',
+    ratios_rates: 'How would you keep the same relationship with a different target amount?',
+    expressions_equations: 'How would the same undoing idea work in a nearby equation?',
+    geometry_measurement: 'How would the method change if one side length or angle changed?',
+    coordinate_graphing: 'How would the graph or point change if x increased by 1?',
+    data_probability: 'How would the result change if the total outcomes or data value changed?',
+  }
+
+  if (checkType === 'next_step') return nextStepTemplates[topic]
+  if (checkType === 'error_spotting') return errorTemplates[topic]
+  if (checkType === 'transfer') return transferTemplates[topic]
+  return conceptTemplates[topic]
+}
+
+export function studentCheckQuestion(input: {
+  topic: string
+  gradeLevel?: string
+  studentWork?: string
+  recentToolName?: string
+  recentToolResult?: string
+  checkType?: string
+}): StudentCheckQuestionResult {
+  const topic = resolveCurriculumTopic(input.topic || input.studentWork || input.recentToolResult || '')
+  const guide = CURRICULUM_GUIDE[topic]
+  const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
+  const checkType = inferStudentCheckType(input)
+  const recommendedTool =
+    input.recentToolName?.trim() ||
+    (checkType === 'error_spotting'
+      ? topic === 'expressions_equations'
+        ? 'math_check_step'
+        : 'mistake_pattern_classifier'
+      : guide.tools[0])
+  const question = getTopicCheckTemplate(topic, checkType)
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel,
+    checkType,
+    question,
+    expectedEvidence: [
+      'Student answers in their own words before the tutor adds another step.',
+      `Student names at least one ${guide.prerequisites[0].toLowerCase()} idea or uses it correctly.`,
+      checkType === 'error_spotting'
+        ? 'Student points to a specific step, quantity, or relationship that needs checking.'
+        : 'Student connects the question to the visible work, not just the final answer.',
+    ],
+    ifStudentStruggles:
+      checkType === 'error_spotting'
+        ? `Return to ${guide.tools[0].replace(/_/g, ' ')} and ask them to compare one step at a time.`
+        : guide.nextMove,
+    ifStudentSucceeds:
+      checkType === 'transfer'
+        ? 'Give one nearby problem with changed numbers and keep the same reasoning structure.'
+        : 'Let the student make the next move before adding another explanation.',
+    recommendedTool,
+    boardMove:
+      input.studentWork?.trim()
+        ? `Underline the part of the work connected to: ${question}`
+        : `Write the question on the board and leave space for the student's reasoning.`,
+    avoid: [
+      'Do not ask more than one check question at once.',
+      'Do not reveal the next worked step before the student responds.',
+      'Do not turn the check into a long mini-lecture.',
     ],
   }
 }

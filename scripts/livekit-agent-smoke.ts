@@ -25,6 +25,7 @@ async function main() {
     'adaptive_review_plan',
     'session_mastery_snapshot',
     'tutor_turn_audit',
+    'student_check_question',
     'answer_disclosure_gate',
     'mistake_pattern_classifier',
     'next_step_coach',
@@ -157,6 +158,17 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-tutor-turn-audit' }
   )
+  const checkQuestion = await tools.student_check_question.execute(
+    {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      studentWork: '1/2 + 1/3 = 2/5',
+      recentToolName: 'fraction_operation',
+      recentToolResult: 'A common denominator is needed.',
+      checkType: 'error_spotting',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-student-check-question' }
+  )
   const bridge = await tools.representation_bridge.execute(
     {
       topic: 'ratios',
@@ -223,6 +235,10 @@ async function main() {
 
   if (!JSON.stringify(turnAudit).includes('answer_dumping')) {
     throw new Error('tutor_turn_audit did not flag answer dumping.')
+  }
+
+  if (!JSON.stringify(checkQuestion).includes('expectedEvidence')) {
+    throw new Error('student_check_question did not return evidence to listen for.')
   }
 
   if (!JSON.stringify(bridge).includes('ratio_table')) {

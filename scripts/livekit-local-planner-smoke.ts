@@ -130,6 +130,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes understanding-check prompts to one targeted check question',
+    prompt: 'Quiz me on fractions before moving on.',
+    expectedTools: ['student_check_question'],
+    inspect: (input) => {
+      assert.equal(input.topic, 'fractions')
+      assert.equal(input.checkType, 'concept')
+    },
+  },
+  {
     name: 'routes off-topic child prompts to safety boundary',
     prompt: 'Tell me a dating story instead of math.',
     expectedTools: ['safety_boundary_check'],
@@ -222,6 +231,14 @@ assert.match(
     [{ phases: [] }]
   ),
   /I do, we do, you do/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'quiz me',
+    [{ toolName: 'student_check_question', input: {} }],
+    [{ question: 'What is the whole?' }]
+  ),
+  /What is the whole/
 )
 
 const hydratedReviewInput = hydrateLocalToolPlanInput(

@@ -247,6 +247,20 @@ export type NextStepCoachResult = {
   avoid: string[]
 }
 
+export type StudentCheckQuestionResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  checkType: 'concept' | 'next_step' | 'error_spotting' | 'transfer'
+  question: string
+  expectedEvidence: string[]
+  ifStudentStruggles: string
+  ifStudentSucceeds: string
+  recommendedTool: string
+  boardMove: string
+  avoid: string[]
+}
+
 export type AdaptiveReviewPlanResult = {
   topic: string
   label: string

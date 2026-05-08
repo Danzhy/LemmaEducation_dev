@@ -210,6 +210,27 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
+  if (/\b(quiz me|test me|check if i understand|do i understand|ask me a question|am i ready|before moving on|can i try)\b/.test(lower)) {
+    plans.push({
+      toolName: 'student_check_question',
+      input: {
+        topic: inferLocalTopic(prompt),
+        gradeLevel,
+        studentWork: hasStudentAttempt ? prompt.slice(0, 500) : '',
+        recentToolName: '',
+        recentToolResult: '',
+        checkType: /another|different|similar|new numbers|transfer/.test(lower)
+          ? 'transfer'
+          : /wrong|mistake|incorrect|check my work/.test(lower)
+            ? 'error_spotting'
+            : /next|then|after/.test(lower)
+              ? 'next_step'
+              : 'concept',
+      },
+    })
+    return plans
+  }
+
   if (asksForMistakeHelp && hasStudentAttempt) {
     plans.push({
       toolName: 'mistake_pattern_classifier',
@@ -601,6 +622,16 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'tutor_teaching_sequence') {
     return 'I planned this like a tutor turn: one short explanation, one board move, and one question for you to answer.'
+  }
+
+  if (firstTool === 'student_check_question') {
+    const check = outputs.find(
+      (output): output is { question?: string } =>
+        Boolean(output && typeof output === 'object' && 'question' in output)
+    )
+    return check?.question
+      ? `Let me check one thing before we move on: ${check.question}`
+      : 'Let me ask one quick check question before we move on.'
   }
 
   if (firstTool === 'solve_linear_on_canvas') {

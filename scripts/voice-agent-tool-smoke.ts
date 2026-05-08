@@ -45,6 +45,7 @@ import {
   socraticMovePlanner,
   slopeTriangleScene,
   statisticsSummaryScene,
+  studentCheckQuestion,
   tableOfValues,
   tutorTeachingSequence,
   tutorTurnAudit,
@@ -307,6 +308,21 @@ assert(
   'next_step_coach should turn stuck student work into one non-answer-dumping tutor move.'
 )
 
+const checkQuestion = studentCheckQuestion({
+  topic: 'fractions',
+  gradeLevel: 'Grade 5',
+  studentWork: '1/2 + 1/3 = 2/5',
+  recentToolName: 'fraction_operation',
+  recentToolResult: 'A common denominator is needed.',
+  checkType: 'error_spotting',
+})
+assert(
+  checkQuestion.checkType === 'error_spotting' &&
+    checkQuestion.question.includes('pieces') &&
+    checkQuestion.expectedEvidence.length >= 3,
+  'student_check_question should create one targeted comprehension check from current work.'
+)
+
 const reviewPlan = adaptiveReviewPlan({
   gradeLevel: 'Grade 5',
   targetTopic: 'fractions',
@@ -399,4 +415,4 @@ assert(
   'common_denominator should convert 1/2 and 1/3 to sixths.'
 )
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 17} checks).`)
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 18} checks).`)

@@ -62,6 +62,7 @@ The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched whi
 - Problem-understanding maps for knowns, unknowns, units, and representation choices before solving
 - Representation bridges between words, visuals, tables, equations, graphs, and numeric work
 - Faded worked-example planning for I-do, we-do, you-do tutoring
+- Targeted comprehension checks so lab tutors ask one focused question before moving on
 - Tutoring planner tools for word problems, misconceptions, curriculum moves, Socratic next steps, and targeted practice
 - Mistake-pattern classification for common grade 3-7 errors before correction
 - Tutor-turn audits to catch answer dumping, missing questions, and privacy risks in lab responses

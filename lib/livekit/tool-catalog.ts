@@ -57,6 +57,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'socratic_move_planner',
   'solve_linear_on_canvas',
   'statistics_summary',
+  'student_check_question',
   'table_of_values',
   'tutor_teaching_sequence',
   'tutor_turn_audit',
