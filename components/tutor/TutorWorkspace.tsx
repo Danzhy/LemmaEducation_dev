@@ -265,7 +265,7 @@ function collapseToolEvents(toolEvents: TutorToolEvent[]) {
 }
 
 type TutorWorkspaceProps = {
-  mode: 'stable' | 'agent-lab'
+  mode: 'stable' | 'agent-lab' | 'livekit-lab'
   error: string | null
   setError: (value: string | null) => void
   session: TutorSessionAdapter
@@ -441,7 +441,7 @@ export default function TutorWorkspace({
   }, [persistTutorMessage, session.chatHistory, session.currentSessionId])
 
   useEffect(() => {
-    if (mode !== 'agent-lab' || !session.currentSessionId) {
+    if ((mode !== 'agent-lab' && mode !== 'livekit-lab') || !session.currentSessionId) {
       persistedToolEventIdsRef.current.clear()
       return
     }
@@ -613,11 +613,13 @@ export default function TutorWorkspace({
   const showTutorialPreSessionControls = !session.isConnected && isTutorialOpen
   const showCanvasStreamControl = session.isConnected || isTutorialOpen
   const supportsLiveMic = session.supportsLiveMic ?? true
-  const isTypedLabSession = mode === 'agent-lab' && session.connectionMode === 'typed'
+  const isLabMode = mode === 'agent-lab' || mode === 'livekit-lab'
+  const isTypedLabSession = isLabMode && session.connectionMode === 'typed'
   const latestToolEvents = useMemo(
-    () => (mode === 'agent-lab' ? collapseToolEvents(session.toolEvents).slice(-4).reverse() : []),
-    [mode, session.toolEvents]
+    () => (isLabMode ? collapseToolEvents(session.toolEvents).slice(-4).reverse() : []),
+    [isLabMode, session.toolEvents]
   )
+  const labLabel = mode === 'livekit-lab' ? 'LiveKit agent lab' : 'Experimental agent lab'
 
   const tutorialSteps = useMemo<TutorialStep[]>(
     () => [
@@ -771,13 +773,15 @@ export default function TutorWorkspace({
                         <p className="mt-2 text-[11px] uppercase tracking-[0.22em] text-[#7A8C86]">
                           {gradeLevel}
                         </p>
-                        {mode === 'agent-lab' ? (
+                        {isLabMode ? (
                           <div className="mt-3 rounded-[16px] border border-[#D7E1DD] bg-white/78 px-3 py-2">
                             <p className="text-[10px] uppercase tracking-[0.2em] text-[#5C7069]">
-                              {isTypedLabSession ? 'Experimental agent lab · typed mode' : 'Experimental agent lab'}
+                              {isTypedLabSession ? `${labLabel} · typed mode` : labLabel}
                             </p>
                             <p className="mt-1 text-xs leading-relaxed text-[#51655F]">
-                              {isTypedLabSession
+                              {mode === 'livekit-lab'
+                                ? 'Same tutor workspace, connected through a LiveKit room for worker-based voice agents and frontend RPC tools.'
+                                : isTypedLabSession
                                 ? 'Tool-enabled tutoring is active without microphone input, so you can test the board and math tools by typing.'
                                 : 'Same tutor workspace, with tool-enabled realtime voice behind the scenes.'}
                             </p>
@@ -847,7 +851,7 @@ export default function TutorWorkspace({
                         >
                           {isStartingSession ? 'Starting...' : 'Start tutoring'}
                         </button>
-                        {mode === 'agent-lab' ? (
+                        {isLabMode ? (
                           <button
                             type="button"
                             onClick={() => {
@@ -946,7 +950,7 @@ export default function TutorWorkspace({
                     </div>
                   )}
 
-                  {mode === 'agent-lab' && latestToolEvents.length > 0 ? (
+                  {isLabMode && latestToolEvents.length > 0 ? (
                     <div className="mb-3 rounded-[22px] border border-[#DCE7E2] bg-white/64 px-4 py-3">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">
@@ -996,8 +1000,10 @@ export default function TutorWorkspace({
                   <div className="mt-3 space-y-3">
                     {!session.isConnected ? (
                       <div className="rounded-[22px] border border-[#DCE7E2] bg-white/72 px-4 py-4 text-sm leading-relaxed text-[#5C7069]">
-                        {mode === 'agent-lab'
-                          ? 'Start with mic for full voice tutoring, or start without mic to test typed prompts, board writing, graphs, ratios, percents, geometry, fractions, data, probability, conversions, and other structured math tools. The lab can teach on the board, but it does not free-sketch arbitrary drawings.'
+                        {isLabMode
+                          ? mode === 'livekit-lab'
+                            ? 'Start with mic to join a LiveKit room, or start without mic for typed testing. A LiveKit agent worker must be running for voice replies. The page exposes safe math tools and structured board actions through RPC.'
+                            : 'Start with mic for full voice tutoring, or start without mic to test typed prompts, board writing, graphs, ratios, percents, geometry, fractions, data, probability, conversions, and other structured math tools. The lab can teach on the board, but it does not free-sketch arbitrary drawings.'
                           : 'Start a session to speak, type, or upload a problem. Your board stays open while the tutor sits here on the edge.'}
                       </div>
                     ) : session.isPaused ? (
@@ -1040,7 +1046,7 @@ export default function TutorWorkspace({
                           </div>
                         )}
 
-                        {mode === 'agent-lab' ? (
+                        {isLabMode ? (
                           <div className="rounded-[22px] border border-[#DCE7E2] bg-white/62 px-3.5 py-3">
                             <div className="mb-2 flex items-center justify-between gap-3">
                               <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">

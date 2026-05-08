@@ -21,18 +21,24 @@
     "postcss": "$postcss"
   },
   "dependencies": {
+    "@livekit/agents": "^1.4.0",
+    "@livekit/agents-plugin-openai": "^1.4.0",
+    "@livekit/protocol": "^1.45.8",
     "@neondatabase/auth": "0.3.0-beta",
     "@neondatabase/neon-js": "^0.5.0-beta",
     "@neondatabase/serverless": "^0.10.3",
     "@openai/agents": "^0.9.1",
     "katex": "^0.16.28",
+    "livekit-client": "^2.18.9",
+    "livekit-server-sdk": "^2.15.2",
     "mathjs": "^15.2.0",
     "next": "^16.2.4",
     "pdfjs-dist": "^5.4.624",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.14.0",
-    "tldraw": "^4.3.1"
+    "tldraw": "^4.3.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
@@ -43,7 +49,6 @@
     "eslint-config-next": "^16.2.4",
     "postcss": "^8.5.14",
     "tailwindcss": "^3.4.4",
-    "tsx": "^4.21.0",
     "tsx": "^4.20.6",
     "typescript": "^5.5.0"
   }
