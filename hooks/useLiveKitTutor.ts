@@ -659,6 +659,14 @@ export function useLiveKitTutor({
 
   const resume = useCallback(async () => {
     const sessionId = sessionIdRef.current
+    if (!sessionId && localToolModeRef.current) {
+      pausedRef.current = false
+      setIsPaused(false)
+      setLastPauseReason(null)
+      registerLocalActivity(false)
+      setState('listening')
+      return
+    }
     if (!sessionId) return
 
     try {
@@ -764,7 +772,7 @@ export function useLiveKitTutor({
         {
           role: 'assistant',
           content:
-            'Typed LiveKit lab is ready locally. Ask for a graph, fraction visual, percent bar, ratio line, area model, or algebra step and I will use the same guarded math tools.',
+            'I am ready. Type a math problem or ask me to draw a visual on the board, and we will work through it step by step.',
           source: 'assistant',
         },
       ])

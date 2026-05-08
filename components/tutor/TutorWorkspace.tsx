@@ -131,139 +131,6 @@ function EndIcon(props: SVGProps<SVGSVGElement>) {
 
 const GRADE_LEVEL_OPTIONS = ['Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7']
 
-const LAB_TOOL_RECIPES = [
-  {
-    label: 'Percent bar',
-    prompt: 'Draw a percent bar for 18 out of 60. Give one hint before the answer.',
-  },
-  {
-    label: 'Fraction mistake',
-    prompt: 'A student says 1/2 + 1/3 = 2/5. Diagnose the misconception and guide them with a visual.',
-  },
-  {
-    label: 'Simplify fraction',
-    prompt: 'Simplify 18/24, explain the common factor idea, and ask me one question before moving on.',
-  },
-  {
-    label: 'Common denominator',
-    prompt: 'Find a common denominator for 1/2 and 1/3, then use a fraction visual to explain why it helps.',
-  },
-  {
-    label: 'Decimal compare',
-    prompt: 'Compare 0.8 and 0.75 using place value. Do not just say the answer.',
-  },
-  {
-    label: 'Round number',
-    prompt: 'Round 8,649 to the nearest hundred and explain which digit decides the direction.',
-  },
-  {
-    label: 'Percent of number',
-    prompt: 'Find 30% of 60 using the deterministic percent tool, then show a percent bar.',
-  },
-  {
-    label: 'Ratio line',
-    prompt: 'Use a double number line for 3 notebooks costing $12 and help find the cost of 7 notebooks.',
-  },
-  {
-    label: 'Unit rate',
-    prompt: 'Find the unit rate for 3 notebooks costing $12, then use a double number line for 7 notebooks.',
-  },
-  {
-    label: 'Word plan',
-    prompt: 'Plan this word problem before solving: A recipe uses 3 cups of flour for 12 muffins. How many cups are needed for 20 muffins?',
-  },
-  {
-    label: 'Graph',
-    prompt: 'Graph y = x^2 - 4 from x = -4 to 4 and point out the intercepts.',
-  },
-  {
-    label: 'Area model',
-    prompt: 'Draw a composite area model for a 6 by 4 rectangle with a 2 by 3 rectangle attached.',
-  },
-]
-
-function formatToolName(name: string) {
-  return name.replace(/_/g, ' ')
-}
-
-function formatToolEventStatus(type: TutorToolEvent['type']) {
-  if (type === 'tool_started') return 'running'
-  if (type === 'tool_failed') return 'failed'
-  if (type === 'canvas_action') return 'board'
-  return 'done'
-}
-
-function getToolEventTone(type: TutorToolEvent['type']) {
-  if (type === 'tool_failed') return 'border-[#E8C6C0] bg-[#FFF4F1] text-[#8B3A2E]'
-  if (type === 'canvas_action') return 'border-[#BFD6CF] bg-[#EDF6F3] text-[#16423C]'
-  if (type === 'tool_started') return 'border-[#D6E0DC] bg-white/72 text-[#5C7069]'
-  return 'border-[#D6E0DC] bg-white/78 text-[#3F524C]'
-}
-
-function summarizeToolValue(value: unknown) {
-  if (value == null) return null
-
-  if (typeof value === 'string') {
-    return value.length > 92 ? `${value.slice(0, 89)}...` : value
-  }
-
-  if (Array.isArray(value)) {
-    return `${value.length} board action${value.length === 1 ? '' : 's'} queued`
-  }
-
-  if (typeof value === 'object') {
-    const record = value as Record<string, unknown>
-    if (typeof record.summary === 'string') return record.summary
-    if (typeof record.spokenSummary === 'string') return record.spokenSummary
-    if (typeof record.equation === 'string') return record.equation
-    if (typeof record.rateLabel === 'string') return record.rateLabel
-    if (typeof record.simplified === 'string') return `Simplified: ${record.simplified}`
-    if (typeof record.likelyOperation === 'string') return `Plan: ${record.likelyOperation}`
-    if (typeof record.rounded === 'number') return `Rounded: ${record.rounded}`
-    if (typeof record.commonDenominator === 'number') return `Common denominator: ${record.commonDenominator}`
-    if (typeof record.comparison === 'string') return `Comparison: ${record.comparison.replace(/_/g, ' ')}`
-    if (typeof record.suggestedQuestion === 'string') return record.suggestedQuestion
-    if (Array.isArray(record.canvasActions)) {
-      return `${record.canvasActions.length} board action${record.canvasActions.length === 1 ? '' : 's'} ready`
-    }
-    if (typeof record.reason === 'string') return record.reason
-    if (typeof record.hintTarget === 'string') return `Hint target: ${record.hintTarget}`
-    if (typeof record.title === 'string') return record.title
-  }
-
-  return null
-}
-
-function getToolEventCallId(toolEvent: TutorToolEvent) {
-  const callId = toolEvent.metadata?.callId
-  return typeof callId === 'string' && callId.trim() ? callId : null
-}
-
-function collapseToolEvents(toolEvents: TutorToolEvent[]) {
-  const collapsed: TutorToolEvent[] = []
-  const indexByCall = new Map<string, number>()
-
-  toolEvents.forEach((toolEvent) => {
-    const callId = getToolEventCallId(toolEvent)
-    if (!callId || toolEvent.type === 'canvas_action') {
-      collapsed.push(toolEvent)
-      return
-    }
-
-    const key = `${toolEvent.toolName}:${callId}`
-    const existingIndex = indexByCall.get(key)
-    if (existingIndex === undefined) {
-      indexByCall.set(key, collapsed.length)
-      collapsed.push(toolEvent)
-      return
-    }
-
-    collapsed[existingIndex] = toolEvent
-  })
-
-  return collapsed
-}
-
 type TutorWorkspaceProps = {
   mode: 'stable' | 'agent-lab' | 'livekit-lab'
   error: string | null
@@ -611,15 +478,9 @@ export default function TutorWorkspace({
   const showAssistantStreaming =
     session.isConnected && (session.state === 'thinking' || session.state === 'speaking')
   const showTutorialPreSessionControls = !session.isConnected && isTutorialOpen
-  const showCanvasStreamControl = session.isConnected || isTutorialOpen
+  const showCanvasStreamControl = (session.isConnected && session.connectionMode !== 'typed') || isTutorialOpen
   const supportsLiveMic = session.supportsLiveMic ?? true
   const isLabMode = mode === 'agent-lab' || mode === 'livekit-lab'
-  const isTypedLabSession = isLabMode && session.connectionMode === 'typed'
-  const latestToolEvents = useMemo(
-    () => (isLabMode ? collapseToolEvents(session.toolEvents).slice(-4).reverse() : []),
-    [isLabMode, session.toolEvents]
-  )
-  const labLabel = mode === 'livekit-lab' ? 'LiveKit agent lab' : 'Experimental agent lab'
 
   const tutorialSteps = useMemo<TutorialStep[]>(
     () => [
@@ -773,23 +634,6 @@ export default function TutorWorkspace({
                         <p className="mt-2 text-[11px] uppercase tracking-[0.22em] text-[#7A8C86]">
                           {gradeLevel}
                         </p>
-                        {isLabMode ? (
-                          <div className="mt-3 rounded-[16px] border border-[#D7E1DD] bg-white/78 px-3 py-2">
-                            <p className="text-[10px] uppercase tracking-[0.2em] text-[#5C7069]">
-                              {isTypedLabSession ? `${labLabel} · typed mode` : labLabel}
-                            </p>
-                            <p className="mt-1 text-xs leading-relaxed text-[#51655F]">
-                              {mode === 'livekit-lab'
-                                ? 'Same tutor workspace, connected through a LiveKit room for a worker-based voice agent with server-side math tools.'
-                                : isTypedLabSession
-                                ? 'Tool-enabled tutoring is active without microphone input, so you can test the board and math tools by typing.'
-                                : 'Same tutor workspace, with tool-enabled realtime voice behind the scenes.'}
-                            </p>
-                            <p className="mt-2 text-[11px] leading-relaxed text-[#5C7069]">
-                              Structured board tools only: graphs, tables, ratios, percents, geometry, fractions, data, probability, conversions, and short labels or highlights.
-                            </p>
-                          </div>
-                        ) : null}
                       </div>
                     </div>
 
@@ -950,44 +794,6 @@ export default function TutorWorkspace({
                     </div>
                   )}
 
-                  {isLabMode && latestToolEvents.length > 0 ? (
-                    <div className="mb-3 rounded-[22px] border border-[#DCE7E2] bg-white/64 px-4 py-3">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">
-                          Tool trace
-                        </p>
-                        <span className="text-[11px] text-[#7A8C86]">latest {latestToolEvents.length}</span>
-                      </div>
-                      <div className="space-y-2">
-                        {latestToolEvents.map((toolEvent) => {
-                          const summary =
-                            summarizeToolValue(toolEvent.output) ?? summarizeToolValue(toolEvent.input)
-
-                          return (
-                            <div
-                              key={toolEvent.id}
-                              className={`rounded-[16px] border px-3 py-2 ${getToolEventTone(toolEvent.type)}`}
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="truncate text-[12px] font-medium capitalize">
-                                  {formatToolName(toolEvent.toolName)}
-                                </p>
-                                <span className="shrink-0 text-[10px] uppercase tracking-[0.16em] opacity-75">
-                                  {formatToolEventStatus(toolEvent.type)}
-                                </span>
-                              </div>
-                              {summary ? (
-                                <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed opacity-80">
-                                  {summary}
-                                </p>
-                              ) : null}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-
                   <TutorChatWindow
                     messages={session.chatHistory}
                     currentUserTranscript={session.isConnected ? session.currentUserTranscript : ''}
@@ -1000,11 +806,7 @@ export default function TutorWorkspace({
                   <div className="mt-3 space-y-3">
                     {!session.isConnected ? (
                       <div className="rounded-[22px] border border-[#DCE7E2] bg-white/72 px-4 py-4 text-sm leading-relaxed text-[#5C7069]">
-                        {isLabMode
-                          ? mode === 'livekit-lab'
-                            ? 'Start with mic to join a LiveKit room, or start without mic for typed testing. The worker runs safe math tools and sends structured board actions back through LiveKit RPC.'
-                            : 'Start with mic for full voice tutoring, or start without mic to test typed prompts, board writing, graphs, ratios, percents, geometry, fractions, data, probability, conversions, and other structured math tools. The lab can teach on the board, but it does not free-sketch arbitrary drawings.'
-                          : 'Start a session to speak, type, or upload a problem. Your board stays open while the tutor sits here on the edge.'}
+                        Start a session to speak, type, or upload a problem. Your board stays open while the tutor sits here on the edge.
                       </div>
                     ) : session.isPaused ? (
                       <div className="rounded-[22px] border border-[#DCE7E2] bg-white/72 px-4 py-4 text-sm leading-relaxed text-[#5C7069]">
@@ -1045,30 +847,6 @@ export default function TutorWorkspace({
                             </button>
                           </div>
                         )}
-
-                        {isLabMode ? (
-                          <div className="rounded-[22px] border border-[#DCE7E2] bg-white/62 px-3.5 py-3">
-                            <div className="mb-2 flex items-center justify-between gap-3">
-                              <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">
-                                Tool recipes
-                              </p>
-                              <span className="text-[11px] text-[#7A8C86]">lab only</span>
-                            </div>
-                            <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto pr-1">
-                              {LAB_TOOL_RECIPES.map((recipe) => (
-                                <button
-                                  key={recipe.label}
-                                  type="button"
-                                  onClick={() => handleTextSend(recipe.prompt)}
-                                  disabled={session.state === 'thinking' || session.isPaused}
-                                  className="rounded-full border border-[#C9DAD4] bg-[#F7FAF8] px-3 py-1.5 text-[11px] font-medium text-[#2A453E] transition-all hover:-translate-y-0.5 hover:border-[#16423C] hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
-                                >
-                                  {recipe.label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
 
                         <TextInput
                           onSend={handleTextSend}
