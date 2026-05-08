@@ -30,6 +30,7 @@ import {
 import { planCanvasActionReveal } from '@/lib/tutor/canvas-action-reveal'
 import {
   buildLocalAssistantReply,
+  hydrateLocalToolPlanInput,
   planLocalToolTurn,
 } from '@/lib/livekit/local-tool-planner'
 import type {
@@ -538,20 +539,21 @@ export function useLiveKitTutor({
 
       try {
         for (const plan of plans.slice(0, 3)) {
+          const input = hydrateLocalToolPlanInput(plan, outputs, text, gradeLevelRef.current)
           const callId = crypto.randomUUID()
           appendToolEvent({
             type: 'tool_started',
             toolName: plan.toolName,
-            input: plan.input,
+            input,
             metadata: { callId, source: 'local-typed-lab' },
           })
 
-          const result = await callServerLiveKitTool(sessionIdRef.current, plan.toolName, plan.input)
+          const result = await callServerLiveKitTool(sessionIdRef.current, plan.toolName, input)
           outputs.push(result.output)
           appendToolEvent({
             type: 'tool_completed',
             toolName: plan.toolName,
-            input: plan.input,
+            input,
             output: result.output,
             metadata: { callId, source: 'local-typed-lab', ...result.toolMeta },
           })

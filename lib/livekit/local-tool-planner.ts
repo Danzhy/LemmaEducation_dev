@@ -3,6 +3,12 @@ export type LocalToolPlan = {
   input: Record<string, unknown>
 }
 
+type LearnerContextOutput = {
+  likelyTopics?: unknown
+  struggleSignals?: unknown
+  recentExcerpts?: unknown
+}
+
 function formatToolNameForStudent(toolName: string) {
   return toolName.replace(/_/g, ' ')
 }
@@ -408,6 +414,65 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     },
   })
   return plans
+}
+
+function findLearnerContextOutput(outputs: unknown[]): LearnerContextOutput | null {
+  return (
+    outputs.find(
+      (output): output is LearnerContextOutput =>
+        Boolean(output && typeof output === 'object' && 'likelyTopics' in output)
+    ) ?? null
+  )
+}
+
+function stringArray(value: unknown, limit: number) {
+  return Array.isArray(value)
+    ? value
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean)
+        .slice(0, limit)
+    : []
+}
+
+function excerptArray(value: unknown, limit: number) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => {
+      if (typeof item === 'string') return item.trim()
+      if (item && typeof item === 'object' && 'content' in item) {
+        const content = (item as { content?: unknown }).content
+        return typeof content === 'string' ? content.trim() : ''
+      }
+      return ''
+    })
+    .filter(Boolean)
+    .slice(0, limit)
+}
+
+export function hydrateLocalToolPlanInput(
+  plan: LocalToolPlan,
+  previousOutputs: unknown[],
+  prompt: string,
+  gradeLevel: string
+) {
+  if (plan.toolName !== 'adaptive_review_plan') return plan.input
+
+  const learnerContext = findLearnerContextOutput(previousOutputs)
+  if (!learnerContext) return plan.input
+
+  const topics = stringArray(learnerContext.likelyTopics, 5)
+  const struggleSignals = stringArray(learnerContext.struggleSignals, 5)
+  const recentExcerpts = excerptArray(learnerContext.recentExcerpts, 6)
+
+  return {
+    ...plan.input,
+    gradeLevel,
+    targetTopic: topics[0] ?? '',
+    sessionGoal: prompt.slice(0, 240),
+    topics,
+    struggleSignals,
+    recentExcerpts,
+  }
 }
 
 export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[], outputs: unknown[]) {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   buildLocalAssistantReply,
+  hydrateLocalToolPlanInput,
   planLocalToolTurn,
 } from '@/lib/livekit/local-tool-planner'
 
@@ -155,5 +156,31 @@ assert.match(
   ),
   /math here/
 )
+
+const hydratedReviewInput = hydrateLocalToolPlanInput(
+  {
+    toolName: 'adaptive_review_plan',
+    input: {
+      gradeLevel: '6',
+      targetTopic: '',
+      sessionGoal: 'continue',
+      topics: [],
+      struggleSignals: [],
+      recentExcerpts: [],
+    },
+  },
+  [
+    {
+      likelyTopics: ['ratios and rates'],
+      struggleSignals: ['needs setup support'],
+      recentExcerpts: [{ role: 'user', content: 'I was stuck on unit rates.' }],
+    },
+  ],
+  'continue from last time',
+  '6'
+)
+assert.deepEqual(hydratedReviewInput.topics, ['ratios and rates'])
+assert.deepEqual(hydratedReviewInput.struggleSignals, ['needs setup support'])
+assert.equal(hydratedReviewInput.targetTopic, 'ratios and rates')
 
 console.log(`LiveKit local planner smoke passed ${cases.length} routing cases.`)
