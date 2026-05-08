@@ -210,6 +210,25 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
+  if (/\b(exit ticket|wrap up|end of session|end the session|final check|last check|quick check before we finish)\b/.test(lower)) {
+    plans.push({
+      toolName: 'exit_ticket_builder',
+      input: {
+        topic: inferLocalTopic(prompt),
+        gradeLevel,
+        sessionGoal: prompt.slice(0, 240),
+        studentEvidence: hasStudentAttempt ? prompt.slice(0, 500) : '',
+        difficulty: /harder|challenge|stretch|advanced/.test(lower)
+          ? 'stretch'
+          : /easy|support|stuck|confused/.test(lower)
+            ? 'support'
+            : 'core',
+        count: /one|1\b/.test(lower) ? 1 : /three|3\b/.test(lower) ? 3 : 2,
+      },
+    })
+    return plans
+  }
+
   if (/\b(quiz me|test me|check if i understand|do i understand|ask me a question|am i ready|before moving on|can i try)\b/.test(lower)) {
     plans.push({
       toolName: 'student_check_question',
@@ -632,6 +651,17 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     return check?.question
       ? `Let me check one thing before we move on: ${check.question}`
       : 'Let me ask one quick check question before we move on.'
+  }
+
+  if (firstTool === 'exit_ticket_builder') {
+    const ticket = outputs.find(
+      (output): output is { items?: Array<{ prompt?: string }> } =>
+        Boolean(output && typeof output === 'object' && 'items' in output)
+    )
+    const firstPrompt = ticket?.items?.find((item) => item.prompt)?.prompt
+    return firstPrompt
+      ? `Let us wrap with a quick exit ticket. First: ${firstPrompt}`
+      : 'Let us wrap with a quick exit ticket. Try the first problem out loud before I check it.'
   }
 
   if (firstTool === 'solve_linear_on_canvas') {

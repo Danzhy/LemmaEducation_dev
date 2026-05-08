@@ -24,6 +24,7 @@ async function main() {
     'learner_context',
     'adaptive_review_plan',
     'session_mastery_snapshot',
+    'exit_ticket_builder',
     'tutor_turn_audit',
     'student_check_question',
     'answer_disclosure_gate',
@@ -132,6 +133,17 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-session-mastery-snapshot' }
   )
+  const exitTicket = await tools.exit_ticket_builder.execute(
+    {
+      topic: 'ratios',
+      gradeLevel: 'Grade 6',
+      sessionGoal: 'wrap up unit rate practice',
+      studentEvidence: 'Student found 12 dollars for 3 notebooks means 4 dollars per notebook.',
+      difficulty: 'core',
+      count: 2,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-exit-ticket-builder' }
+  )
   const mistakePattern = await tools.mistake_pattern_classifier.execute(
     {
       topic: 'fractions',
@@ -223,6 +235,10 @@ async function main() {
 
   if (!JSON.stringify(masterySnapshot).includes('teacherReviewNote')) {
     throw new Error('session_mastery_snapshot did not return a teacher review note.')
+  }
+
+  if (!JSON.stringify(exitTicket).includes('answerKey')) {
+    throw new Error('exit_ticket_builder did not return reviewable exit-ticket items.')
   }
 
   if (!JSON.stringify(mistakePattern).includes('denominator_operation')) {

@@ -15,6 +15,7 @@ import {
   decimalGridScene,
   doubleNumberLineScene,
   equationBalanceScene,
+  exitTicketBuilder,
   factorTreeScene,
   fractionCompareScene,
   fractionOperationScene,
@@ -323,6 +324,21 @@ assert(
   'student_check_question should create one targeted comprehension check from current work.'
 )
 
+const exitTicket = exitTicketBuilder({
+  topic: 'ratios',
+  gradeLevel: 'Grade 6',
+  sessionGoal: 'wrap up unit rate practice',
+  studentEvidence: 'Student found 12 dollars for 3 notebooks means 4 dollars per notebook.',
+  difficulty: 'core',
+  count: 2,
+})
+assert(
+  exitTicket.items.length === 2 &&
+    exitTicket.items.every((item) => item.expectedEvidence.length >= 3) &&
+    exitTicket.privacyNote.includes('personal details'),
+  'exit_ticket_builder should create short review items with evidence and privacy guidance.'
+)
+
 const reviewPlan = adaptiveReviewPlan({
   gradeLevel: 'Grade 5',
   targetTopic: 'fractions',
@@ -415,4 +431,4 @@ assert(
   'common_denominator should convert 1/2 and 1/3 to sixths.'
 )
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 18} checks).`)
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 19} checks).`)

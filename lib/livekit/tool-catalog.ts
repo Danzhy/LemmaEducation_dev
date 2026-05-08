@@ -19,6 +19,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'decimal_grid',
   'double_number_line',
   'equation_balance',
+  'exit_ticket_builder',
   'factor_tree',
   'fraction_compare',
   'fraction_operation',

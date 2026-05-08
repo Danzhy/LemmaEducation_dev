@@ -261,6 +261,26 @@ export type StudentCheckQuestionResult = {
   avoid: string[]
 }
 
+export type ExitTicketResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  difficulty: 'support' | 'core' | 'stretch'
+  title: string
+  studentInstructions: string
+  items: Array<{
+    prompt: string
+    expectedEvidence: string[]
+    hint: string
+    suggestedTool: string
+    answerKey: string
+  }>
+  teacherLookFor: string[]
+  nextSessionRecommendation: string
+  privacyNote: string
+  avoid: string[]
+}
+
 export type AdaptiveReviewPlanResult = {
   topic: string
   label: string

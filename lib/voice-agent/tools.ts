@@ -17,6 +17,7 @@ import {
   decimalCompare,
   doubleNumberLineScene,
   equationBalanceScene,
+  exitTicketBuilder,
   factorTreeScene,
   fractionCompareScene,
   fractionOperationScene,
@@ -534,6 +535,48 @@ export function createVoiceAgentTools() {
             recentToolName: params.recentToolName,
             recentToolResult: params.recentToolResult,
             checkType: params.checkType,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'exit_ticket_builder',
+      description:
+        'Create a short end-of-session grade 3 to 7 math exit ticket with one to three prompts, hints, answer keys for review, and teacher-safe evidence to look for.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          sessionGoal: { type: 'string' },
+          studentEvidence: { type: 'string' },
+          difficulty: {
+            type: 'string',
+            enum: ['support', 'core', 'stretch'],
+          },
+          count: { type: 'number' },
+        },
+        required: ['topic', 'gradeLevel', 'sessionGoal', 'studentEvidence', 'difficulty', 'count'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          gradeLevel: string
+          sessionGoal: string
+          studentEvidence: string
+          difficulty: string
+          count: number
+        }
+        return stringifyResult(
+          exitTicketBuilder({
+            topic: params.topic,
+            gradeLevel: params.gradeLevel,
+            sessionGoal: params.sessionGoal,
+            studentEvidence: params.studentEvidence,
+            difficulty: params.difficulty,
+            count: params.count,
           })
         )
       },

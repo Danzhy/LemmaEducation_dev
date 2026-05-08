@@ -20,8 +20,9 @@ The LiveKit tutor lab is an isolated experiment for a worker-based voice tutor. 
 5. The worker executes deterministic grade 3-7 math tools server-side.
 6. The worker can search teacher-uploaded curriculum context through the server-owned `curriculum_search` tool.
 7. The worker can generate one targeted `student_check_question` before moving on from a tool result or explanation.
-8. The worker sends structured board actions back to the browser through LiveKit RPC.
-9. The browser translates only allowed structured actions into tldraw shapes.
+8. The worker can create short `exit_ticket_builder` checks for session wrap-up without revealing answers first.
+9. The worker sends structured board actions back to the browser through LiveKit RPC.
+10. The browser translates only allowed structured actions into tldraw shapes.
 
 When LiveKit variables are missing locally, **Start without mic** uses a typed preview mode instead of creating a room. That path stays signed-in and rate-limited, runs deterministic tools through `/api/livekit/tool-preview`, and renders the same structured board actions. It is for local tool testing, not a replacement for the full voice worker path.
 

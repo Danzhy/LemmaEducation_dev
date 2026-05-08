@@ -36,6 +36,7 @@ import type {
   CommonDenominatorResult,
   IntegerOperationResult,
   StudentCheckQuestionResult,
+  ExitTicketResult,
 } from '@/lib/voice-agent/types'
 import type {
   TutorCanvasAction,
@@ -6141,6 +6142,74 @@ export function studentCheckQuestion(input: {
       'Do not ask more than one check question at once.',
       'Do not reveal the next worked step before the student responds.',
       'Do not turn the check into a long mini-lecture.',
+    ],
+  }
+}
+
+function resolveExitTicketDifficulty(value?: string): ExitTicketResult['difficulty'] {
+  const normalized = value?.trim().toLowerCase()
+  if (normalized === 'support' || normalized === 'core' || normalized === 'stretch') return normalized
+  if (/\b(stuck|confused|reteach|easy|support)\b/.test(normalized ?? '')) return 'support'
+  if (/\b(challenge|harder|extend|stretch)\b/.test(normalized ?? '')) return 'stretch'
+  return 'core'
+}
+
+export function exitTicketBuilder(input: {
+  topic: string
+  gradeLevel?: string
+  sessionGoal?: string
+  studentEvidence?: string
+  difficulty?: string
+  count?: number
+}): ExitTicketResult {
+  const topic = resolveCurriculumTopic(input.topic || input.sessionGoal || input.studentEvidence || '')
+  const guide = CURRICULUM_GUIDE[topic]
+  const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
+  const evidence = input.studentEvidence?.trim() ?? ''
+  const difficulty = resolveExitTicketDifficulty(input.difficulty || evidence)
+  const count = clamp(Math.trunc(input.count ?? 2), 1, 3)
+  const practice = practiceSetGenerator({
+    topic,
+    difficulty,
+    count,
+  }).items
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel,
+    difficulty,
+    title: `${guide.label} exit ticket`,
+    studentInstructions:
+      'Try these one at a time. Explain your first step before asking to check the answer.',
+    items: practice.map((item) => ({
+      prompt: item.prompt,
+      expectedEvidence: [
+        'Student states the first step or representation before calculating.',
+        `Student uses ${guide.prerequisites[0].toLowerCase()} appropriately.`,
+        'Student can explain why the answer matches the question.',
+      ],
+      hint: item.hint,
+      suggestedTool: item.suggestedTool,
+      answerKey: item.answer,
+    })),
+    teacherLookFor: [
+      guide.misconceptions[0],
+      `Whether the student can explain ${guide.prerequisites[0].toLowerCase()} without copying a model.`,
+      'Whether the student asks for a hint before attempting the first step.',
+    ],
+    nextSessionRecommendation:
+      difficulty === 'support'
+        ? `Start next time with ${guide.tools[0].replace(/_/g, ' ')} and one easier check.`
+        : difficulty === 'stretch'
+          ? 'Offer a nearby challenge problem and ask what changed.'
+          : `Use one ${guide.label.toLowerCase()} check, then move to guided practice if secure.`,
+    privacyNote:
+      'Use this as a learning handoff only. Do not include private personal details in teacher or parent summaries.',
+    avoid: [
+      'Do not read the answer key before the student attempts the item.',
+      'Do not give all items at once if the student is already stuck.',
+      'Do not grade tone or confidence. Look for mathematical evidence.',
     ],
   }
 }

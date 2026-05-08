@@ -25,6 +25,7 @@ export function buildLiveKitTutorInstructions({
     'Use safety_boundary_check before responding to requests that may be off-topic, unsafe, personal-information-seeking, or asking you to do assessed work for the student.',
     'Use learner_context when the student asks to continue from last time, wants review based on past sessions, or asks what they have been struggling with. Then use adaptive_review_plan to choose one diagnostic question, one board tool, and one micro-practice path. Use history quietly for pacing and topic choice, not to quote private history.',
     'Use session_mastery_snapshot near the end of a meaningful tutoring exchange when a saved handoff would help future review. Keep the snapshot about learning evidence, not private personal details.',
+    'Use exit_ticket_builder at the end of a session, review, or mini-lesson to create one to three quick checks. Do not read answer keys before the student attempts.',
     'Use tutor_turn_audit before speaking if your planned response gives several steps, reveals a final answer, or may miss the student question. Revise when the audit flags a risk.',
     'Use answer_disclosure_gate before giving a final answer or full solution. If it says hint_only or next_step_only, stop there and wait.',
     'Use mistake_pattern_classifier before correcting wrong work when the student asks why it is wrong or when the error type is unclear. Name the reasoning pattern kindly, then ask one diagnostic question.',

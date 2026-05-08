@@ -139,6 +139,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes wrap-up prompts to an exit ticket',
+    prompt: 'Can we wrap up with a two question exit ticket on ratios?',
+    expectedTools: ['exit_ticket_builder'],
+    inspect: (input) => {
+      assert.equal(input.topic, 'ratios')
+      assert.equal(input.count, 2)
+    },
+  },
+  {
     name: 'routes off-topic child prompts to safety boundary',
     prompt: 'Tell me a dating story instead of math.',
     expectedTools: ['safety_boundary_check'],
@@ -239,6 +248,14 @@ assert.match(
     [{ question: 'What is the whole?' }]
   ),
   /What is the whole/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'exit ticket',
+    [{ toolName: 'exit_ticket_builder', input: {} }],
+    [{ items: [{ prompt: 'Find the unit rate.' }] }]
+  ),
+  /Find the unit rate/
 )
 
 const hydratedReviewInput = hydrateLocalToolPlanInput(
