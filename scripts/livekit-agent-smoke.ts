@@ -53,6 +53,14 @@ async function main() {
     { expression: '(3/4) + 0.5' },
     { ctx: {} as never, toolCallId: 'smoke-calc' }
   )
+  const invalidFractionStep = await tools.math_check_step.execute(
+    { previousStep: '1/2 + 1/3', nextStep: '2/5' },
+    { ctx: {} as never, toolCallId: 'smoke-fraction-step-check' }
+  )
+  const validLinearStep = await tools.math_check_step.execute(
+    { previousStep: '2x + 3 = 11', nextStep: '2x = 8' },
+    { ctx: {} as never, toolCallId: 'smoke-linear-step-check' }
+  )
   const graphResult = await tools.graph_function.execute(
     { expression: '2*x + 1' },
     { ctx: {} as never, toolCallId: 'smoke-graph' }
@@ -203,6 +211,14 @@ async function main() {
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
+  }
+
+  if (!JSON.stringify(invalidFractionStep).includes('"verdict":"invalid"')) {
+    throw new Error(`math_check_step did not reject an invalid fraction step: ${JSON.stringify(invalidFractionStep)}`)
+  }
+
+  if (!JSON.stringify(validLinearStep).includes('"verdict":"valid"')) {
+    throw new Error(`math_check_step did not accept a balanced linear step: ${JSON.stringify(validLinearStep)}`)
   }
 
   if (canvasActions.length === 0 || !JSON.stringify(graphResult).includes('canvas')) {

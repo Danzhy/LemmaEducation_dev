@@ -27,6 +27,7 @@ import {
   hintLadder,
   longDivisionScene,
   mathCheckAnswer,
+  mathCheckStep,
   misconceptionDiagnosis,
   mistakePatternClassifier,
   nextStepCoach,
@@ -199,6 +200,22 @@ for (const smokeCase of smokeCases) {
 
 const correctAnswer = mathCheckAnswer({ problemExpression: '3/4+2/3', studentAnswer: '17/12' })
 assert(correctAnswer.verdict === 'correct', 'math_check_answer should mark 17/12 as correct.')
+
+const invalidFractionStep = mathCheckStep('1/2 + 1/3', '2/5')
+assert(
+  invalidFractionStep.verdict === 'invalid' &&
+    invalidFractionStep.hintTarget.includes('common denominator'),
+  'math_check_step should catch invalid fraction expression steps.'
+)
+
+const validArithmeticStep = mathCheckStep('3 + 4 * 2', '11')
+assert(validArithmeticStep.verdict === 'valid', 'math_check_step should validate equivalent arithmetic steps.')
+
+const validLinearStep = mathCheckStep('2x + 3 = 11', '2x = 8')
+assert(
+  validLinearStep.verdict === 'valid',
+  'math_check_step should validate balanced linear equation steps.'
+)
 
 const coach = curriculumCoach({ topic: 'ratios', gradeLevel: 'Grade 6' })
 assert(
@@ -431,4 +448,4 @@ assert(
   'common_denominator should convert 1/2 and 1/3 to sixths.'
 )
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 19} checks).`)
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 22} checks).`)

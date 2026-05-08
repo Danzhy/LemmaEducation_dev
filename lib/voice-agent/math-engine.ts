@@ -1754,11 +1754,52 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
     }
   }
 
+  if (!prev.includes('=') && !next.includes('=')) {
+    try {
+      const prevValue = coerceFiniteNumber(safeEvaluate(prev))
+      const nextValue = coerceFiniteNumber(safeEvaluate(next))
+      const valuesMatch = isNearlyEqual(prevValue, nextValue)
+      const hasFractionWork = /\d+\/\d+/.test(prev) || /\d+\/\d+/.test(next)
+
+      return {
+        verdict: valuesMatch ? 'valid' : 'invalid',
+        reason: valuesMatch
+          ? `Both expressions have the same value, ${formatNumber(prevValue, 4)}.`
+          : `The value changed from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)}.`,
+        hintTarget: valuesMatch
+          ? 'explain why the value stayed the same'
+          : hasFractionWork
+            ? 'recheck the common denominator or fraction operation'
+            : 'compare the value before and after the step',
+      }
+    } catch {
+      try {
+        const difference = simplify(`(${prev})-(${next})`).toString()
+        if (difference === '0') {
+          return {
+            verdict: 'valid',
+            reason: 'The two expressions simplify to the same form.',
+            hintTarget: 'explain the rule that preserves the expression value',
+          }
+        }
+      } catch {
+        // Fall through to the clearer user-facing message below.
+      }
+
+      return {
+        verdict: 'unclear',
+        reason:
+          'This expression step could not be checked reliably. It may need clearer numbers, variables, or grouping.',
+        hintTarget: 'rewrite each line with clearer math notation',
+      }
+    }
+  }
+
   if (!prev.includes('=') || !next.includes('=')) {
     return {
       verdict: 'unclear',
-      reason: 'Step checking currently supports equation-to-equation comparisons.',
-      hintTarget: 'rewrite each line as a full equation',
+      reason: 'One line is an equation and the other is an expression, so the step needs clearer notation.',
+      hintTarget: 'rewrite both lines as expressions or both lines as full equations',
     }
   }
 
@@ -1776,10 +1817,27 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
       }
     }
   } catch {
+    // Try the linear-solution check below before giving up.
+  }
+
+  try {
+    const prevSolved = mathSolveLinear(prev)
+    const nextSolved = mathSolveLinear(next)
+    if (
+      prevSolved.variable === nextSolved.variable &&
+      isNearlyEqual(prevSolved.solution, nextSolved.solution)
+    ) {
+      return {
+        verdict: 'valid',
+        reason: `Both equations keep the same solution, ${prevSolved.variable} = ${formatNumber(prevSolved.solution, 4)}.`,
+        hintTarget: 'explain which inverse operation preserved the solution',
+      }
+    }
+  } catch {
     return {
       verdict: 'unclear',
-      reason: 'The step could not be checked reliably.',
-      hintTarget: 'rewrite the step with clearer algebra',
+      reason: 'The equation step could not be checked reliably with the current linear checker.',
+      hintTarget: 'rewrite the step with clearer linear algebra',
     }
   }
 
