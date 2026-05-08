@@ -60,6 +60,67 @@ function stringifyResult(result: unknown) {
   return JSON.stringify(result)
 }
 
+function safetyBoundaryCheck(input: {
+  studentRequest: string
+  gradeLevel?: string
+  context?: string
+}) {
+  const request = input.studentRequest.toLowerCase()
+  const hasMathSignal =
+    /-?\d|fraction|decimal|percent|ratio|rate|equation|solve|graph|geometry|area|perimeter|angle|probability|mean|median|data|homework|worksheet|teacher|class/.test(request)
+  const asksForCheating = /\b(cheat|test answers|exam answers|do my test|do my homework for me)\b/.test(request)
+  const asksPersonalInfo = /\b(phone number|address|password|where do you live|meet me|private photo|secret)\b/.test(request)
+  const unsafeWellbeing = /\b(kill myself|hurt myself|self harm|suicide|abuse|violence)\b/.test(request)
+  const clearlyOffTopic =
+    !hasMathSignal && /\b(game|dating|romance|joke|story|politics|medical|diagnose|buy|sell|crypto|stock)\b/.test(request)
+
+  if (unsafeWellbeing) {
+    return {
+      allowed: false,
+      category: 'student_safety',
+      sayThis:
+        'I am here for math, but this sounds important. Please tell a trusted adult right now. If you might be in danger, contact local emergency help.',
+      nextSafeMove: 'Stop math tutoring and encourage the student to get real human help.',
+    }
+  }
+
+  if (asksPersonalInfo) {
+    return {
+      allowed: false,
+      category: 'personal_information',
+      sayThis:
+        'I cannot ask for or share private personal information. We can keep working on the math problem without that.',
+      nextSafeMove: 'Redirect to the math task and avoid collecting personal details.',
+    }
+  }
+
+  if (asksForCheating) {
+    return {
+      allowed: false,
+      category: 'academic_integrity',
+      sayThis:
+        'I cannot do a test or assignment for you, but I can help you understand the idea and practice a similar problem.',
+      nextSafeMove: 'Offer a nearby practice problem or a hint-first explanation.',
+    }
+  }
+
+  if (clearlyOffTopic) {
+    return {
+      allowed: false,
+      category: 'off_topic',
+      sayThis: 'I can help with math here. Send me a problem, a step you tried, or a topic you want to practice.',
+      nextSafeMove: 'Invite a math problem and do not continue the off-topic request.',
+    }
+  }
+
+  return {
+    allowed: true,
+    category: 'math_ok',
+    sayThis: '',
+    nextSafeMove: 'Continue tutoring with hints before answers.',
+  }
+}
+
 async function searchCurriculumFromBrowser(input: {
   query: string
   classroomId?: string
@@ -209,6 +270,36 @@ export function createVoiceAgentTools() {
             query: params.query,
             classroomId: params.classroomId,
             limit: params.limit,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'safety_boundary_check',
+      description:
+        'Classify a student request before responding when it may be off-topic, ask for cheating, request personal information, or raise a safety concern. Use this to keep grade 3 to 7 tutoring math-only and appropriate for minors.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          studentRequest: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          context: { type: 'string' },
+        },
+        required: ['studentRequest', 'gradeLevel', 'context'],
+      },
+      async execute(input) {
+        const params = input as {
+          studentRequest: string
+          gradeLevel?: string
+          context?: string
+        }
+        return stringifyResult(
+          safetyBoundaryCheck({
+            studentRequest: params.studentRequest,
+            gradeLevel: params.gradeLevel,
+            context: params.context,
           })
         )
       },

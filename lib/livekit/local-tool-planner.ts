@@ -57,6 +57,23 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
   const hasSpecificMathAction =
     /\b(graph|plot|parabola|function|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan)\b/.test(lower)
+  const needsSafetyBoundary =
+    /\b(cheat|test answers|exam answers|do my test|phone number|address|password|where do you live|meet me|private photo|secret|kill myself|hurt myself|self harm|suicide|abuse|violence)\b/.test(lower) ||
+    (!hasSpecificMathAction &&
+      !asksForCurriculumContext &&
+      /\b(game|dating|romance|joke|story|politics|medical|diagnose|buy|sell|crypto|stock)\b/.test(lower))
+
+  if (needsSafetyBoundary) {
+    plans.push({
+      toolName: 'safety_boundary_check',
+      input: {
+        studentRequest: prompt.slice(0, 500),
+        gradeLevel,
+        context: 'livekit typed preview',
+      },
+    })
+    return plans
+  }
 
   if (asksForFullSolution) {
     plans.push({
@@ -346,6 +363,14 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'curriculum_search') {
     return 'I checked the class context first. I will use it for vocabulary, examples, and pacing without reading long notes back at you.'
+  }
+
+  if (firstTool === 'safety_boundary_check') {
+    const boundary = outputs.find(
+      (output): output is { sayThis?: string } =>
+        Boolean(output && typeof output === 'object' && 'sayThis' in output)
+    )
+    return boundary?.sayThis || 'I can help with math here. Send me a problem or a step you want to check.'
   }
 
   if (firstTool === 'tutor_teaching_sequence') {

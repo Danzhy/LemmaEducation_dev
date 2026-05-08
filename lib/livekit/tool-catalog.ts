@@ -44,6 +44,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'probability_model',
   'ratio_table',
   'round_number',
+  'safety_boundary_check',
   'slope_triangle',
   'socratic_move_planner',
   'solve_linear_on_canvas',

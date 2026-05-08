@@ -77,6 +77,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes off-topic child prompts to safety boundary',
+    prompt: 'Tell me a dating story instead of math.',
+    expectedTools: ['safety_boundary_check'],
+    inspect: (input) => {
+      assert.equal(input.context, 'livekit typed preview')
+      assert.match(String(input.studentRequest), /dating/)
+    },
+  },
+  {
     name: 'routes algebra solving to canvas equation solver',
     prompt: 'Solve 2x + 3 = 15 but explain the undoing operations.',
     expectedTools: ['solve_linear_on_canvas'],
@@ -120,6 +129,14 @@ assert.match(
     [{ suggestedQuestion: 'What did you try first?' }]
   ),
   /What did you try first/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'off topic',
+    [{ toolName: 'safety_boundary_check', input: {} }],
+    [{ sayThis: 'I can help with math here.' }]
+  ),
+  /math here/
 )
 
 console.log(`LiveKit local planner smoke passed ${cases.length} routing cases.`)
