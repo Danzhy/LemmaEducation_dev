@@ -328,6 +328,28 @@ export function CurriculumDocumentForm({ classrooms }: { classrooms: DashboardCl
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setError(null)
+    if (file.size > 500_000) {
+      setError('Use a text file under 500 KB for now.')
+      return
+    }
+
+    try {
+      const text = await file.text()
+      setSourceText(text)
+      if (!title.trim()) {
+        setTitle(file.name.replace(/\.[^.]+$/, '').slice(0, 120))
+      }
+      setSourceName(file.name.slice(0, 180))
+    } catch {
+      setError('Could not read that file. Paste the text instead.')
+    }
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setMessage(null)
@@ -399,6 +421,17 @@ export function CurriculumDocumentForm({ classrooms }: { classrooms: DashboardCl
         className="w-full rounded-[16px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C]"
         placeholder="Source name (optional)"
       />
+
+      <label className="block rounded-[18px] border border-dashed border-[#B8C8C2] bg-[#F8FBF9] px-4 py-4 text-sm text-[#5C7069]">
+        <span className="block text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Upload text file</span>
+        <span className="mt-2 block">Optional. Supports small `.txt`, `.md`, or copied worksheet text files.</span>
+        <input
+          type="file"
+          accept=".txt,.md,.markdown,.csv,.json,text/plain,text/markdown"
+          onChange={(event) => void handleFileUpload(event)}
+          className="mt-3 block w-full text-sm text-[#14312A] file:mr-4 file:rounded-full file:border-0 file:bg-[#12352F] file:px-4 file:py-2 file:text-sm file:text-[#F2F5F4]"
+        />
+      </label>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <select
