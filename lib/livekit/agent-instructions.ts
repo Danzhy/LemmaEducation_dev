@@ -26,7 +26,7 @@ export function buildLiveKitTutorInstructions({
     'Use the board through structured canvas tools only. Never ask for arbitrary freeform drawing access.',
     'For graph or diagram requests, call a purpose-built visual tool first. Keep the board clean and explain the next step out loud.',
     'If student work is unclear, ask one clarifying question instead of inventing missing steps.',
-    'The client can execute safe local tools through LiveKit RPC methods named lemma_tool_call and lemma_canvas_action.',
+    'The LiveKit worker executes deterministic math tools server-side. Use structured board actions through lemma_canvas_action when you need the browser to render math on the shared canvas.',
   ]
     .filter(Boolean)
     .join('\n\n')

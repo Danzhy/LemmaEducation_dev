@@ -8,6 +8,7 @@ The LiveKit tutor lab is an isolated experiment for a worker-based voice tutor. 
 - Dashboard redirect: `/dashboard/tutor-livekit-lab`
 - Token endpoint: `POST /api/livekit/session`
 - Status endpoint: `GET /api/livekit/status`
+- Typed preview endpoint: `POST /api/livekit/tool-preview`
 - Worker: `workers/livekit-tutor-agent.ts`
 
 ## Architecture
@@ -20,6 +21,8 @@ The LiveKit tutor lab is an isolated experiment for a worker-based voice tutor. 
 6. The worker sends structured board actions back to the browser through LiveKit RPC.
 7. The browser translates only allowed structured actions into tldraw shapes.
 
+When LiveKit variables are missing locally, **Start without mic** uses a typed preview mode instead of creating a room. That path stays signed-in and rate-limited, runs deterministic tools through `/api/livekit/tool-preview`, and renders the same structured board actions. It is for local tool testing, not a replacement for the full voice worker path.
+
 ## Guardrails
 
 - Auth is required before token minting.
@@ -31,6 +34,7 @@ The LiveKit tutor lab is an isolated experiment for a worker-based voice tutor. 
 - The worker has a per-session canvas-action budget.
 - Canvas control is restricted to structured math actions, not arbitrary editor access.
 - Tool telemetry and canvas transport are best-effort so optional UI streams cannot break math tool execution.
+- The typed preview endpoint is authenticated, rate-limited, and restricted to the same allowlisted deterministic tools.
 
 ## Local Setup
 

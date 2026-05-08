@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { getLiveKitServerConfig } from '@/lib/livekit/config'
-import { getLiveKitToolNames } from '@/lib/livekit/tool-runner'
+import { LIVEKIT_TUTOR_TOOL_NAMES } from '@/lib/livekit/tool-catalog'
 
 export async function GET() {
   const userId = await getSessionUserId()
@@ -19,7 +19,7 @@ export async function GET() {
     missing: config.configured ? [] : config.missing,
     agentName: config.agentName,
     model: process.env.OPENAI_LIVEKIT_REALTIME_MODEL || 'gpt-realtime-1.5',
-    toolCount: getLiveKitToolNames().length,
+    toolCount: LIVEKIT_TUTOR_TOOL_NAMES.length,
     workerCommand: 'npm run dev:livekit-agent',
   })
 }

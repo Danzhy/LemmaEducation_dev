@@ -31,12 +31,22 @@ function main() {
     assertExcludes(file, 'OPENAI_API_KEY')
   }
 
+  assertExcludes('hooks/useLiveKitTutor.ts', '@/lib/livekit/tool-runner')
   assertIncludes('app/api/livekit/session/route.ts', 'getSessionUserId()')
   assertIncludes('app/api/livekit/session/route.ts', 'takeTutorApiRateLimit')
   assertIncludes('app/api/livekit/session/route.ts', "ttl: '10m'")
   assertIncludes('app/api/livekit/session/route.ts', 'RoomAgentDispatch')
   assertIncludes('app/api/livekit/session/route.ts', 'canPublishSources')
   assertIncludes('app/api/livekit/session/route.ts', 'canPublishData: true')
+  assertIncludes('app/api/livekit/tool/route.ts', 'getSessionUserId()')
+  assertIncludes('app/api/livekit/tool/route.ts', 'takeTutorApiRateLimit')
+  assertIncludes('app/api/livekit/tool/route.ts', 'getQuotaSnapshot')
+  assertIncludes('app/api/livekit/tool/route.ts', 'LIVEKIT_TUTOR_TOOL_NAMES')
+  assertIncludes('app/api/livekit/tool/route.ts', 'MAX_TOOL_INPUT_BYTES')
+  assertIncludes('app/api/livekit/tool-preview/route.ts', 'getSessionUserId()')
+  assertIncludes('app/api/livekit/tool-preview/route.ts', 'takeTutorApiRateLimit')
+  assertIncludes('app/api/livekit/tool-preview/route.ts', 'LIVEKIT_TUTOR_TOOL_NAMES')
+  assertIncludes('app/api/livekit/tool-preview/route.ts', 'MAX_TOOL_INPUT_BYTES')
   assertIncludes('workers/livekit-tutor-agent.ts', 'AutoSubscribe.AUDIO_ONLY')
   assertIncludes('workers/livekit-tutor-agent.ts', 'maxToolSteps: 6')
   assertIncludes('lib/livekit/worker-tools.ts', 'DEFAULT_MAX_TOOL_CALLS_PER_SESSION')
@@ -47,7 +57,7 @@ function main() {
       {
         ok: true,
         checkedClientFiles: clientFiles.length,
-        checkedServerGuards: 10,
+        checkedServerGuards: 19,
       },
       null,
       2

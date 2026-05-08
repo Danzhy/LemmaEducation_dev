@@ -19,10 +19,12 @@ import {
   decodeLiveKitPayload,
   type LiveKitTutorPayload,
 } from '@/lib/livekit/messages'
-import { getLiveKitToolNames, runLiveKitTutorTool } from '@/lib/livekit/tool-runner'
+import {
+  LIVEKIT_TUTOR_CANVAS_ACTION_NAMES,
+  LIVEKIT_TUTOR_TOOL_NAMES,
+} from '@/lib/livekit/tool-catalog'
 import {
   buildCanvasActionFromPayload,
-  extractCanvasActionsFromToolResult,
   parseJsonSafely,
 } from '@/lib/tutor/canvas-action-parser'
 import type {
@@ -53,6 +55,11 @@ type LiveKitSessionBootstrap = {
 const MAX_TOOL_EVENTS = 100
 const MAX_PENDING_CANVAS_ACTIONS = 180
 const MAX_CANVAS_ACTIONS_PER_RESULT = 80
+
+type LocalToolPlan = {
+  toolName: string
+  input: Record<string, unknown>
+}
 
 function logErrorToServer(source: string, rawError?: string) {
   void fetch('/api/realtime/log-error', {
@@ -96,6 +103,358 @@ function coerceAssistantText(parsed: LiveKitTutorPayload | null, rawText: string
   return rawText
 }
 
+function formatToolNameForStudent(toolName: string) {
+  return toolName.replace(/_/g, ' ')
+}
+
+function extractNumbers(text: string) {
+  return [...text.matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => Number(match[0]))
+}
+
+function extractFractions(text: string) {
+  return [...text.matchAll(/(-?\d+)\s*\/\s*(-?\d+)/g)].map((match) => ({
+    numerator: Number(match[1]),
+    denominator: Number(match[2]),
+  }))
+}
+
+function extractGraphExpression(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const equationMatch = normalized.match(/(?:graph|plot|draw)\s+(?:the\s+)?(?:function\s+)?(?:y\s*=\s*)?([^.,;\n]+?)(?:\s+from|\s+for|\s+and|\s+with|$)/i)
+  const yEqualsMatch = normalized.match(/y\s*=\s*([^.,;\n]+)/i)
+  const rawExpression = (yEqualsMatch?.[1] ?? equationMatch?.[1] ?? '')
+    .split(/\s+(?:from|for|and|with|where|between|over)\b/i)[0]
+    .trim()
+  return rawExpression.replace(/^y\s*=\s*/i, '').replace(/\s+/g, ' ').trim()
+}
+
+function extractGraphDomain(text: string) {
+  const domainMatch = text.match(/x\s*=\s*(-?\d+(?:\.\d+)?)\s*(?:to|through|until|\.{2}|-)\s*(-?\d+(?:\.\d+)?)/i)
+  if (!domainMatch) return null
+  const start = Number(domainMatch[1])
+  const end = Number(domainMatch[2])
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start === end) return null
+  return { start: Math.min(start, end), end: Math.max(start, end) }
+}
+
+function planLocalToolTurn(prompt: string, gradeLevel: string): LocalToolPlan[] {
+  const lower = prompt.toLowerCase()
+  const fractions = extractFractions(prompt)
+  const numbers = extractNumbers(prompt)
+  const plans: LocalToolPlan[] = []
+
+  if (/\b(graph|plot|parabola|function)\b/i.test(prompt)) {
+    const expression = extractGraphExpression(prompt) || 'x'
+    const domain = extractGraphDomain(prompt)
+    plans.push({
+      toolName: 'graph_function',
+      input: {
+        expression,
+        domainStart: domain?.start ?? -5,
+        domainEnd: domain?.end ?? 5,
+        graphType: 'cartesian',
+        title: `Graph of y = ${expression}`,
+        showXIntercepts: /intercept|root|zero/.test(lower),
+        showYIntercept: /intercept|y-axis|where it starts/.test(lower),
+        showVertex: /vertex|parabola|\^2|squared/.test(lower),
+      },
+    })
+    return plans
+  }
+
+  if (/common denominator|denominator/.test(lower) && fractions.length >= 2) {
+    plans.push({
+      toolName: 'common_denominator',
+      input: {
+        leftNumerator: fractions[0].numerator,
+        leftDenominator: fractions[0].denominator,
+        rightNumerator: fractions[1].numerator,
+        rightDenominator: fractions[1].denominator,
+        purpose: /add|subtract|\+|-/.test(lower) ? 'add_subtract' : 'compare',
+      },
+    })
+    return plans
+  }
+
+  if (/compare/.test(lower) && fractions.length >= 2) {
+    plans.push({
+      toolName: 'fraction_compare',
+      input: {
+        leftNumerator: fractions[0].numerator,
+        leftDenominator: fractions[0].denominator,
+        rightNumerator: fractions[1].numerator,
+        rightDenominator: fractions[1].denominator,
+        title: 'Compare the fractions',
+      },
+    })
+    return plans
+  }
+
+  if (/simplify|reduce|equivalent fraction/.test(lower) && fractions.length >= 1) {
+    plans.push({
+      toolName: 'fraction_simplify',
+      input: {
+        numerator: fractions[0].numerator,
+        denominator: fractions[0].denominator,
+      },
+    })
+    return plans
+  }
+
+  if (/percent bar|out of/.test(lower) && numbers.length >= 2) {
+    plans.push({
+      toolName: 'percent_bar',
+      input: {
+        part: numbers[0],
+        total: numbers[1],
+        title: 'Percent bar',
+        label: `${numbers[0]} out of ${numbers[1]}`,
+      },
+    })
+    return plans
+  }
+
+  if (/%\s*of|percent of/.test(lower) && numbers.length >= 2) {
+    plans.push({
+      toolName: 'percent_of_number',
+      input: {
+        percent: numbers[0],
+        whole: numbers[1],
+      },
+    })
+    plans.push({
+      toolName: 'percent_bar',
+      input: {
+        part: numbers[0],
+        total: 100,
+        title: `${numbers[0]}% of ${numbers[1]}`,
+        label: `${numbers[0]}%`,
+      },
+    })
+    return plans
+  }
+
+  if (/decimal|compare/.test(lower) && numbers.length >= 2 && numbers.some((number) => !Number.isInteger(number))) {
+    plans.push({
+      toolName: 'decimal_compare',
+      input: {
+        left: numbers[0],
+        right: numbers[1],
+      },
+    })
+    return plans
+  }
+
+  if (/round/.test(lower) && numbers.length >= 1) {
+    const place = lower.includes('hundredth')
+      ? 'hundredths'
+      : lower.includes('tenth')
+      ? 'tenths'
+      : lower.includes('thousand')
+      ? 'thousands'
+      : lower.includes('hundred')
+      ? 'hundreds'
+      : 'tens'
+    plans.push({
+      toolName: 'round_number',
+      input: {
+        value: numbers[0],
+        place,
+      },
+    })
+    return plans
+  }
+
+  if (/double number line|unit rate|cost|ratio|notebook|recipe|muffin/.test(lower) && numbers.length >= 2) {
+    const quantity = numbers[0]
+    const value = numbers[1]
+    const target = numbers[2]
+    if (/unit rate|cost/.test(lower)) {
+      plans.push({
+        toolName: 'unit_rate',
+        input: {
+          quantity,
+          value,
+          quantityLabel: /notebook/.test(lower) ? 'notebooks' : 'units',
+          valueLabel: /\$|cost/.test(lower) ? 'dollars' : 'value',
+        },
+      })
+    }
+    plans.push({
+      toolName: 'double_number_line',
+      input: {
+        topLabel: /notebook/.test(lower) ? 'notebooks' : 'quantity',
+        bottomLabel: /\$|cost/.test(lower) ? 'cost' : 'value',
+        pairs: [
+          { top: 0, bottom: 0, label: 'start' },
+          { top: quantity, bottom: value, label: 'given' },
+          ...(typeof target === 'number'
+            ? [{ top: target, bottom: (value / quantity) * target, label: 'target' }]
+            : []),
+        ],
+        title: 'Double number line',
+      },
+    })
+    return plans
+  }
+
+  if (/linear|equation|solve|x\s*=|[+-]?\d*x\s*[+-]\s*\d+\s*=/.test(lower) && /x/.test(lower) && /=/.test(prompt)) {
+    const equation = prompt.match(/([+-]?\d*\s*x\s*(?:[+-]\s*\d+)?\s*=\s*-?\d+(?:\.\d+)?)/i)?.[1] ?? prompt
+    plans.push({
+      toolName: 'solve_linear_on_canvas',
+      input: {
+        problem: equation.trim(),
+        maxSteps: 2,
+      },
+    })
+    return plans
+  }
+
+  if (/area|perimeter|rectangle/.test(lower) && numbers.length >= 2) {
+    plans.push({
+      toolName: 'area_perimeter_model',
+      input: {
+        widthUnits: numbers[0],
+        heightUnits: numbers[1],
+        unitLabel: 'units',
+        title: 'Area and perimeter model',
+        showUnitSquares: true,
+      },
+    })
+    return plans
+  }
+
+  if (/word problem|plan|recipe|muffin/.test(lower)) {
+    plans.push({
+      toolName: 'word_problem_plan',
+      input: {
+        problemText: prompt,
+        gradeLevel,
+      },
+    })
+    return plans
+  }
+
+  plans.push({
+    toolName: 'socratic_move_planner',
+    input: {
+      topic: prompt.slice(0, 180),
+      gradeLevel,
+      studentWork: prompt,
+      tutorGoal: 'unstick',
+    },
+  })
+  plans.push({
+    toolName: 'write_on_canvas',
+    input: {
+      title: 'Let us set this up',
+      textLines: ['Tell me what you tried first.', 'Then we can check the step where it got confusing.'],
+      clearExisting: true,
+    },
+  })
+  return plans
+}
+
+function buildLocalAssistantReply(prompt: string, plans: LocalToolPlan[], outputs: unknown[]) {
+  const firstTool = plans[0]?.toolName
+  if (!firstTool) {
+    return 'I am ready. Type a math problem and I will help you reason through it.'
+  }
+
+  if (firstTool === 'graph_function') {
+    return 'I put the graph on the board. Start by reading the key points, then tell me which part you want to reason through first.'
+  }
+
+  if (firstTool === 'solve_linear_on_canvas') {
+    return 'I wrote the next algebra steps on the board. Before going further, check which operation undoes the last change.'
+  }
+
+  if (firstTool === 'percent_bar') {
+    return 'I drew a percent bar so the part and whole are visible. Use the shaded part to explain the percent before jumping to the answer.'
+  }
+
+  if (firstTool === 'double_number_line' || firstTool === 'unit_rate') {
+    return 'I set up the rate visually. Look for the value per 1 unit first, then scale from there.'
+  }
+
+  if (firstTool.includes('fraction') || firstTool === 'common_denominator') {
+    return 'I added a fraction visual or checked fraction step on the board. Focus on the size of the parts before calculating.'
+  }
+
+  const summary = outputs
+    .map((output) => {
+      if (!output || typeof output !== 'object') return null
+      const record = output as Record<string, unknown>
+      if (typeof record.summary === 'string') return record.summary
+      if (typeof record.suggestedQuestion === 'string') return record.suggestedQuestion
+      if (typeof record.reason === 'string') return record.reason
+      return null
+    })
+    .find(Boolean)
+
+  return summary ?? `I used the ${formatToolNameForStudent(firstTool)} tool and put the useful structure on the board. What should we check next?`
+}
+
+async function callServerLiveKitTool(sessionId: string | null, toolName: string, input: unknown) {
+  const response = await fetch(sessionId ? '/api/livekit/tool' : '/api/livekit/tool-preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sessionId ? { sessionId, toolName, input } : { toolName, input }),
+  })
+  const body = (await response.json().catch(() => ({}))) as {
+    ok?: boolean
+    output?: unknown
+    canvasActions?: TutorCanvasAction[]
+    message?: string
+  }
+
+  if (!response.ok || !body.ok) {
+    throw new Error(body.message || 'Tool failed.')
+  }
+
+  return {
+    output: body.output,
+    canvasActions: Array.isArray(body.canvasActions) ? body.canvasActions : [],
+  }
+}
+
+async function startServerTutorSession(options?: TutorConnectOptions) {
+  const startSessionRes = await fetch('/api/tutor/session/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      language: options?.language ?? 'en',
+      gradeLevel: options?.gradeLevel ?? '',
+      modelSnapshot: 'livekit-agent-lab',
+    }),
+  })
+  const startSessionData = await startSessionRes.json().catch(() => ({}))
+  const code = (startSessionData as { code?: string }).code
+
+  if (!startSessionRes.ok) {
+    if (startSessionRes.status === 401 || code === 'UNAUTHORIZED') {
+      throw new Error('Please sign in again.')
+    }
+    if (startSessionRes.status === 403 || code === 'QUOTA_EXCEEDED') {
+      throw new Error('Your tutoring time limit has been reached.')
+    }
+    if (code === 'SESSION_LIMIT_REACHED') {
+      throw new Error('You have used all 4 pilot tutoring sessions.')
+    }
+    if (startSessionRes.status === 429 || code === 'RATE_LIMITED') {
+      throw new Error('Too many session attempts. Please wait a moment and try again.')
+    }
+    throw new Error('Something went wrong. Please try again.')
+  }
+
+  const sessionId = (startSessionData as { sessionId?: string }).sessionId ?? null
+  if (!sessionId) {
+    throw new Error('Something went wrong. Please try again.')
+  }
+
+  return sessionId
+}
+
 export function useLiveKitTutor({
   onError,
 }: UseLiveKitTutorOptions = {}): TutorSessionAdapter {
@@ -125,6 +484,8 @@ export function useLiveKitTutor({
   const mutedRef = useRef(false)
   const agentNameRef = useRef('lemma-livekit-tutor')
   const autoPauseRef = useRef<() => void>(() => {})
+  const localToolModeRef = useRef(false)
+  const gradeLevelRef = useRef('Grade 6')
 
   const clearUsageInterval = useCallback(() => {
     if (usageIntervalRef.current !== null) {
@@ -251,6 +612,7 @@ export function useLiveKitTutor({
       connectedRef.current = false
       pausedRef.current = false
       mutedRef.current = false
+      localToolModeRef.current = false
 
       setCurrentSessionId(null)
       setIsConnected(false)
@@ -340,6 +702,140 @@ export function useLiveKitTutor({
     }
   }, [disconnect, onError, registerLocalActivity])
 
+  const startUsageTicker = useCallback(() => {
+    clearUsageInterval()
+    usageIntervalRef.current = window.setInterval(async () => {
+      const sessionId = sessionIdRef.current
+      if (!sessionId) return
+
+      try {
+        const res = await fetch('/api/tutor/usage/tick', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId }),
+        })
+
+        const data = await res.json().catch(() => ({}))
+        const code = (data as { code?: string }).code
+        if (res.status === 403 && code === 'QUOTA_EXCEEDED') {
+          onError?.('Your tutoring time limit has been reached.', code)
+          disconnect('quota')
+          return
+        }
+        if (res.status === 403 && code === 'SESSION_LIMIT_REACHED') {
+          onError?.('This tutoring session reached its 1 hour limit.', code)
+          disconnect('quota')
+          return
+        }
+        if (res.status === 429 && code === 'RATE_LIMITED') {
+          onError?.('Too many tutor requests. Please wait a moment and try again.', code)
+          return
+        }
+
+        const tickData = data as { paused?: boolean; inactivityPaused?: boolean }
+        if (tickData.paused && tickData.inactivityPaused && !pausedRef.current) {
+          void pause('inactivity', true)
+        }
+      } catch {
+        // Best-effort only.
+      }
+    }, 25000)
+  }, [clearUsageInterval, disconnect, onError, pause])
+
+  const startLocalTypedLabSession = useCallback(
+    async (options?: TutorConnectOptions) => {
+      gradeLevelRef.current = options?.gradeLevel || gradeLevelRef.current
+      sessionIdRef.current = null
+      localToolModeRef.current = true
+      connectedRef.current = true
+      pausedRef.current = false
+      mutedRef.current = true
+
+      setCurrentSessionId(null)
+      setSupportsLiveMic(false)
+      setConnectionMode('typed')
+      setIsMuted(true)
+      setIsSpeakerMuted(false)
+      setIsConnected(true)
+      setIsPaused(false)
+      setLastPauseReason(null)
+      setState('listening')
+      setChatHistory([
+        {
+          role: 'assistant',
+          content:
+            'Typed LiveKit lab is ready locally. Ask for a graph, fraction visual, percent bar, ratio line, area model, or algebra step and I will use the same guarded math tools.',
+          source: 'assistant',
+        },
+      ])
+
+      registerLocalActivity(false)
+      appendToolEvent({
+        type: 'tool_completed',
+        toolName: 'livekit_local_tool_mode',
+        output: {
+          mode: 'typed',
+          reason: 'LiveKit room not configured locally. Deterministic preview tools are active.',
+        },
+      })
+    },
+    [appendToolEvent, registerLocalActivity]
+  )
+
+  const runLocalToolTurn = useCallback(
+    async (text: string) => {
+      setState('thinking')
+      setTranscript('Choosing the right math tool...')
+      const plans = planLocalToolTurn(text, gradeLevelRef.current)
+      const outputs: unknown[] = []
+
+      try {
+        for (const plan of plans.slice(0, 3)) {
+          const callId = crypto.randomUUID()
+          appendToolEvent({
+            type: 'tool_started',
+            toolName: plan.toolName,
+            input: plan.input,
+            metadata: { callId, source: 'local-typed-lab' },
+          })
+
+          const result = await callServerLiveKitTool(sessionIdRef.current, plan.toolName, plan.input)
+          outputs.push(result.output)
+          appendToolEvent({
+            type: 'tool_completed',
+            toolName: plan.toolName,
+            input: plan.input,
+            output: result.output,
+            metadata: { callId, source: 'local-typed-lab' },
+          })
+          queueCanvasActions(result.canvasActions.slice(0, MAX_CANVAS_ACTIONS_PER_RESULT), plan.toolName)
+        }
+
+        const reply = buildLocalAssistantReply(text, plans, outputs)
+        setState('speaking')
+        setTranscript(reply)
+        window.setTimeout(() => {
+          setChatHistory((prev) => [...prev, { role: 'assistant', content: reply, source: 'assistant' }])
+          setTranscript('')
+          if (!pausedRef.current) setState('listening')
+        }, 350)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Tool failed.'
+        appendToolEvent({
+          type: 'tool_failed',
+          toolName: plans[0]?.toolName ?? 'local_tool_turn',
+          input: { text },
+          output: message,
+          metadata: { source: 'local-typed-lab' },
+        })
+        setTranscript('')
+        setState('listening')
+        onError?.('That tool did not run cleanly. Try a simpler prompt or different visual.', message)
+      }
+    },
+    [appendToolEvent, onError, queueCanvasActions]
+  )
+
   autoPauseRef.current = () => {
     void pause('inactivity')
   }
@@ -364,23 +860,19 @@ export function useLiveKitTutor({
         })
 
         try {
-          const output = await runLiveKitTutorTool(toolName, input)
+          const result = await callServerLiveKitTool(sessionIdRef.current, toolName, input)
           appendToolEvent({
             type: 'tool_completed',
             toolName,
             input,
-            output,
+            output: result.output,
             metadata: { callId, source: 'livekit-rpc' },
           })
 
-          const actions = extractCanvasActionsFromToolResult(
-            toolName,
-            output,
-            MAX_CANVAS_ACTIONS_PER_RESULT
-          )
+          const actions = result.canvasActions.slice(0, MAX_CANVAS_ACTIONS_PER_RESULT)
           queueCanvasActions(actions, toolName)
 
-          return JSON.stringify({ ok: true, output, canvasActions: actions })
+          return JSON.stringify({ ok: true, output: result.output, canvasActions: actions })
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Tool failed.'
           appendToolEvent({
@@ -419,19 +911,8 @@ export function useLiveKitTutor({
           sessionId: sessionIdRef.current,
           connected: connectedRef.current,
           paused: pausedRef.current,
-          availableTools: getLiveKitToolNames(),
-          canvasActions: [
-            'clear_tool_layer',
-            'focus_region',
-            'place_text_label',
-            'place_math_block',
-            'place_point',
-            'draw_line_segment',
-            'draw_axes',
-            'draw_rectangle',
-            'plot_polyline',
-            'highlight_region',
-          ],
+          availableTools: LIVEKIT_TUTOR_TOOL_NAMES,
+          canvasActions: LIVEKIT_TUTOR_CANVAS_ACTION_NAMES,
         })
       )
 
@@ -536,6 +1017,8 @@ export function useLiveKitTutor({
         setToolEvents([])
         setPendingCanvasActions([])
         setState('thinking')
+        gradeLevelRef.current = options?.gradeLevel || 'Grade 6'
+        const audioMode = options?.audioMode === 'silent' ? 'silent' : 'microphone'
 
         const statusRes = await fetch('/api/livekit/status')
         const status = await statusRes.json().catch(() => ({}))
@@ -549,6 +1032,10 @@ export function useLiveKitTutor({
             typeof (status as { workerCommand?: unknown }).workerCommand === 'string'
               ? (status as { workerCommand: string }).workerCommand
               : 'npm run dev:livekit-agent'
+          if (audioMode === 'silent') {
+            await startLocalTypedLabSession(options)
+            return
+          }
           throw new Error(
             missing
               ? `LiveKit lab is not configured yet. Missing: ${missing}. Then start the worker with ${workerCommand}.`
@@ -556,7 +1043,6 @@ export function useLiveKitTutor({
           )
         }
 
-        const audioMode = options?.audioMode === 'silent' ? 'silent' : 'microphone'
         let localAudioTrack: LocalAudioTrack | null = null
 
         if (audioMode === 'microphone') {
@@ -573,39 +1059,9 @@ export function useLiveKitTutor({
           mutedRef.current = true
         }
 
-        const startSessionRes = await fetch('/api/tutor/session/start', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            language: options?.language ?? 'en',
-            gradeLevel: options?.gradeLevel ?? '',
-            modelSnapshot: 'livekit-agent-lab',
-          }),
-        })
-        const startSessionData = await startSessionRes.json().catch(() => ({}))
-        if (!startSessionRes.ok) {
-          const code = (startSessionData as { code?: string }).code
-          if (startSessionRes.status === 401 || code === 'UNAUTHORIZED') {
-            throw new Error('Please sign in again.')
-          }
-          if (startSessionRes.status === 403 || code === 'QUOTA_EXCEEDED') {
-            throw new Error('Your tutoring time limit has been reached.')
-          }
-          if (code === 'SESSION_LIMIT_REACHED') {
-            throw new Error('You have used all 4 pilot tutoring sessions.')
-          }
-          if (startSessionRes.status === 429 || code === 'RATE_LIMITED') {
-            throw new Error('Too many session attempts. Please wait a moment and try again.')
-          }
-          throw new Error('Something went wrong. Please try again.')
-        }
-
-        startedSessionId = (startSessionData as { sessionId?: string }).sessionId ?? null
+        startedSessionId = await startServerTutorSession(options)
         sessionIdRef.current = startedSessionId
         setCurrentSessionId(startedSessionId)
-        if (!startedSessionId) {
-          throw new Error('Something went wrong. Please try again.')
-        }
 
         const liveKitRes = await fetch('/api/livekit/session', {
           method: 'POST',
@@ -669,43 +1125,7 @@ export function useLiveKitTutor({
           },
         })
 
-        clearUsageInterval()
-        usageIntervalRef.current = window.setInterval(async () => {
-          const sessionId = sessionIdRef.current
-          if (!sessionId) return
-
-          try {
-            const res = await fetch('/api/tutor/usage/tick', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sessionId }),
-            })
-
-            const data = await res.json().catch(() => ({}))
-            const code = (data as { code?: string }).code
-            if (res.status === 403 && code === 'QUOTA_EXCEEDED') {
-              onError?.('Your tutoring time limit has been reached.', code)
-              disconnect('quota')
-              return
-            }
-            if (res.status === 403 && code === 'SESSION_LIMIT_REACHED') {
-              onError?.('This tutoring session reached its 1 hour limit.', code)
-              disconnect('quota')
-              return
-            }
-            if (res.status === 429 && code === 'RATE_LIMITED') {
-              onError?.('Too many tutor requests. Please wait a moment and try again.', code)
-              return
-            }
-
-            const tickData = data as { paused?: boolean; inactivityPaused?: boolean }
-            if (tickData.paused && tickData.inactivityPaused && !pausedRef.current) {
-              void pause('inactivity', true)
-            }
-          } catch {
-            // Best-effort only.
-          }
-        }, 25000)
+        startUsageTicker()
       } catch (err) {
         const rawMsg = err instanceof Error ? err.message : String(err)
         const isMicPermissionError =
@@ -740,12 +1160,12 @@ export function useLiveKitTutor({
     },
     [
       appendToolEvent,
-      clearUsageInterval,
       disconnect,
       onError,
-      pause,
       registerLocalActivity,
       registerRoomHandlers,
+      startLocalTypedLabSession,
+      startUsageTicker,
     ]
   )
 
@@ -764,11 +1184,18 @@ export function useLiveKitTutor({
 
   const sendText = useCallback(
     (text: string) => {
-      if (pausedRef.current || !roomRef.current || !text.trim()) return
+      if (pausedRef.current || !text.trim()) return
       registerLocalActivity(true)
       const message: TutorChatMessage = { role: 'user', content: text, source: 'text' }
       setChatHistory((prev) => [...prev, message])
       setCurrentUserTranscript('')
+
+      if (localToolModeRef.current) {
+        void runLocalToolTurn(text)
+        return
+      }
+
+      if (!roomRef.current) return
       setState('thinking')
       void publishUserPayload(LIVEKIT_TOPICS.userText, {
         type: 'user_text',
@@ -777,14 +1204,29 @@ export function useLiveKitTutor({
         createdAt: Date.now(),
       })
     },
-    [publishUserPayload, registerLocalActivity]
+    [publishUserPayload, registerLocalActivity, runLocalToolTurn]
   )
 
   const sendImage = useCallback(
     (base64Data: string, mimeType: string) => {
-      if (pausedRef.current || !roomRef.current) return
+      if (pausedRef.current) return
       registerLocalActivity(true)
       setChatHistory((prev) => [...prev, { role: 'user', content: '[Sent an image]', source: 'image_only' }])
+
+      if (localToolModeRef.current) {
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              'Image uploads need the full LiveKit voice room. In local typed mode, describe the problem or ask for a specific visual and I can still use the math tools.',
+            source: 'assistant',
+          },
+        ])
+        return
+      }
+
+      if (!roomRef.current) return
       setState('thinking')
       void publishUserPayload(LIVEKIT_TOPICS.userImage, {
         type: 'user_image',
@@ -799,12 +1241,29 @@ export function useLiveKitTutor({
 
   const sendTextWithImage = useCallback(
     (text: string, base64Data: string, mimeType: string) => {
-      if (pausedRef.current || !roomRef.current) return
+      if (pausedRef.current) return
       registerLocalActivity(true)
       setChatHistory((prev) => [
         ...prev,
         { role: 'user', content: text || '[Sent an image]', source: 'text_with_image' },
       ])
+
+      if (localToolModeRef.current) {
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: text.trim()
+              ? 'I can use your typed description in local mode, but the uploaded image needs the full LiveKit voice room. I will work from the text you gave me.'
+              : 'Image uploads need the full LiveKit voice room. Type the math problem here and I can use the local tool lab.',
+            source: 'assistant',
+          },
+        ])
+        if (text.trim()) void runLocalToolTurn(text)
+        return
+      }
+
+      if (!roomRef.current) return
       setState('thinking')
       void publishUserPayload(LIVEKIT_TOPICS.userImage, {
         type: 'user_image',
@@ -815,12 +1274,12 @@ export function useLiveKitTutor({
         createdAt: Date.now(),
       })
     },
-    [publishUserPayload, registerLocalActivity]
+    [publishUserPayload, registerLocalActivity, runLocalToolTurn]
   )
 
   const sendCanvasImage = useCallback(
     (base64: string, mimeType: string = 'image/jpeg') => {
-      if (pausedRef.current || !roomRef.current) return
+      if (pausedRef.current || localToolModeRef.current || !roomRef.current) return
       registerLocalActivity(false)
       void publishUserPayload(LIVEKIT_TOPICS.canvasContext, {
         type: 'canvas_context',
