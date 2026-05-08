@@ -176,6 +176,14 @@ export type NextStepCoachResult = {
   avoid: string[]
 }
 
+export type AnswerDisclosureGateResult = {
+  decision: 'hint_only' | 'next_step_only' | 'solution_allowed'
+  reason: string
+  sayThis: string
+  allowedDetail: string
+  requiredPause: boolean
+}
+
 export type BoardAnimationPlanResult = {
   title: string
   renderer: 'tldraw_step_reveal' | 'manim_offline_candidate'

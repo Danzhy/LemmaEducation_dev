@@ -2,6 +2,7 @@ import { tool, type Tool } from '@openai/agents'
 import {
   annotateGraphFeatures,
   angleDiagramScene,
+  answerDisclosureGate,
   areaPerimeterModelScene,
   arrayModelScene,
   barModelScene,
@@ -608,6 +609,48 @@ export function createVoiceAgentTools() {
             problem: params.problem,
             maxSteps: params.maxSteps,
             stopBeforeFinal: params.stopBeforeFinal,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'answer_disclosure_gate',
+      description:
+        'Decide whether the tutor should give only a hint, show only the next step, or allow a concise full solution. Use before revealing answers, especially for grades 3 to 7.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          studentRequest: { type: 'string' },
+          hasStudentAttempt: { type: 'boolean' },
+          attemptCount: { type: 'number' },
+          isCheckingAnswer: { type: 'boolean' },
+          askedForFullSolution: { type: 'boolean' },
+        },
+        required: [
+          'studentRequest',
+          'hasStudentAttempt',
+          'attemptCount',
+          'isCheckingAnswer',
+          'askedForFullSolution',
+        ],
+      },
+      async execute(input) {
+        const params = input as {
+          studentRequest: string
+          hasStudentAttempt: boolean
+          attemptCount: number
+          isCheckingAnswer: boolean
+          askedForFullSolution: boolean
+        }
+        return stringifyResult(
+          answerDisclosureGate({
+            studentRequest: params.studentRequest,
+            hasStudentAttempt: params.hasStudentAttempt,
+            attemptCount: params.attemptCount,
+            isCheckingAnswer: params.isCheckingAnswer,
+            askedForFullSolution: params.askedForFullSolution,
           })
         )
       },

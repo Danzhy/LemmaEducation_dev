@@ -1,5 +1,6 @@
 import { evaluate, simplify } from 'mathjs'
 import type {
+  AnswerDisclosureGateResult,
   GraphAnnotationResult,
   GraphFeatureCoordinates,
   GraphFeaturePoint,
@@ -5524,6 +5525,49 @@ export function nextStepCoach(input: {
       'Do not start with a formula unless the student already named the relationship.',
       'Do not fill the board with every step at once.',
     ],
+  }
+}
+
+export function answerDisclosureGate(input: {
+  studentRequest: string
+  hasStudentAttempt?: boolean
+  attemptCount?: number
+  isCheckingAnswer?: boolean
+  askedForFullSolution?: boolean
+}): AnswerDisclosureGateResult {
+  const request = input.studentRequest.trim().toLowerCase()
+  const attemptCount = Math.max(0, Math.floor(input.attemptCount ?? 0))
+  const hasStudentAttempt = Boolean(input.hasStudentAttempt) || attemptCount > 0
+  const askedForFullSolution =
+    Boolean(input.askedForFullSolution) ||
+    /\b(answer|solve it|full solution|show me the solution|just tell me)\b/.test(request)
+
+  if (askedForFullSolution && (hasStudentAttempt || input.isCheckingAnswer)) {
+    return {
+      decision: 'solution_allowed',
+      reason: 'The student explicitly asked for the full solution after making or checking an attempt.',
+      sayThis: 'I can show the solution, but I will still name the reasoning behind each step.',
+      allowedDetail: 'A concise full solution with the key reason for each step.',
+      requiredPause: false,
+    }
+  }
+
+  if (hasStudentAttempt || input.isCheckingAnswer) {
+    return {
+      decision: 'next_step_only',
+      reason: 'The student has attempted the problem, so the tutor can reveal the next useful step without finishing everything.',
+      sayThis: 'I will show the next step only, then I want you to explain why it works.',
+      allowedDetail: 'One checked step, one hint, or one board mark.',
+      requiredPause: true,
+    }
+  }
+
+  return {
+    decision: 'hint_only',
+    reason: 'The student has not made an attempt yet, so preserve productive struggle.',
+    sayThis: 'I will start with a hint so you still get to do the thinking.',
+    allowedDetail: 'A question, setup, or visual model without the final answer.',
+    requiredPause: true,
   }
 }
 

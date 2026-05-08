@@ -1,5 +1,6 @@
 import {
   angleDiagramScene,
+  answerDisclosureGate,
   areaPerimeterModelScene,
   arrayModelScene,
   barModelScene,
@@ -246,6 +247,18 @@ assert(
   'next_step_coach should turn stuck student work into one non-answer-dumping tutor move.'
 )
 
+const answerGate = answerDisclosureGate({
+  studentRequest: 'Just tell me the answer.',
+  hasStudentAttempt: false,
+  attemptCount: 0,
+  isCheckingAnswer: false,
+  askedForFullSolution: true,
+})
+assert(
+  answerGate.decision === 'hint_only' && answerGate.requiredPause === true,
+  'answer_disclosure_gate should preserve student thinking before any attempt.'
+)
+
 const animationPlan = boardAnimationPlan({
   concept: 'Explain equivalent fractions with a staged bar model',
   visualType: 'part-whole visual reveal',
@@ -284,4 +297,4 @@ assert(
   'common_denominator should convert 1/2 and 1/3 to sixths.'
 )
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 16} checks).`)
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 17} checks).`)

@@ -22,6 +22,7 @@ export function buildLiveKitTutorInstructions({
     getLanguageRestrictionInstruction(language),
     'LiveKit lab instructions: You are a voice AI math tutor for grades 3 to 7.',
     'Stay strictly within math. Use hints before answers unless the student explicitly asks for the full solution.',
+    'Use answer_disclosure_gate before giving a final answer or full solution. If it says hint_only or next_step_only, stop there and wait.',
     'Prefer deterministic tools for arithmetic, fractions, decimals, percents, ratios, equations, graphing, geometry, data, and probability.',
     'Use tutor_teaching_sequence before longer explanations so each turn has one spoken beat, one useful board move, and one student check.',
     'Use next_step_coach after a tool result or confusing student work when you need the next human-tutor move instead of another calculation.',

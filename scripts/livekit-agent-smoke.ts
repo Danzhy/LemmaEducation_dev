@@ -20,6 +20,7 @@ async function main() {
     'math_check_step',
     'math_solve_linear',
     'tutor_teaching_sequence',
+    'answer_disclosure_gate',
     'next_step_coach',
     'board_animation_plan',
     'hint_ladder',
@@ -80,6 +81,16 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-next-step-coach' }
   )
+  const answerGate = await tools.answer_disclosure_gate.execute(
+    {
+      studentRequest: 'Just give me the answer.',
+      hasStudentAttempt: false,
+      attemptCount: 0,
+      isCheckingAnswer: false,
+      askedForFullSolution: true,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-answer-disclosure-gate' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -103,6 +114,10 @@ async function main() {
 
   if (!JSON.stringify(coachedMove).includes('askNext')) {
     throw new Error('next_step_coach did not return the next tutor move.')
+  }
+
+  if (!JSON.stringify(answerGate).includes('hint_only')) {
+    throw new Error('answer_disclosure_gate did not preserve productive struggle before an attempt.')
   }
 
   const started = events.filter((event) => event.type === 'tool_started').length
