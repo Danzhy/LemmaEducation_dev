@@ -3,7 +3,11 @@ import type { JSONSchema7 } from 'json-schema'
 import { LIVEKIT_TOPICS, type LiveKitTutorPayload } from '@/lib/livekit/messages'
 import { extractCanvasActionsFromToolResult } from '@/lib/tutor/canvas-action-parser'
 import type { TutorCanvasAction, TutorToolEvent } from '@/lib/tutor/session-adapter'
-import { getLiveKitToolDefinitions, runLiveKitTutorToolWithMetrics } from '@/lib/livekit/tool-runner'
+import {
+  getLiveKitToolDefinitions,
+  runLiveKitTutorToolWithMetrics,
+  type LiveKitToolRunContext,
+} from '@/lib/livekit/tool-runner'
 
 const MAX_TOOL_RESULT_BYTES = 24_000
 const DEFAULT_MAX_TOOL_CALLS_PER_SESSION = 96
@@ -25,6 +29,8 @@ export type LiveKitWorkerToolEnvironment = {
   dispatchCanvasActions?: (actions: TutorCanvasAction[], toolName: string) => Promise<void>
   maxToolCallsPerSession?: number
   maxCanvasActionsPerSession?: number
+  userId?: string | null
+  sessionId?: string | null
 }
 
 function jsonByteLength(value: unknown) {
@@ -120,7 +126,11 @@ export function createLiveKitTutorToolContext(env: LiveKitWorkerToolEnvironment 
         })
 
         try {
-          const { output, metrics } = await runLiveKitTutorToolWithMetrics(toolName, input)
+          const runContext: LiveKitToolRunContext = {
+            userId: env.userId,
+            sessionId: env.sessionId,
+          }
+          const { output, metrics } = await runLiveKitTutorToolWithMetrics(toolName, input, runContext)
           const modelOutput = compactToolResultForModel(output)
           const remainingCanvasActions = Math.max(0, maxCanvasActions - canvasActionsDispatched)
           const actions = extractCanvasActionsFromToolResult(toolName, output).slice(0, Math.min(40, remainingCanvasActions))

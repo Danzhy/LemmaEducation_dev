@@ -15,6 +15,7 @@ type ToolLike = {
 
 const REQUIRED_TOOL_NAMES = [
   'curriculum_coach',
+  'curriculum_search',
   'socratic_move_planner',
   'tutor_teaching_sequence',
   'answer_disclosure_gate',

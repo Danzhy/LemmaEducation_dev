@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { output, metrics } = await runLiveKitTutorToolWithMetrics(toolName, body?.input ?? {})
+    const { output, metrics } = await runLiveKitTutorToolWithMetrics(toolName, body?.input ?? {}, { userId })
     const canvasActions = extractCanvasActionsFromToolResult(toolName, output, 80)
 
     return jsonResponse({

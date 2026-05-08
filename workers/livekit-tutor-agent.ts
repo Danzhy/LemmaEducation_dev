@@ -6,6 +6,8 @@ import type { RemoteParticipant } from '@livekit/rtc-node'
 import { getRequiredInstructionEnv } from '@/lib/tutor/tutor-env'
 import { buildLiveKitTutorInstructions } from '@/lib/livekit/agent-instructions'
 import { getLiveKitServerConfig } from '@/lib/livekit/config'
+import { getLabTutorCurriculumContextForUser } from '@/lib/curriculum/context'
+import { getCurriculumSearchUserId } from '@/lib/curriculum/search'
 import {
   createLiveKitTutorToolContext,
   LIVEKIT_TOPICS,
@@ -60,14 +62,18 @@ function parseMetadata(ctx: JobContext) {
   }
 }
 
-function buildWorkerInstructions(ctx: JobContext) {
+async function buildWorkerInstructions(ctx: JobContext) {
   const metadata = parseMetadata(ctx)
   const baseInstructions =
     getRequiredInstructionEnv(process.env.OPENAI_SOCRATIC_TUTOR_INSTRUCTIONS) ??
     'You are Lemma, a careful Socratic math tutor for students in grades 3 to 7. Help students reason step by step.'
+  const userId = await getCurriculumSearchUserId({ sessionId: metadata.sessionId }).catch(() => null)
+  const curriculumContext = userId
+    ? await getLabTutorCurriculumContextForUser(userId).catch(() => '')
+    : ''
 
   return buildLiveKitTutorInstructions({
-    baseInstructions,
+    baseInstructions: [baseInstructions, curriculumContext].filter(Boolean).join('\n\n'),
     gradeLevel: metadata.gradeLevel,
     language: metadata.language,
   })
@@ -150,8 +156,10 @@ export default defineAgent({
     await ctx.connect(undefined, AutoSubscribe.AUDIO_ONLY)
     const student = await ctx.waitForParticipant()
 
-    const instructions = buildWorkerInstructions(ctx)
+    const instructions = await buildWorkerInstructions(ctx)
+    const metadata = parseMetadata(ctx)
     const tools = createLiveKitTutorToolContext({
+      sessionId: metadata.sessionId,
       sendToolEvent: async (event) => {
         await sendTextToStudent(ctx, student, LIVEKIT_TOPICS.toolEvent, JSON.parse(serializeLiveKitWorkerToolEvent(event)))
       },

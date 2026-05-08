@@ -14,6 +14,7 @@ Lemma is an educational platform that captures the complete picture of a student
 - **Role-Based Access** - Separate student, teacher, and parent dashboards with scoped visibility
 - **Voice Agent Lab** - Hidden `/tutor-agent-lab` route for testing a tool-enabled realtime tutor
 - **LiveKit Tutor Lab** - Hidden `/tutor-livekit-lab` route for testing a worker-based voice tutor
+- **Curriculum RAG Lab** - Teacher-uploaded curriculum context and custom tutor profiles for hidden agent labs
 
 ## Pilot Readiness
 
@@ -30,6 +31,23 @@ The dev app now includes the core guardrails needed for a limited pilot with rea
 - **Server-backed tutor API rate limits** to reduce abuse and accidental spend
 - **Tool activity logging** so experimental agent tool calls can be reviewed alongside saved sessions
 
+## Curriculum RAG Lab
+
+The dev labs can now read teacher-provided curriculum context without changing the stable tutor page. Teachers can upload lesson text through `POST /api/curriculum/documents`, create custom lab tutor profiles through `POST /api/tutor/agent-profiles`, and the hidden agent labs can use `curriculum_search` before answering class-specific questions. Apply `migrations/007_curriculum_rag_and_agent_profiles.sql` to enable the pgvector-backed tables.
+
+Required for embeddings:
+
+```bash
+OPENAI_API_KEY=...
+OPENAI_CURRICULUM_EMBEDDING_MODEL=text-embedding-3-small
+```
+
+Run the local helper check with:
+
+```bash
+npm run test:curriculum-rag
+```
+
 ## Voice Agent Lab
 
 The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched while testing a tool-enabled realtime tutor. The lab currently includes:
@@ -38,6 +56,7 @@ The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched whi
 - Structured canvas actions for graphs, fraction models, number lines, ratios, percents, geometry, data, and short board notes
 - Deterministic math tools for calculation checks, linear equations, fraction simplification, common denominators, percent-of-number, unit rates, rounding, and decimal comparison
 - Tutoring planner tools for word problems, misconceptions, curriculum moves, Socratic next steps, and targeted practice
+- Curriculum search for teacher-uploaded notes and custom class instructions
 - A lab-only tool trace and recipe chips for fast local QA
 
 Run the voice-agent checks with:

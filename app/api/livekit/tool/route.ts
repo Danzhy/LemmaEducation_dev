@@ -124,7 +124,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { output, metrics } = await runLiveKitTutorToolWithMetrics(toolName, input)
+    const { output, metrics } = await runLiveKitTutorToolWithMetrics(toolName, input, { userId, sessionId })
     const canvasActions = extractCanvasActionsFromToolResult(
       toolName,
       output,

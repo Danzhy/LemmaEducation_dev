@@ -60,6 +60,28 @@ function stringifyResult(result: unknown) {
   return JSON.stringify(result)
 }
 
+async function searchCurriculumFromBrowser(input: {
+  query: string
+  classroomId?: string
+  limit?: number
+}) {
+  if (typeof window === 'undefined') {
+    throw new Error('Curriculum search must run through the server-owned LiveKit tool runner outside the browser.')
+  }
+
+  const response = await fetch('/api/curriculum/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const message = typeof body?.message === 'string' ? body.message : 'Could not search curriculum context.'
+    throw new Error(message)
+  }
+  return body
+}
+
 const STRUCTURED_CANVAS_ACTIONS = new Set([
   'clear_tool_layer',
   'place_text_label',
@@ -148,6 +170,45 @@ export function createVoiceAgentTools() {
             topic: params.topic,
             studentGoal: params.studentGoal,
             studentWork: params.studentWork,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'curriculum_search',
+      description:
+        'Search teacher-uploaded curriculum notes, lesson text, and custom classroom instructions before answering curriculum-specific questions. Use this when the student asks about uploaded material, homework wording, class vocabulary, or what their teacher expects.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          query: {
+            type: 'string',
+            description: 'A concise math topic, lesson phrase, homework question, or curriculum lookup query.',
+          },
+          classroomId: {
+            type: 'string',
+            description: 'Optional classroom id if the lab session is scoped to one class.',
+          },
+          limit: {
+            type: 'number',
+            description: 'Optional result count. Keep this small.',
+          },
+        },
+        required: ['query', 'classroomId', 'limit'],
+      },
+      async execute(input) {
+        const params = input as {
+          query: string
+          classroomId?: string
+          limit?: number
+        }
+        return stringifyResult(
+          await searchCurriculumFromBrowser({
+            query: params.query,
+            classroomId: params.classroomId,
+            limit: params.limit,
           })
         )
       },

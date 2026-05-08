@@ -23,6 +23,7 @@
     "test:canvas-reveal": "tsx scripts/canvas-action-reveal-smoke.ts",
     "test:realtime-model-policy": "tsx scripts/realtime-model-policy-smoke.ts",
     "test:tutor-strategies": "tsx scripts/tutor-strategy-eval.ts",
+    "test:curriculum-rag": "tsx scripts/curriculum-rag-smoke.ts",
     "test:tutor-human-experience": "tsx scripts/tutor-human-experience-regression.ts"
   },
   "overrides": {

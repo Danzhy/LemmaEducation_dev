@@ -15,6 +15,7 @@ import {
 } from '@/lib/livekit/config'
 import { buildLiveKitTutorInstructions } from '@/lib/livekit/agent-instructions'
 import { resolveOpenAIRealtimeModel } from '@/lib/tutor/realtime-model-policy'
+import { getLabTutorCurriculumContextForUser } from '@/lib/curriculum/context'
 
 function parseString(value: unknown, maxLength: number) {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, maxLength) : ''
@@ -175,7 +176,15 @@ export async function POST(request: Request) {
 
   const roomName = buildLiveKitRoomName(sessionId)
   const identity = buildLiveKitStudentIdentity(userId, sessionId)
-  const instructions = buildLiveKitTutorInstructions({ baseInstructions, gradeLevel, language })
+  const curriculumContext = await getLabTutorCurriculumContextForUser(userId).catch((error) => {
+    console.error('[livekit/session] curriculum context', error)
+    return ''
+  })
+  const instructions = buildLiveKitTutorInstructions({
+    baseInstructions: [baseInstructions, curriculumContext].filter(Boolean).join('\n\n'),
+    gradeLevel,
+    language,
+  })
   const realtimeModelConfig = resolveOpenAIRealtimeModel(process.env.OPENAI_LIVEKIT_REALTIME_MODEL)
   const metadata = JSON.stringify({
     product: 'lemma',
