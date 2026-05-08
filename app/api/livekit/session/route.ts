@@ -14,6 +14,7 @@ import {
   getLiveKitServerConfig,
 } from '@/lib/livekit/config'
 import { buildLiveKitTutorInstructions } from '@/lib/livekit/agent-instructions'
+import { resolveOpenAIRealtimeModel } from '@/lib/tutor/realtime-model-policy'
 
 function parseString(value: unknown, maxLength: number) {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, maxLength) : ''
@@ -175,6 +176,7 @@ export async function POST(request: Request) {
   const roomName = buildLiveKitRoomName(sessionId)
   const identity = buildLiveKitStudentIdentity(userId, sessionId)
   const instructions = buildLiveKitTutorInstructions({ baseInstructions, gradeLevel, language })
+  const realtimeModelConfig = resolveOpenAIRealtimeModel(process.env.OPENAI_LIVEKIT_REALTIME_MODEL)
   const metadata = JSON.stringify({
     product: 'lemma',
     lab: 'livekit-agent',
@@ -184,6 +186,8 @@ export async function POST(request: Request) {
     audioMode,
     toolRpc: 'lemma_tool_call',
     canvasRpc: 'lemma_canvas_action',
+    realtimeModel: realtimeModelConfig.id,
+    realtimeModelProfile: realtimeModelConfig.role,
   })
 
   try {
@@ -224,6 +228,8 @@ export async function POST(request: Request) {
       roomName,
       identity,
       agentName: config.agentName,
+      realtimeModel: realtimeModelConfig.id,
+      realtimeModelProfile: realtimeModelConfig.role,
       instructions,
       expiresInSeconds: 600,
     })

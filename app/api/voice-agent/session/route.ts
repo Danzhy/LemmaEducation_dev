@@ -6,6 +6,7 @@ import { getSessionUserId } from '@/lib/tutor/session-user'
 import { finalizeSessionById, getQuotaSnapshot, pauseSessionById } from '@/lib/tutor/quota'
 import { TUTOR_INACTIVITY_PAUSE_SECONDS } from '@/lib/tutor/constants'
 import { createTutorDbTimeout } from '@/lib/tutor/db-timeout'
+import { resolveOpenAIRealtimeModel } from '@/lib/tutor/realtime-model-policy'
 
 function getRequiredEnv(value: string | undefined) {
   const normalized = value?.trim()
@@ -173,8 +174,8 @@ export async function POST(request: Request) {
     dbTimeout.clear()
   }
 
-  const realtimeModel =
-    getRequiredEnv(process.env.OPENAI_VOICE_AGENT_MODEL) || 'gpt-realtime-1.5'
+  const realtimeModelConfig = resolveOpenAIRealtimeModel(process.env.OPENAI_VOICE_AGENT_MODEL)
+  const realtimeModel = realtimeModelConfig.id
   const baseInstructions = getRequiredInstructionEnv(
     process.env.OPENAI_SOCRATIC_TUTOR_INSTRUCTIONS
   )
@@ -253,6 +254,7 @@ export async function POST(request: Request) {
       ok: true,
       value,
       model: realtimeModel,
+      modelProfile: realtimeModelConfig.role,
       instructions,
       voice: 'marin',
       transcriptionModel,

@@ -11,11 +11,11 @@ import {
   LIVEKIT_TOPICS,
   serializeLiveKitWorkerToolEvent,
 } from '@/lib/livekit/worker-tools'
+import { resolveOpenAIRealtimeModel } from '@/lib/tutor/realtime-model-policy'
 import type { LiveKitTutorPayload } from '@/lib/livekit/messages'
 import type { TutorCanvasAction } from '@/lib/tutor/session-adapter'
 
 const DEFAULT_AGENT_NAME = 'lemma-livekit-tutor'
-const DEFAULT_MODEL = 'gpt-realtime-1.5'
 const DEFAULT_VOICE = 'marin'
 const CANVAS_RPC_METHOD = 'lemma_canvas_action'
 
@@ -160,10 +160,12 @@ export default defineAgent({
       },
     })
 
+    const realtimeModel = resolveOpenAIRealtimeModel(process.env.OPENAI_LIVEKIT_REALTIME_MODEL)
+
     const session = new voice.AgentSession({
       llm: new openai.realtime.RealtimeModel({
         apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_LIVEKIT_REALTIME_MODEL || DEFAULT_MODEL,
+        model: realtimeModel.id,
         voice: process.env.OPENAI_LIVEKIT_VOICE || DEFAULT_VOICE,
       }),
       maxToolSteps: 6,

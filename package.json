@@ -21,6 +21,7 @@
     "test:livekit-planner": "tsx scripts/livekit-local-planner-smoke.ts",
     "test:livekit-security": "tsx scripts/livekit-security-check.ts",
     "test:canvas-reveal": "tsx scripts/canvas-action-reveal-smoke.ts",
+    "test:realtime-model-policy": "tsx scripts/realtime-model-policy-smoke.ts",
     "test:tutor-strategies": "tsx scripts/tutor-strategy-eval.ts",
     "test:tutor-human-experience": "tsx scripts/tutor-human-experience-regression.ts"
   },
