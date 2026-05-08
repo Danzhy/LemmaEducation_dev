@@ -27,6 +27,7 @@ import type {
   WordProblemPlanResult,
   ProblemUnderstandingMapResult,
   RepresentationBridgeResult,
+  WorkedExampleFaderResult,
   FractionSimplifyResult,
   PercentOfNumberResult,
   UnitRateResult,
@@ -5636,6 +5637,63 @@ export function representationBridge(input: {
     boardNote: problemContext
       ? `Keep this meaning: ${problemContext.slice(0, 120)}`
       : `Keep the ${guide.label.toLowerCase()} relationship unchanged.`,
+  }
+}
+
+export function workedExampleFader(input: {
+  topic: string
+  gradeLevel?: string
+  exampleProblem: string
+  studentWork?: string
+}): WorkedExampleFaderResult {
+  const topic = resolveCurriculumTopic(input.topic || input.exampleProblem || input.studentWork || '')
+  const guide = CURRICULUM_GUIDE[topic]
+  const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
+  const recommendedTool =
+    topic === 'expressions_equations'
+      ? 'solve_linear_on_canvas'
+      : topic === 'coordinate_graphing'
+        ? 'table_of_values'
+        : guide.tools[0]
+  const problem = input.exampleProblem.trim() || `a ${guide.label.toLowerCase()} problem`
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel,
+    recommendedTool,
+    phases: [
+      {
+        phase: 'i_do',
+        tutorMove: `Model only the setup for: ${problem.slice(0, 120)}`,
+        studentTask: 'Listen for the meaning of the first step, not the final answer.',
+        revealLevel: 'full_model',
+      },
+      {
+        phase: 'we_do',
+        tutorMove: 'Leave the next step partially blank and ask the student to choose the move.',
+        studentTask: 'Fill in the missing operation, unit, comparison, or model label.',
+        revealLevel: 'partial',
+      },
+      {
+        phase: 'you_do',
+        tutorMove: 'Give a nearby problem with the same structure but changed numbers.',
+        studentTask: 'Explain the first step before calculating.',
+        revealLevel: 'student_owned',
+      },
+    ],
+    fadedBoardLines: [
+      'I do: show the setup and name why it works.',
+      'We do: hide one key step and let the student supply it.',
+      'You do: change the numbers and have the student start.',
+    ],
+    checkForUnderstanding: 'What part stayed the same when the numbers changed?',
+    stopRule: 'Stop fading if the student cannot explain the first hidden step. Return to a visual model instead of giving the answer.',
+    avoid: [
+      'Do not model every step before the student participates.',
+      'Do not use a harder you-do problem until the we-do step is secure.',
+      'Do not hide the conceptual step and reveal only arithmetic.',
+    ],
   }
 }
 

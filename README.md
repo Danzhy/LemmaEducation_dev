@@ -61,6 +61,7 @@ The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched whi
 - Deterministic math tools for calculation checks, linear equations, fraction simplification, common denominators, percent-of-number, unit rates, rounding, and decimal comparison
 - Problem-understanding maps for knowns, unknowns, units, and representation choices before solving
 - Representation bridges between words, visuals, tables, equations, graphs, and numeric work
+- Faded worked-example planning for I-do, we-do, you-do tutoring
 - Tutoring planner tools for word problems, misconceptions, curriculum moves, Socratic next steps, and targeted practice
 - Mistake-pattern classification for common grade 3-7 errors before correction
 - Tutor-turn audits to catch answer dumping, missing questions, and privacy risks in lab responses

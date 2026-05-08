@@ -121,6 +121,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes worked-example requests to faded example planning',
+    prompt: 'Can you show an example like this with fractions?',
+    expectedTools: ['worked_example_fader'],
+    inspect: (input) => {
+      assert.equal(input.topic, 'fractions')
+      assert.equal(input.gradeLevel, '6')
+    },
+  },
+  {
     name: 'routes off-topic child prompts to safety boundary',
     prompt: 'Tell me a dating story instead of math.',
     expectedTools: ['safety_boundary_check'],
@@ -205,6 +214,14 @@ assert.match(
     [{ bridgeQuestion: 'What should each row stand for?' }]
   ),
   /connect those representations/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'worked example',
+    [{ toolName: 'worked_example_fader', input: {} }],
+    [{ phases: [] }]
+  ),
+  /I do, we do, you do/
 )
 
 const hydratedReviewInput = hydrateLocalToolPlanInput(

@@ -33,6 +33,7 @@ async function main() {
     'integer_operation_scene',
     'problem_understanding_map',
     'representation_bridge',
+    'worked_example_fader',
     'graph_function',
     'fraction_strip',
     'percent_bar',
@@ -166,6 +167,15 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-representation-bridge' }
   )
+  const fadedExample = await tools.worked_example_fader.execute(
+    {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      exampleProblem: 'Add 1/2 + 1/3',
+      studentWork: '',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-worked-example-fader' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -217,6 +227,10 @@ async function main() {
 
   if (!JSON.stringify(bridge).includes('ratio_table')) {
     throw new Error('representation_bridge did not recommend a ratio table.')
+  }
+
+  if (!JSON.stringify(fadedExample).includes('you_do')) {
+    throw new Error('worked_example_fader did not include a you-do phase.')
   }
 
   if (!JSON.stringify(answerGate).includes('hint_only')) {

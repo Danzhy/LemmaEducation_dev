@@ -57,6 +57,7 @@ import {
   unitRate,
   unitConversionScene,
   wordProblemPlan,
+  workedExampleFader,
   writeOnCanvas,
   boardAnimationPlan,
   tutorTeachingSequence,
@@ -705,6 +706,39 @@ export function createVoiceAgentTools() {
             problemContext: params.problemContext,
             fromRepresentation: params.fromRepresentation,
             toRepresentation: params.toRepresentation,
+            studentWork: params.studentWork,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'worked_example_fader',
+      description:
+        'Plan an I-do, we-do, you-do sequence that gradually removes support. Use when a student needs a worked example but should still own the next step.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          exampleProblem: { type: 'string' },
+          studentWork: { type: 'string' },
+        },
+        required: ['topic', 'gradeLevel', 'exampleProblem', 'studentWork'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          gradeLevel: string
+          exampleProblem: string
+          studentWork?: string
+        }
+        return stringifyResult(
+          workedExampleFader({
+            topic: params.topic,
+            gradeLevel: params.gradeLevel,
+            exampleProblem: params.exampleProblem,
             studentWork: params.studentWork,
           })
         )

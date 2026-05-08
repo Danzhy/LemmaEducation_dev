@@ -197,6 +197,19 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
+  if (/\b(worked example|example like this|show an example|i do we do you do|walk me through one|similar example)\b/.test(lower)) {
+    plans.push({
+      toolName: 'worked_example_fader',
+      input: {
+        topic: inferLocalTopic(prompt),
+        gradeLevel,
+        exampleProblem: prompt.slice(0, 500),
+        studentWork: '',
+      },
+    })
+    return plans
+  }
+
   if (asksForMistakeHelp && hasStudentAttempt) {
     plans.push({
       toolName: 'mistake_pattern_classifier',
@@ -580,6 +593,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'representation_bridge') {
     return 'I planned how to connect those representations. Keep the meaning the same, then tell me which part matches across both forms.'
+  }
+
+  if (firstTool === 'worked_example_fader') {
+    return 'I planned this as I do, we do, you do. I will model only the setup first, then leave the next step for you.'
   }
 
   if (firstTool === 'tutor_teaching_sequence') {

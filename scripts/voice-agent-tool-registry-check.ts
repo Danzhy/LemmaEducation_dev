@@ -28,6 +28,7 @@ const REQUIRED_TOOL_NAMES = [
   'board_animation_plan',
   'problem_understanding_map',
   'representation_bridge',
+  'worked_example_fader',
   'word_problem_plan',
   'mistake_pattern_classifier',
   'misconception_diagnosis',

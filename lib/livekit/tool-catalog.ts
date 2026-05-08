@@ -63,6 +63,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'unit_conversion',
   'unit_rate',
   'word_problem_plan',
+  'worked_example_fader',
   'write_on_canvas',
 ] as const
 

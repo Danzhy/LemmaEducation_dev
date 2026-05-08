@@ -190,6 +190,23 @@ export type RepresentationBridgeResult = {
   boardNote: string
 }
 
+export type WorkedExampleFaderResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  recommendedTool: string
+  phases: Array<{
+    phase: 'i_do' | 'we_do' | 'you_do'
+    tutorMove: string
+    studentTask: string
+    revealLevel: 'full_model' | 'partial' | 'student_owned'
+  }>
+  fadedBoardLines: string[]
+  checkForUnderstanding: string
+  stopRule: string
+  avoid: string[]
+}
+
 export type SocraticMoveResult = {
   topic: string
   label: string

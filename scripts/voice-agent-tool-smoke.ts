@@ -51,6 +51,7 @@ import {
   unitRate,
   unitConversionScene,
   wordProblemPlan,
+  workedExampleFader,
 } from '../lib/voice-agent/math-engine'
 
 type SmokeCase = {
@@ -261,6 +262,18 @@ assert(
   bridge.recommendedTool === 'ratio_table' &&
     bridge.bridgeQuestion.includes('row'),
   'representation_bridge should connect word problems to ratio tables.'
+)
+
+const fadedExample = workedExampleFader({
+  topic: 'fractions',
+  gradeLevel: 'Grade 5',
+  exampleProblem: 'Add 1/2 + 1/3',
+  studentWork: '',
+})
+assert(
+  fadedExample.phases.map((phase) => phase.phase).join(',') === 'i_do,we_do,you_do' &&
+    fadedExample.stopRule.includes('Stop fading'),
+  'worked_example_fader should create an I-do, we-do, you-do sequence.'
 )
 
 const nextMove = socraticMovePlanner({ topic: 'fractions', studentWork: 'I got 2/5 for 1/2 + 1/3.' })
