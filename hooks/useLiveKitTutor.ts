@@ -545,10 +545,14 @@ export function useLiveKitTutor({
         }
         if (!(status as { configured?: boolean }).configured) {
           const missing = ((status as { missing?: string[] }).missing ?? []).join(', ')
+          const workerCommand =
+            typeof (status as { workerCommand?: unknown }).workerCommand === 'string'
+              ? (status as { workerCommand: string }).workerCommand
+              : 'npm run dev:livekit-agent'
           throw new Error(
             missing
-              ? `LiveKit lab is not configured yet. Missing: ${missing}.`
-              : 'LiveKit lab is not configured yet.'
+              ? `LiveKit lab is not configured yet. Missing: ${missing}. Then start the worker with ${workerCommand}.`
+              : `LiveKit lab is not configured yet. Start the worker with ${workerCommand}.`
           )
         }
 
