@@ -18,6 +18,7 @@ import type {
   NextStepCoachResult,
   AdaptiveReviewPlanResult,
   SessionMasterySnapshotResult,
+  TutorTurnAuditResult,
   PlotPointsResult,
   ValueTableResult,
   SocraticMoveResult,
@@ -6054,6 +6055,76 @@ export function sessionMasterySnapshot(input: {
         : `Review ${guide.label.toLowerCase()} with a short diagnostic before moving faster.`,
     privacyNote:
       'This snapshot should summarize learning signals only. Do not include sensitive personal details in teacher or parent views.',
+  }
+}
+
+export function tutorTurnAudit(input: {
+  studentPrompt: string
+  assistantDraft: string
+  topic?: string
+  toolUsed?: string
+}): TutorTurnAuditResult {
+  const prompt = input.studentPrompt.trim()
+  const draft = input.assistantDraft.trim()
+  const lowerDraft = draft.toLowerCase()
+  const issues: TutorTurnAuditResult['issues'] = []
+  const sentences = draft.split(/[.!?]+/).map((item) => item.trim()).filter(Boolean)
+  const wordCount = draft.split(/\s+/).filter(Boolean).length
+  const questionCount = (draft.match(/\?/g) ?? []).length
+
+  if (/\b(answer is|final answer|solution is|therefore x\s*=|so x\s*=)\b/.test(lowerDraft) && !/\bwhy|because|try|your turn|what\b/.test(lowerDraft)) {
+    issues.push('answer_dumping')
+  }
+  if (sentences.length > 5 || /\bstep 4\b|\bstep 5\b|\bstep 6\b/i.test(draft)) {
+    issues.push('too_many_steps')
+  }
+  if (questionCount === 0) {
+    issues.push('missing_student_question')
+  }
+  if (wordCount > 95) {
+    issues.push('too_long')
+  }
+  if (/\b(phone|address|password|private|secret|contact me)\b/.test(lowerDraft)) {
+    issues.push('privacy_risk')
+  }
+  if (/\bdefinitely|guaranteed|always right|cannot be wrong\b/.test(lowerDraft)) {
+    issues.push('unsupported_certainty')
+  }
+  if (/\bgame|dating|politics|crypto|stock|medical diagnosis\b/.test(`${prompt} ${draft}`.toLowerCase())) {
+    issues.push('off_topic')
+  }
+
+  const uniqueIssues = [...new Set(issues)]
+  const riskLevel: TutorTurnAuditResult['riskLevel'] =
+    uniqueIssues.some((issue) => issue === 'privacy_risk' || issue === 'off_topic') ||
+    uniqueIssues.length >= 3
+      ? 'high'
+      : uniqueIssues.length > 0
+        ? 'medium'
+        : 'low'
+  const approved = uniqueIssues.length === 0
+  const topic = input.topic?.trim() || 'this problem'
+  const toolUsed = input.toolUsed?.trim()
+
+  return {
+    approved,
+    riskLevel,
+    issues: uniqueIssues,
+    revisedTutorMove: approved
+      ? draft
+      : `Let's focus on one part of ${topic}. ${toolUsed ? `The ${toolUsed.replace(/_/g, ' ')} result can help, but ` : ''}I want you to make the next move.`,
+    mustAskStudent:
+      approved && questionCount > 0
+        ? 'Use the question already in the draft.'
+        : 'What is the next step you would try, and why?',
+    allowedNextAction:
+      riskLevel === 'high'
+        ? 'stop_and_redirect'
+        : approved
+          ? 'say_as_written'
+          : uniqueIssues.includes('missing_student_question')
+            ? 'ask_clarifying_question'
+            : 'revise_then_say',
   }
 }
 

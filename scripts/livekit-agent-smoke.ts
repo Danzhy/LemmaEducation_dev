@@ -24,6 +24,7 @@ async function main() {
     'learner_context',
     'adaptive_review_plan',
     'session_mastery_snapshot',
+    'tutor_turn_audit',
     'answer_disclosure_gate',
     'mistake_pattern_classifier',
     'next_step_coach',
@@ -145,6 +146,15 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-problem-understanding-map' }
   )
+  const turnAudit = await tools.tutor_turn_audit.execute(
+    {
+      studentPrompt: 'Can you help with 1/2 + 1/3?',
+      assistantDraft: 'The final answer is 5/6.',
+      topic: 'fractions',
+      toolUsed: 'fraction_operation',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-tutor-turn-audit' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -188,6 +198,10 @@ async function main() {
 
   if (!JSON.stringify(problemMap).includes('knownQuantities')) {
     throw new Error('problem_understanding_map did not return known quantities.')
+  }
+
+  if (!JSON.stringify(turnAudit).includes('answer_dumping')) {
+    throw new Error('tutor_turn_audit did not flag answer dumping.')
   }
 
   if (!JSON.stringify(answerGate).includes('hint_only')) {

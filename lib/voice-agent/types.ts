@@ -253,6 +253,23 @@ export type SessionMasterySnapshotResult = {
   privacyNote: string
 }
 
+export type TutorTurnAuditResult = {
+  approved: boolean
+  riskLevel: 'low' | 'medium' | 'high'
+  issues: Array<
+    | 'answer_dumping'
+    | 'too_many_steps'
+    | 'missing_student_question'
+    | 'too_long'
+    | 'off_topic'
+    | 'privacy_risk'
+    | 'unsupported_certainty'
+  >
+  revisedTutorMove: string
+  mustAskStudent: string
+  allowedNextAction: 'say_as_written' | 'revise_then_say' | 'ask_clarifying_question' | 'stop_and_redirect'
+}
+
 export type AnswerDisclosureGateResult = {
   decision: 'hint_only' | 'next_step_only' | 'solution_allowed'
   reason: string

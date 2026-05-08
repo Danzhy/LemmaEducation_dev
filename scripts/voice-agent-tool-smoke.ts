@@ -46,6 +46,7 @@ import {
   statisticsSummaryScene,
   tableOfValues,
   tutorTeachingSequence,
+  tutorTurnAudit,
   unitRate,
   unitConversionScene,
   wordProblemPlan,
@@ -306,6 +307,19 @@ assert(
     masterySnapshot.nextPractice.length === 2 &&
     masterySnapshot.privacyNote.includes('personal details'),
   'session_mastery_snapshot should produce a teacher-safe learning handoff.'
+)
+
+const turnAudit = tutorTurnAudit({
+  studentPrompt: 'Can you help with 1/2 + 1/3?',
+  assistantDraft: 'The final answer is 5/6.',
+  topic: 'fractions',
+  toolUsed: 'fraction_operation',
+})
+assert(
+  turnAudit.approved === false &&
+    turnAudit.issues.includes('answer_dumping') &&
+    turnAudit.allowedNextAction !== 'say_as_written',
+  'tutor_turn_audit should flag answer dumping before the tutor speaks.'
 )
 
 const answerGate = answerDisclosureGate({

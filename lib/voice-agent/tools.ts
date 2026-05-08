@@ -59,6 +59,7 @@ import {
   writeOnCanvas,
   boardAnimationPlan,
   tutorTeachingSequence,
+  tutorTurnAudit,
 } from '@/lib/voice-agent/math-engine'
 
 function stringifyResult(result: unknown) {
@@ -448,6 +449,39 @@ export function createVoiceAgentTools() {
             transcriptExcerpt: params.transcriptExcerpt,
             studentWork: params.studentWork,
             toolSummary: params.toolSummary,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'tutor_turn_audit',
+      description:
+        'Audit a planned tutor response before speaking. Flags answer dumping, missing student questions, too many steps, privacy risk, off-topic content, and unsupported certainty.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          studentPrompt: { type: 'string' },
+          assistantDraft: { type: 'string' },
+          topic: { type: 'string' },
+          toolUsed: { type: 'string' },
+        },
+        required: ['studentPrompt', 'assistantDraft', 'topic', 'toolUsed'],
+      },
+      async execute(input) {
+        const params = input as {
+          studentPrompt: string
+          assistantDraft: string
+          topic?: string
+          toolUsed?: string
+        }
+        return stringifyResult(
+          tutorTurnAudit({
+            studentPrompt: params.studentPrompt,
+            assistantDraft: params.assistantDraft,
+            topic: params.topic,
+            toolUsed: params.toolUsed,
           })
         )
       },
