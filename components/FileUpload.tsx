@@ -19,6 +19,7 @@ const ACCEPTED_PDF_TYPE = 'application/pdf'
 const ACCEPT_STRING = 'image/png,image/jpeg,image/webp,application/pdf'
 const ACCEPTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.pdf']
 const SUPPORTED_FILES_MESSAGE = 'Please upload a PNG, JPG, WEBP image, or a PDF.'
+const MAX_EXTRACTABLE_PDF_BYTES = 2_500_000
 
 const hasAcceptedExtension = (fileName: string) => {
   const lower = fileName.toLowerCase()
@@ -140,6 +141,9 @@ export default function FileUpload({
         onDocumentExtracted?.(null)
         try {
           if (onDocumentExtracted) {
+            if (file.size > MAX_EXTRACTABLE_PDF_BYTES) {
+              throw new Error('Use a PDF under 2.5 MB for document-text extraction.')
+            }
             const dataBase64 = arrayBufferToBase64(await file.arrayBuffer())
             const response = await fetch('/api/curriculum/extract', {
               method: 'POST',

@@ -347,8 +347,8 @@ export function CurriculumDocumentForm({ classrooms }: { classrooms: DashboardCl
     setMessage(null)
 
     const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
-    if (isPdf && file.size > 4_000_000) {
-      setError('Use a PDF under 4 MB for now.')
+    if (isPdf && file.size > 2_500_000) {
+      setError('Use a PDF under 2.5 MB for now.')
       return
     }
     if (!isPdf && file.size > 500_000) {

@@ -1,6 +1,6 @@
 import { sanitizeCurriculumText } from '@/lib/curriculum/rag'
 
-export const MAX_CURRICULUM_PDF_BYTES = 4_000_000
+export const MAX_CURRICULUM_PDF_BYTES = 2_500_000
 export const MAX_CURRICULUM_PDF_PAGES = 40
 
 export type CurriculumPdfTextResult = {
