@@ -68,6 +68,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes class-specific prompts through curriculum search first',
+    prompt: 'My teacher said the homework wants a ratio table: 3 cups for 12 muffins, how many cups for 20 muffins?',
+    expectedTools: ['curriculum_search', 'double_number_line'],
+    inspect: (input) => {
+      assert.equal(input.limit, 4)
+      assert.match(String(input.query), /homework/)
+    },
+  },
+  {
     name: 'routes algebra solving to canvas equation solver',
     prompt: 'Solve 2x + 3 = 15 but explain the undoing operations.',
     expectedTools: ['solve_linear_on_canvas'],

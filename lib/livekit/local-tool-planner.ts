@@ -53,6 +53,10 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const asksForFullSolution =
     /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(lower)
   const hasStudentAttempt = /\b(i tried|i got|my answer|i think|check this|=)\b/.test(lower)
+  const asksForCurriculumContext =
+    /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
+  const hasSpecificMathAction =
+    /\b(graph|plot|parabola|function|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan)\b/.test(lower)
 
   if (asksForFullSolution) {
     plans.push({
@@ -67,6 +71,21 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     })
 
     if (!hasStudentAttempt) {
+      return plans
+    }
+  }
+
+  if (asksForCurriculumContext) {
+    plans.push({
+      toolName: 'curriculum_search',
+      input: {
+        query: prompt.slice(0, 300),
+        classroomId: '',
+        limit: 4,
+      },
+    })
+
+    if (!hasSpecificMathAction) {
       return plans
     }
   }
@@ -323,6 +342,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'board_animation_plan') {
     return 'I set up a staged board reveal. I will show one useful mark at a time, then pause so you can make the next move.'
+  }
+
+  if (firstTool === 'curriculum_search') {
+    return 'I checked the class context first. I will use it for vocabulary, examples, and pacing without reading long notes back at you.'
   }
 
   if (firstTool === 'tutor_teaching_sequence') {
