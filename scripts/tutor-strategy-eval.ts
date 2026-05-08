@@ -22,7 +22,6 @@ const REQUIRED_ROUTES = [
   'app/tutor/page.tsx',
   'app/tutor-agent-lab/page.tsx',
   'app/tutor-livekit-lab/page.tsx',
-  'app/dashboard/realtime-eval/page.tsx',
 ]
 
 function assert(condition: unknown, message: string): asserts condition {
