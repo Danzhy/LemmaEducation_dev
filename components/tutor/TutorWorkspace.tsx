@@ -780,7 +780,7 @@ export default function TutorWorkspace({
                             </p>
                             <p className="mt-1 text-xs leading-relaxed text-[#51655F]">
                               {mode === 'livekit-lab'
-                                ? 'Same tutor workspace, connected through a LiveKit room for worker-based voice agents and frontend RPC tools.'
+                                ? 'Same tutor workspace, connected through a LiveKit room for a worker-based voice agent with server-side math tools.'
                                 : isTypedLabSession
                                 ? 'Tool-enabled tutoring is active without microphone input, so you can test the board and math tools by typing.'
                                 : 'Same tutor workspace, with tool-enabled realtime voice behind the scenes.'}
@@ -1002,7 +1002,7 @@ export default function TutorWorkspace({
                       <div className="rounded-[22px] border border-[#DCE7E2] bg-white/72 px-4 py-4 text-sm leading-relaxed text-[#5C7069]">
                         {isLabMode
                           ? mode === 'livekit-lab'
-                            ? 'Start with mic to join a LiveKit room, or start without mic for typed testing. A LiveKit agent worker must be running for voice replies. The page exposes safe math tools and structured board actions through RPC.'
+                            ? 'Start with mic to join a LiveKit room, or start without mic for typed testing. The worker runs safe math tools and sends structured board actions back through LiveKit RPC.'
                             : 'Start with mic for full voice tutoring, or start without mic to test typed prompts, board writing, graphs, ratios, percents, geometry, fractions, data, probability, conversions, and other structured math tools. The lab can teach on the board, but it does not free-sketch arbitrary drawings.'
                           : 'Start a session to speak, type, or upload a problem. Your board stays open while the tutor sits here on the edge.'}
                       </div>
