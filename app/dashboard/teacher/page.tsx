@@ -1,11 +1,17 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import DashboardScaffold from '@/components/dashboard/DashboardScaffold'
-import { CreateClassForm } from '@/components/dashboard/DashboardForms'
+import {
+  CreateClassForm,
+  CurriculumDocumentForm,
+  TutorProfileForm,
+  type DashboardClassOption,
+} from '@/components/dashboard/DashboardForms'
 import { RemoveStudentButton } from '@/components/dashboard/AccessActionButtons'
 import { getCurrentUserProfile, isOnboardingComplete } from '@/lib/school/profiles'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { getTeacherDashboardData } from '@/lib/school/access'
+import { getTeacherCurriculumDashboardData } from '@/lib/curriculum/dashboard'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +46,15 @@ export default async function TeacherDashboardPage() {
     redirect('/dashboard')
   }
 
-  const { classrooms, totalStudents, totalSessions } = await getTeacherDashboardData(userId)
+  const [{ classrooms, totalStudents, totalSessions }, curriculum] = await Promise.all([
+    getTeacherDashboardData(userId),
+    getTeacherCurriculumDashboardData(userId),
+  ])
+  const classOptions: DashboardClassOption[] = classrooms.map((classroom) => ({
+    id: classroom.id,
+    name: classroom.name,
+    gradeLabel: classroom.gradeLabel,
+  }))
 
   return (
     <DashboardScaffold
@@ -144,6 +158,54 @@ export default async function TeacherDashboardPage() {
 
         <div className="space-y-6">
           <CreateClassForm />
+          <CurriculumDocumentForm classrooms={classOptions} />
+          <TutorProfileForm classrooms={classOptions} />
+
+          <section className="rounded-[24px] border border-[#DCE7E2] bg-white/82 px-5 py-5">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Lab context</p>
+            <h3 className="mt-2 text-[1.15rem] font-light text-[#0F2922]">Curriculum and profiles</h3>
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#6B7F79]">Documents</p>
+                <div className="mt-2 space-y-2">
+                  {curriculum.documents.length === 0 ? (
+                    <p className="text-sm leading-relaxed text-[#5C7069]">
+                      No curriculum documents yet.
+                    </p>
+                  ) : (
+                    curriculum.documents.map((document) => (
+                      <div key={document.id} className="rounded-[16px] border border-[#E1EAE6] bg-[#F8FBF9] px-4 py-3">
+                        <p className="text-sm text-[#14312A]">{document.title}</p>
+                        <p className="mt-1 text-xs text-[#5C7069]">
+                          {document.status} · {document.totalChunks} section{document.totalChunks === 1 ? '' : 's'} · {formatSessionDate(document.updatedAt)}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#6B7F79]">Tutor profiles</p>
+                <div className="mt-2 space-y-2">
+                  {curriculum.profiles.length === 0 ? (
+                    <p className="text-sm leading-relaxed text-[#5C7069]">
+                      No custom lab profiles yet.
+                    </p>
+                  ) : (
+                    curriculum.profiles.map((profile) => (
+                      <div key={profile.id} className="rounded-[16px] border border-[#E1EAE6] bg-[#F8FBF9] px-4 py-3">
+                        <p className="text-sm text-[#14312A]">{profile.name}</p>
+                        <p className="mt-1 text-xs text-[#5C7069]">
+                          {profile.gradeBand ?? 'All grades'} · {profile.scope} · {formatSessionDate(profile.updatedAt)}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
           <section className="rounded-[24px] border border-[#DCE7E2] bg-white/82 px-5 py-5">
             <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Privacy and access</p>
             <h3 className="mt-2 text-[1.15rem] font-light text-[#0F2922]">Read-only oversight</h3>

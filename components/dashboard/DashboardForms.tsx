@@ -10,6 +10,12 @@ const roleOptions = [
 
 const gradeOptions = ['Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7']
 
+export type DashboardClassOption = {
+  id: string
+  name: string
+  gradeLabel?: string | null
+}
+
 function FieldError({ message }: { message: string | null }) {
   if (!message) return null
   return <p className="mt-2 text-sm text-red-700">{message}</p>
@@ -304,6 +310,273 @@ export function CreateClassForm() {
           {isSubmitting ? 'Creating...' : 'Create class'}
         </button>
         {message ? <span className="text-sm text-[#16423C]">{message}</span> : null}
+      </div>
+      <FieldError message={error} />
+    </form>
+  )
+}
+
+export function CurriculumDocumentForm({ classrooms }: { classrooms: DashboardClassOption[] }) {
+  const [title, setTitle] = useState('')
+  const [sourceName, setSourceName] = useState('')
+  const [sourceText, setSourceText] = useState('')
+  const [classroomId, setClassroomId] = useState(classrooms[0]?.id ?? '')
+  const [visibility, setVisibility] = useState<'teacher_private' | 'classroom'>(
+    classrooms.length > 0 ? 'classroom' : 'teacher_private'
+  )
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setMessage(null)
+    setError(null)
+
+    if (title.trim().length < 2) {
+      setError('Add a short title.')
+      return
+    }
+    if (sourceText.trim().length < 40) {
+      setError('Paste at least a short page of lesson or worksheet text.')
+      return
+    }
+    if (visibility === 'classroom' && !classroomId) {
+      setError('Choose a class or keep the document private.')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const res = await fetch('/api/curriculum/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          sourceName,
+          sourceText,
+          classroomId: visibility === 'classroom' ? classroomId : '',
+          visibility,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        setError(data.message || 'Could not save curriculum.')
+        return
+      }
+
+      setMessage(`Curriculum saved with ${data.chunks} searchable section${data.chunks === 1 ? '' : 's'}.`)
+      setTitle('')
+      setSourceName('')
+      setSourceText('')
+      window.location.reload()
+    } catch {
+      setError('Could not save curriculum.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 rounded-[24px] border border-[#DCE7E2] bg-white/82 p-5">
+      <div>
+        <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Curriculum context</p>
+        <h3 className="mt-2 text-[1.15rem] font-light text-[#0F2922]">Upload lesson notes</h3>
+        <p className="mt-2 text-sm leading-relaxed text-[#5C7069]">
+          Hidden lab tutors can search this text before answering class-specific questions.
+        </p>
+      </div>
+
+      <input
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        className="w-full rounded-[16px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C]"
+        placeholder="Document title"
+      />
+      <input
+        value={sourceName}
+        onChange={(event) => setSourceName(event.target.value)}
+        className="w-full rounded-[16px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C]"
+        placeholder="Source name (optional)"
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <select
+          value={visibility}
+          onChange={(event) => setVisibility(event.target.value as 'teacher_private' | 'classroom')}
+          className="rounded-[16px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C]"
+        >
+          <option value="teacher_private">Private to me</option>
+          <option value="classroom" disabled={classrooms.length === 0}>
+            Share with a class
+          </option>
+        </select>
+        <select
+          value={classroomId}
+          onChange={(event) => setClassroomId(event.target.value)}
+          disabled={visibility !== 'classroom' || classrooms.length === 0}
+          className="rounded-[16px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C] disabled:opacity-60"
+        >
+          {classrooms.length === 0 ? <option value="">Create a class first</option> : null}
+          {classrooms.map((classroom) => (
+            <option key={classroom.id} value={classroom.id}>
+              {classroom.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <textarea
+        value={sourceText}
+        onChange={(event) => setSourceText(event.target.value)}
+        rows={8}
+        className="w-full resize-y rounded-[18px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C]"
+        placeholder="Paste lesson notes, worksheet text, rubric language, or a short curriculum excerpt."
+      />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="rounded-full border border-[#143C36] bg-[#12352F] px-5 py-2.5 text-sm text-[#F2F5F4] transition-colors hover:bg-[#16423C] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? 'Saving...' : 'Save curriculum'}
+        </button>
+        <FormAlert message={message} tone="success" />
+      </div>
+      <FieldError message={error} />
+    </form>
+  )
+}
+
+export function TutorProfileForm({ classrooms }: { classrooms: DashboardClassOption[] }) {
+  const [name, setName] = useState('')
+  const [gradeBand, setGradeBand] = useState('Grades 3-7')
+  const [instructions, setInstructions] = useState('')
+  const [classroomId, setClassroomId] = useState(classrooms[0]?.id ?? '')
+  const [scope, setScope] = useState<'teacher_private' | 'classroom'>(
+    classrooms.length > 0 ? 'classroom' : 'teacher_private'
+  )
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setMessage(null)
+    setError(null)
+
+    if (name.trim().length < 2) {
+      setError('Add a profile name.')
+      return
+    }
+    if (instructions.trim().length < 20) {
+      setError('Add specific tutor instructions.')
+      return
+    }
+    if (scope === 'classroom' && !classroomId) {
+      setError('Choose a class or keep the profile private.')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const res = await fetch('/api/tutor/agent-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          gradeBand,
+          instructions,
+          classroomId: scope === 'classroom' ? classroomId : '',
+          scope,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        setError(data.message || 'Could not save tutor profile.')
+        return
+      }
+
+      setMessage('Tutor profile saved.')
+      setName('')
+      setInstructions('')
+      window.location.reload()
+    } catch {
+      setError('Could not save tutor profile.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 rounded-[24px] border border-[#DCE7E2] bg-white/82 p-5">
+      <div>
+        <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Custom lab tutor</p>
+        <h3 className="mt-2 text-[1.15rem] font-light text-[#0F2922]">Set class guidance</h3>
+        <p className="mt-2 text-sm leading-relaxed text-[#5C7069]">
+          Add instructions the hidden lab tutor should follow for a class or lesson style.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          className="rounded-[16px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C]"
+          placeholder="Profile name"
+        />
+        <input
+          value={gradeBand}
+          onChange={(event) => setGradeBand(event.target.value)}
+          className="rounded-[16px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C]"
+          placeholder="Grade band"
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <select
+          value={scope}
+          onChange={(event) => setScope(event.target.value as 'teacher_private' | 'classroom')}
+          className="rounded-[16px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C]"
+        >
+          <option value="teacher_private">Private to me</option>
+          <option value="classroom" disabled={classrooms.length === 0}>
+            Share with a class
+          </option>
+        </select>
+        <select
+          value={classroomId}
+          onChange={(event) => setClassroomId(event.target.value)}
+          disabled={scope !== 'classroom' || classrooms.length === 0}
+          className="rounded-[16px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C] disabled:opacity-60"
+        >
+          {classrooms.length === 0 ? <option value="">Create a class first</option> : null}
+          {classrooms.map((classroom) => (
+            <option key={classroom.id} value={classroom.id}>
+              {classroom.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <textarea
+        value={instructions}
+        onChange={(event) => setInstructions(event.target.value)}
+        rows={6}
+        className="w-full resize-y rounded-[18px] border border-[#B8C8C2] bg-[#EEF3F0] px-4 py-3 text-[#14312A] outline-none transition-colors focus:border-[#16423C]"
+        placeholder="Example: Use ratio tables first, avoid final answers until the student explains the unit rate, and connect examples to our current shopping-discount unit."
+      />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="rounded-full border border-[#143C36] bg-[#12352F] px-5 py-2.5 text-sm text-[#F2F5F4] transition-colors hover:bg-[#16423C] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? 'Saving...' : 'Save profile'}
+        </button>
+        <FormAlert message={message} tone="success" />
       </div>
       <FieldError message={error} />
     </form>
