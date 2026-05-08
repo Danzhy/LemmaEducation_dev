@@ -23,6 +23,7 @@ import {
   geometryFigure,
   graphFunction,
   hintGenerator,
+  hintLadder,
   integerChipsScene,
   longDivisionScene,
   mathCalculate,
@@ -642,6 +643,39 @@ export function createVoiceAgentTools() {
             reason: params.reason,
             solution: params.solution,
             expression: params.expression,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'hint_ladder',
+      description:
+        'Create a three-level scaffolded hint ladder for a grade 3 to 7 misconception. Use this when the tutor needs to help without jumping straight to the answer.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          misconception: { type: 'string' },
+          studentWork: { type: 'string' },
+          correctIdea: { type: 'string' },
+        },
+        required: ['topic', 'misconception', 'studentWork', 'correctIdea'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          misconception: string
+          studentWork: string
+          correctIdea: string
+        }
+        return stringifyResult(
+          hintLadder({
+            topic: params.topic,
+            misconception: params.misconception,
+            studentWork: params.studentWork,
+            correctIdea: params.correctIdea,
           })
         )
       },

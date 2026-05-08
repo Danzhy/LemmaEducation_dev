@@ -8,6 +8,7 @@ import type {
   GeometryFigureResult,
   GraphFunctionResult,
   HintGeneratorResult,
+  HintLadderResult,
   LinearCanvasResult,
   LinearSolveResult,
   MathAnswerCheckResult,
@@ -5416,6 +5417,57 @@ export function tutorTeachingSequence(input: {
       'Do not reveal the full solution unless the student asks for it.',
       'Ask one question, then wait.',
     ],
+  }
+}
+
+export function hintLadder(input: {
+  topic: string
+  misconception?: string
+  studentWork?: string
+  correctIdea?: string
+}): HintLadderResult {
+  const topic = resolveCurriculumTopic(input.topic)
+  const guide = CURRICULUM_GUIDE[topic]
+  const misconception =
+    input.misconception?.trim() ||
+    misconceptionDiagnosis({
+      topic,
+      studentWork: input.studentWork?.trim() || guide.misconceptions[0],
+    }).findings[0]
+  const correctIdea = input.correctIdea?.trim() || guide.nextMove
+  const recommendedTool =
+    topic === 'expressions_equations'
+      ? 'math_check_step'
+      : topic === 'coordinate_graphing'
+        ? 'plot_points_on_plane'
+        : guide.tools[0]
+
+  return {
+    topic,
+    label: guide.label,
+    misconception,
+    levels: [
+      {
+        level: 'gentle',
+        say: `Look back at the part about ${guide.prerequisites[0].toLowerCase()}.`,
+        studentAction: 'Ask the student to point to the step or number they used.',
+        revealAnswer: false,
+      },
+      {
+        level: 'stronger',
+        say: `Try this idea: ${correctIdea}`,
+        studentAction: 'Have the student redo only the next step, not the whole problem.',
+        revealAnswer: false,
+      },
+      {
+        level: 'near_answer',
+        say: 'Now compare your step with the structure on the board.',
+        studentAction: 'Ask for the final correction in the student voice.',
+        revealAnswer: false,
+      },
+    ],
+    stopRule: 'Stop at the first hint that gets a meaningful student attempt. Do not reveal the full solution unless asked.',
+    recommendedTool,
   }
 }
 

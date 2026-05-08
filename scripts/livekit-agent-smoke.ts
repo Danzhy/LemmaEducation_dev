@@ -21,6 +21,7 @@ async function main() {
     'math_solve_linear',
     'tutor_teaching_sequence',
     'board_animation_plan',
+    'hint_ladder',
     'graph_function',
     'fraction_strip',
     'percent_bar',
@@ -60,6 +61,15 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-animation-plan' }
   )
+  const ladderResult = await tools.hint_ladder.execute(
+    {
+      topic: 'fractions',
+      misconception: '',
+      studentWork: '1/2 + 1/3 = 2/5',
+      correctIdea: '',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-hint-ladder' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -77,10 +87,14 @@ async function main() {
     throw new Error('board_animation_plan did not default to the live board renderer.')
   }
 
+  if (!JSON.stringify(ladderResult).includes('gentle')) {
+    throw new Error('hint_ladder did not return scaffolded hint levels.')
+  }
+
   const started = events.filter((event) => event.type === 'tool_started').length
   const completed = events.filter((event) => event.type === 'tool_completed').length
 
-  if (started < 4 || completed < 4) {
+  if (started < 5 || completed < 5) {
     throw new Error('LiveKit worker tool events were not emitted correctly.')
   }
 

@@ -23,6 +23,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'geometry_figure',
   'graph_function',
   'hint_generator',
+  'hint_ladder',
   'integer_chips',
   'long_division',
   'math_calculate',

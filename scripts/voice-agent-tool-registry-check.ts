@@ -20,6 +20,7 @@ const REQUIRED_TOOL_NAMES = [
   'board_animation_plan',
   'word_problem_plan',
   'misconception_diagnosis',
+  'hint_ladder',
   'practice_set_generator',
   'math_calculate',
   'math_check_step',

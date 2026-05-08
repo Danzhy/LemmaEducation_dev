@@ -20,6 +20,7 @@ import {
   fractionStripScene,
   graphFunction,
   integerChipsScene,
+  hintLadder,
   longDivisionScene,
   mathCheckAnswer,
   misconceptionDiagnosis,
@@ -192,6 +193,15 @@ assert(
 const diagnosis = misconceptionDiagnosis({ topic: 'fractions', studentWork: 'I added 1/2 + 1/3 and got 2/5.' })
 assert(diagnosis.findings.length > 0, 'misconception_diagnosis should return at least one finding.')
 
+const ladder = hintLadder({
+  topic: 'fractions',
+  studentWork: 'I added 1/2 + 1/3 and got 2/5.',
+})
+assert(
+  ladder.levels.length === 3 && ladder.levels.every((level) => level.revealAnswer === false),
+  'hint_ladder should create three non-answer-dumping hint levels.'
+)
+
 const practiceSet = practiceSetGenerator({ topic: 'geometry', count: 2 })
 assert(practiceSet.items.length === 2, 'practice_set_generator should honor requested count.')
 
@@ -260,4 +270,4 @@ assert(
   'common_denominator should convert 1/2 and 1/3 to sixths.'
 )
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 14} checks).`)
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 15} checks).`)

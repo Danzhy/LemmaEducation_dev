@@ -109,6 +109,20 @@ export type HintGeneratorResult = {
   suggestedQuestion: string
 }
 
+export type HintLadderResult = {
+  topic: string
+  label: string
+  misconception: string
+  levels: Array<{
+    level: 'gentle' | 'stronger' | 'near_answer'
+    say: string
+    studentAction: string
+    revealAnswer: boolean
+  }>
+  stopRule: string
+  recommendedTool: string
+}
+
 export type WordProblemPlanResult = {
   topic: string
   label: string
