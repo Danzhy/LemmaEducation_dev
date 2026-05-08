@@ -27,6 +27,7 @@ import {
   buildCanvasActionFromPayload,
   parseJsonSafely,
 } from '@/lib/tutor/canvas-action-parser'
+import { planCanvasActionReveal } from '@/lib/tutor/canvas-action-reveal'
 import {
   buildLocalAssistantReply,
   planLocalToolTurn,
@@ -185,6 +186,7 @@ export function useLiveKitTutor({
   const remoteAudioElementsRef = useRef<HTMLMediaElement[]>([])
   const usageIntervalRef = useRef<number | null>(null)
   const inactivityTimeoutRef = useRef<number | null>(null)
+  const canvasRevealTimeoutsRef = useRef<number[]>([])
   const sessionIdRef = useRef<string | null>(null)
   const connectedRef = useRef(false)
   const pausedRef = useRef(false)
@@ -208,6 +210,11 @@ export function useLiveKitTutor({
     }
   }, [])
 
+  const clearCanvasRevealTimers = useCallback(() => {
+    canvasRevealTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+    canvasRevealTimeoutsRef.current = []
+  }, [])
+
   const appendToolEvent = useCallback((event: Omit<TutorToolEvent, 'id' | 'createdAt'> & { id?: string }) => {
     setToolEvents((prev) =>
       [
@@ -224,18 +231,40 @@ export function useLiveKitTutor({
   const queueCanvasActions = useCallback(
     (actions: TutorCanvasAction[], sourceToolName = 'livekit_canvas') => {
       if (actions.length === 0) return
-      const shouldReplaceQueue = actions.some((action) => action.type === 'clear_tool_layer')
-      setPendingCanvasActions((prev) => {
-        const nextActions = shouldReplaceQueue ? actions : [...prev, ...actions]
-        return nextActions.slice(-MAX_PENDING_CANVAS_ACTIONS)
+      clearCanvasRevealTimers()
+
+      const enqueueActions = (nextBatch: TutorCanvasAction[]) => {
+        const shouldReplaceQueue = nextBatch.some((action) => action.type === 'clear_tool_layer')
+        setPendingCanvasActions((prev) => {
+          const nextActions = shouldReplaceQueue ? nextBatch : [...prev, ...nextBatch]
+          return nextActions.slice(-MAX_PENDING_CANVAS_ACTIONS)
+        })
+      }
+
+      const revealBatches = planCanvasActionReveal(actions, { sourceToolName })
+      revealBatches.forEach((batch) => {
+        if (batch.delayMs === 0) {
+          enqueueActions(batch.actions)
+          return
+        }
+        const timeoutId = window.setTimeout(() => {
+          canvasRevealTimeoutsRef.current = canvasRevealTimeoutsRef.current.filter((id) => id !== timeoutId)
+          enqueueActions(batch.actions)
+        }, batch.delayMs)
+        canvasRevealTimeoutsRef.current.push(timeoutId)
       })
+
       appendToolEvent({
         type: 'canvas_action',
         toolName: sourceToolName,
         output: actions,
+        metadata: {
+          revealMode: revealBatches.length > 1 ? 'staged' : 'instant',
+          revealBatches: revealBatches.length,
+        },
       })
     },
-    [appendToolEvent]
+    [appendToolEvent, clearCanvasRevealTimers]
   )
 
   const touchServerSessionActivity = useCallback(async () => {
@@ -273,6 +302,7 @@ export function useLiveKitTutor({
     (endedReason: 'user' | 'error' | 'quota') => {
       clearUsageInterval()
       clearInactivityTimeout()
+      clearCanvasRevealTimers()
       const sessionId = sessionIdRef.current
       sessionIdRef.current = null
       if (!sessionId) return
@@ -283,7 +313,7 @@ export function useLiveKitTutor({
         body: JSON.stringify({ sessionId, endedReason }),
       }).catch(() => {})
     },
-    [clearInactivityTimeout, clearUsageInterval]
+    [clearCanvasRevealTimers, clearInactivityTimeout, clearUsageInterval]
   )
 
   const cleanupLiveKitMedia = useCallback(() => {
