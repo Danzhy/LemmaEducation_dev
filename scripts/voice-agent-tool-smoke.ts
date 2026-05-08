@@ -1,5 +1,6 @@
 import {
   angleDiagramScene,
+  adaptiveReviewPlan,
   answerDisclosureGate,
   areaPerimeterModelScene,
   arrayModelScene,
@@ -245,6 +246,21 @@ assert(
     coachedMove.recommendedTool === 'hint_ladder' &&
     coachedMove.askNext.length > 0,
   'next_step_coach should turn stuck student work into one non-answer-dumping tutor move.'
+)
+
+const reviewPlan = adaptiveReviewPlan({
+  gradeLevel: 'Grade 5',
+  targetTopic: 'fractions',
+  sessionGoal: 'continue from last time',
+  topics: ['fractions'],
+  struggleSignals: ['student says they are stuck'],
+  recentExcerpts: ['I got stuck adding unlike denominators.'],
+})
+assert(
+  reviewPlan.reviewMode === 'rebuild' &&
+    reviewPlan.firstBoardTool === 'fraction_strip' &&
+    reviewPlan.microPractice.length === 2,
+  'adaptive_review_plan should turn learner history into a concrete review path.'
 )
 
 const answerGate = answerDisclosureGate({

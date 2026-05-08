@@ -2,6 +2,7 @@ import { tool, type Tool } from '@openai/agents'
 import {
   annotateGraphFeatures,
   angleDiagramScene,
+  adaptiveReviewPlan,
   answerDisclosureGate,
   areaPerimeterModelScene,
   arrayModelScene,
@@ -359,6 +360,54 @@ export function createVoiceAgentTools() {
           await getLearnerContextFromBrowser({
             sessionId: params.sessionId,
             reason: params.reason,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'adaptive_review_plan',
+      description:
+        'Turn learner history into a short returning-student plan: warm start, diagnostic question, first board tool, micro-practice, and what to avoid. Use after learner_context when the student wants to continue, review, or work on recurring struggle areas.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          gradeLevel: { type: 'string' },
+          targetTopic: { type: 'string' },
+          sessionGoal: { type: 'string' },
+          topics: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          struggleSignals: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          recentExcerpts: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+        },
+        required: ['gradeLevel', 'targetTopic', 'sessionGoal', 'topics', 'struggleSignals', 'recentExcerpts'],
+      },
+      async execute(input) {
+        const params = input as {
+          gradeLevel?: string
+          targetTopic?: string
+          sessionGoal?: string
+          topics?: string[]
+          struggleSignals?: string[]
+          recentExcerpts?: string[]
+        }
+        return stringifyResult(
+          adaptiveReviewPlan({
+            gradeLevel: params.gradeLevel,
+            targetTopic: params.targetTopic,
+            sessionGoal: params.sessionGoal,
+            topics: Array.isArray(params.topics) ? params.topics : [],
+            struggleSignals: Array.isArray(params.struggleSignals) ? params.struggleSignals : [],
+            recentExcerpts: Array.isArray(params.recentExcerpts) ? params.recentExcerpts : [],
           })
         )
       },

@@ -102,6 +102,17 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
         reason: prompt.slice(0, 240),
       },
     })
+    plans.push({
+      toolName: 'adaptive_review_plan',
+      input: {
+        gradeLevel,
+        targetTopic: '',
+        sessionGoal: prompt.slice(0, 240),
+        topics: [],
+        struggleSignals: [],
+        recentExcerpts: [],
+      },
+    })
 
     if (!hasSpecificMathAction && !asksForCurriculumContext) {
       plans.push({
@@ -393,7 +404,7 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
   }
 
   if (firstTool === 'learner_context') {
-    return 'I checked your recent tutoring history. I will use it quietly to choose a good review path and start with one diagnostic question.'
+    return 'I checked your recent tutoring history and made a quick review plan. I will start with one diagnostic question, then use the board only where it helps.'
   }
 
   if (firstTool === 'curriculum_context' || firstTool === 'curriculum_search') {

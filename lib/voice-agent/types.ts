@@ -176,6 +176,25 @@ export type NextStepCoachResult = {
   avoid: string[]
 }
 
+export type AdaptiveReviewPlanResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  reviewMode: 'diagnose' | 'rebuild' | 'guided_practice' | 'extend'
+  warmStartLine: string
+  diagnosticQuestion: string
+  firstBoardTool: string
+  suggestedToolSequence: string[]
+  microPractice: Array<{
+    prompt: string
+    hint: string
+    suggestedTool: string
+  }>
+  tutorMoves: string[]
+  masteryCheck: string
+  avoid: string[]
+}
+
 export type AnswerDisclosureGateResult = {
   decision: 'hint_only' | 'next_step_only' | 'solution_allowed'
   reason: string

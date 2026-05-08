@@ -70,7 +70,7 @@ const cases: PlannerCase[] = [
   {
     name: 'routes review prompts through learner context before planning',
     prompt: 'Can we continue from last time and review what I struggled with?',
-    expectedTools: ['learner_context', 'socratic_move_planner'],
+    expectedTools: ['learner_context', 'adaptive_review_plan', 'socratic_move_planner'],
     inspect: (input) => {
       assert.match(String(input.reason), /last time/)
     },

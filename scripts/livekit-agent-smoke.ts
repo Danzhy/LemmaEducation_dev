@@ -22,6 +22,7 @@ async function main() {
     'tutor_teaching_sequence',
     'curriculum_context',
     'learner_context',
+    'adaptive_review_plan',
     'answer_disclosure_gate',
     'next_step_coach',
     'board_animation_plan',
@@ -93,6 +94,17 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-answer-disclosure-gate' }
   )
+  const reviewPlan = await tools.adaptive_review_plan.execute(
+    {
+      gradeLevel: 'Grade 5',
+      targetTopic: 'fractions',
+      sessionGoal: 'continue from last time',
+      topics: ['fractions'],
+      struggleSignals: ['student says they are stuck'],
+      recentExcerpts: ['I got stuck adding 1/2 + 1/3.'],
+    },
+    { ctx: {} as never, toolCallId: 'smoke-adaptive-review-plan' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -116,6 +128,10 @@ async function main() {
 
   if (!JSON.stringify(coachedMove).includes('askNext')) {
     throw new Error('next_step_coach did not return the next tutor move.')
+  }
+
+  if (!JSON.stringify(reviewPlan).includes('diagnosticQuestion')) {
+    throw new Error('adaptive_review_plan did not return a review plan.')
   }
 
   if (!JSON.stringify(answerGate).includes('hint_only')) {

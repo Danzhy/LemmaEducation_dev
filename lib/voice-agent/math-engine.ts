@@ -15,6 +15,7 @@ import type {
   MathAnswerCheckResult,
   MathStepCheckResult,
   NextStepCoachResult,
+  AdaptiveReviewPlanResult,
   PlotPointsResult,
   ValueTableResult,
   SocraticMoveResult,
@@ -5524,6 +5525,98 @@ export function nextStepCoach(input: {
     avoid: [
       'Do not start with a formula unless the student already named the relationship.',
       'Do not fill the board with every step at once.',
+    ],
+  }
+}
+
+function inferReviewMode(input: {
+  signals: string[]
+  sessionGoal: string
+  targetTopic: CurriculumTopic
+}): AdaptiveReviewPlanResult['reviewMode'] {
+  const combined = `${input.signals.join(' ')} ${input.sessionGoal}`.toLowerCase()
+  if (/extend|challenge|harder|advanced/.test(combined)) return 'extend'
+  if (/practice|drill|quiz|review/.test(combined)) return 'guided_practice'
+  if (/stuck|confused|setup|where do i begin|do not know|don't know/.test(combined)) return 'rebuild'
+  if (input.targetTopic === 'fractions' || input.targetTopic === 'expressions_equations') return 'diagnose'
+  return 'guided_practice'
+}
+
+function topicFromHistory(input: {
+  targetTopic?: string
+  topics?: string[]
+  recentExcerpts?: string[]
+}) {
+  const candidates = [
+    input.targetTopic,
+    ...(input.topics ?? []),
+    ...(input.recentExcerpts ?? []),
+  ]
+  return resolveCurriculumTopic(candidates.find((candidate) => candidate?.trim()) ?? 'fractions')
+}
+
+export function adaptiveReviewPlan(input: {
+  gradeLevel?: string
+  targetTopic?: string
+  sessionGoal?: string
+  topics?: string[]
+  struggleSignals?: string[]
+  recentExcerpts?: string[]
+}): AdaptiveReviewPlanResult {
+  const topic = topicFromHistory(input)
+  const guide = CURRICULUM_GUIDE[topic]
+  const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
+  const signals = (input.struggleSignals ?? []).map((signal) => signal.trim()).filter(Boolean).slice(0, 5)
+  const sessionGoal = input.sessionGoal?.trim() || 'review recent learning'
+  const reviewMode = inferReviewMode({ signals, sessionGoal, targetTopic: topic })
+  const practice = practiceSetGenerator({
+    topic,
+    difficulty: reviewMode === 'rebuild' || reviewMode === 'diagnose' ? 'support' : 'core',
+    count: 2,
+  }).items
+  const firstBoardTool =
+    reviewMode === 'diagnose'
+      ? topic === 'expressions_equations'
+        ? 'equation_balance'
+        : guide.tools[0]
+      : reviewMode === 'rebuild'
+        ? guide.tools[0]
+        : practice[0]?.suggestedTool || guide.tools[0]
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel,
+    reviewMode,
+    warmStartLine:
+      reviewMode === 'extend'
+        ? `Let us build on your recent ${guide.label.toLowerCase()} work with a slightly richer version.`
+        : `Let us do a quick ${guide.label.toLowerCase()} check before we move on.`,
+    diagnosticQuestion:
+      reviewMode === 'rebuild'
+        ? guide.nextMove
+        : `What is one thing you remember about ${guide.prerequisites[0].toLowerCase()}?`,
+    firstBoardTool,
+    suggestedToolSequence: [firstBoardTool, ...guide.tools.filter((toolName) => toolName !== firstBoardTool)].slice(0, 3),
+    microPractice: practice.map((item) => ({
+      prompt: item.prompt,
+      hint: item.hint,
+      suggestedTool: item.suggestedTool,
+    })),
+    tutorMoves: [
+      'Start with one diagnostic question and wait for the student response.',
+      `Use ${firstBoardTool.replace(/_/g, ' ')} only if the student needs the idea made visible.`,
+      'Give one micro-practice item at a time.',
+      'End by asking the student to explain the pattern in their own words.',
+    ],
+    masteryCheck:
+      reviewMode === 'extend'
+        ? 'Can the student solve a slightly changed problem and explain what changed?'
+        : 'Can the student make the next step without copying a full worked solution?',
+    avoid: [
+      'Do not list old private session details.',
+      'Do not give a long recap before the student tries.',
+      'Do not reveal practice answers until the student attempts the first step.',
     ],
   }
 }

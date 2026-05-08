@@ -1,6 +1,7 @@
 export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'annotate_graph_features',
   'angle_diagram',
+  'adaptive_review_plan',
   'answer_disclosure_gate',
   'area_perimeter_model',
   'array_model',
