@@ -20,6 +20,7 @@ async function main() {
     'math_check_step',
     'math_solve_linear',
     'tutor_teaching_sequence',
+    'next_step_coach',
     'board_animation_plan',
     'hint_ladder',
     'graph_function',
@@ -70,6 +71,15 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-hint-ladder' }
   )
+  const coachedMove = await tools.next_step_coach.execute(
+    {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      studentWork: '1/2 + 1/3 = 2/5',
+      goal: 'I am stuck.',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-next-step-coach' }
+  )
 
   if (!JSON.stringify(mathResult).includes('1.25')) {
     throw new Error(`Unexpected math_calculate result: ${JSON.stringify(mathResult)}`)
@@ -89,6 +99,10 @@ async function main() {
 
   if (!JSON.stringify(ladderResult).includes('gentle')) {
     throw new Error('hint_ladder did not return scaffolded hint levels.')
+  }
+
+  if (!JSON.stringify(coachedMove).includes('askNext')) {
+    throw new Error('next_step_coach did not return the next tutor move.')
   }
 
   const started = events.filter((event) => event.type === 'tool_started').length

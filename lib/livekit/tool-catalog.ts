@@ -31,6 +31,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'math_check_step',
   'math_solve_linear',
   'misconception_diagnosis',
+  'next_step_coach',
   'number_line',
   'order_of_operations',
   'percent_bar',

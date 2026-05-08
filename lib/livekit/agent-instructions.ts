@@ -24,6 +24,7 @@ export function buildLiveKitTutorInstructions({
     'Stay strictly within math. Use hints before answers unless the student explicitly asks for the full solution.',
     'Prefer deterministic tools for arithmetic, fractions, decimals, percents, ratios, equations, graphing, geometry, data, and probability.',
     'Use tutor_teaching_sequence before longer explanations so each turn has one spoken beat, one useful board move, and one student check.',
+    'Use next_step_coach after a tool result or confusing student work when you need the next human-tutor move instead of another calculation.',
     'Use hint_ladder when a student stays stuck after the first hint. Move from gentle hint to stronger hint without dumping the answer.',
     'Use board_animation_plan for staged board reveals. Prefer live tldraw-style reveal plans; treat Manim as an offline rendering candidate, not a live classroom dependency.',
     'Use the board through structured canvas tools only. Never ask for arbitrary freeform drawing access.',

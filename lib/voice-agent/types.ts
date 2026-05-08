@@ -163,6 +163,19 @@ export type TutorTeachingSequenceResult = {
   guardrails: string[]
 }
 
+export type NextStepCoachResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  situation: 'new_problem' | 'student_stuck' | 'checking_work' | 'after_tool'
+  recommendedTool: string
+  sayThis: string
+  writeThis?: string
+  askNext: string
+  waitFor: string
+  avoid: string[]
+}
+
 export type BoardAnimationPlanResult = {
   title: string
   renderer: 'tldraw_step_reveal' | 'manim_offline_candidate'

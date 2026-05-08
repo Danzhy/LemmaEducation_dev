@@ -24,6 +24,7 @@ import {
   longDivisionScene,
   mathCheckAnswer,
   misconceptionDiagnosis,
+  nextStepCoach,
   numberLineScene,
   orderOfOperationsScene,
   placeValueChartScene,
@@ -232,6 +233,19 @@ assert(
   'tutor_teaching_sequence should plan a diagnostic tutor turn with board stages.'
 )
 
+const coachedMove = nextStepCoach({
+  topic: 'fractions',
+  gradeLevel: 'Grade 5',
+  studentWork: '1/2 + 1/3 = 2/5',
+  goal: 'I am stuck and need a hint.',
+})
+assert(
+  coachedMove.situation === 'student_stuck' &&
+    coachedMove.recommendedTool === 'hint_ladder' &&
+    coachedMove.askNext.length > 0,
+  'next_step_coach should turn stuck student work into one non-answer-dumping tutor move.'
+)
+
 const animationPlan = boardAnimationPlan({
   concept: 'Explain equivalent fractions with a staged bar model',
   visualType: 'part-whole visual reveal',
@@ -270,4 +284,4 @@ assert(
   'common_denominator should convert 1/2 and 1/3 to sixths.'
 )
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 15} checks).`)
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 16} checks).`)

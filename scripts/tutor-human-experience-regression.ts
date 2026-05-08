@@ -30,6 +30,19 @@ const CASES: TutorExperienceCase[] = [
     expectedSubstrings: ['gentle', 'stronger', 'revealAnswer'],
   },
   {
+    id: 'next-step-coach-stuck-work',
+    title: 'Choose the next human tutor move from stuck student work',
+    gradeBand: 'grades 4-6',
+    toolName: 'next_step_coach',
+    input: {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      studentWork: '1/2 + 1/3 = 2/5',
+      goal: 'I am stuck and need help.',
+    },
+    expectedSubstrings: ['student_stuck', 'askNext', 'hint_ladder'],
+  },
+  {
     id: 'human-sequence-ratio',
     title: 'Plan a short tutor turn before ratio solving',
     gradeBand: 'grades 5-7',

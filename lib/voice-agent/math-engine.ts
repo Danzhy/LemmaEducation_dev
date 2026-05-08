@@ -13,6 +13,7 @@ import type {
   LinearSolveResult,
   MathAnswerCheckResult,
   MathStepCheckResult,
+  NextStepCoachResult,
   PlotPointsResult,
   ValueTableResult,
   SocraticMoveResult,
@@ -5416,6 +5417,112 @@ export function tutorTeachingSequence(input: {
       'Use one visual or deterministic tool before giving a long explanation.',
       'Do not reveal the full solution unless the student asks for it.',
       'Ask one question, then wait.',
+    ],
+  }
+}
+
+function inferNextStepSituation(input: {
+  studentWork?: string
+  goal?: string
+  lastToolResult?: string
+}): NextStepCoachResult['situation'] {
+  const combined = `${input.studentWork ?? ''} ${input.goal ?? ''} ${input.lastToolResult ?? ''}`.toLowerCase()
+  if (input.lastToolResult?.trim()) return 'after_tool'
+  if (/check|correct|right|wrong|verify/.test(combined)) return 'checking_work'
+  if (/stuck|confus|lost|help|don't know|do not know|mistake/.test(combined)) return 'student_stuck'
+  return 'new_problem'
+}
+
+export function nextStepCoach(input: {
+  topic: string
+  gradeLevel?: string
+  studentWork?: string
+  goal?: string
+  lastToolName?: string
+  lastToolResult?: string
+}): NextStepCoachResult {
+  const topic = resolveCurriculumTopic(input.topic || input.goal || input.studentWork || '')
+  const guide = CURRICULUM_GUIDE[topic]
+  const situation = inferNextStepSituation(input)
+  const studentWork = input.studentWork?.trim() ?? ''
+  const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
+  const lastToolName = input.lastToolName?.trim()
+  const recommendedTool =
+    situation === 'checking_work'
+      ? topic === 'expressions_equations'
+        ? 'math_check_step'
+        : 'math_check_answer'
+      : situation === 'student_stuck'
+        ? 'hint_ladder'
+        : lastToolName || guide.tools[0]
+
+  if (situation === 'after_tool') {
+    return {
+      topic,
+      label: guide.label,
+      gradeLevel,
+      situation,
+      recommendedTool: recommendedTool || guide.tools[0],
+      sayThis: 'Let us use what the tool showed, but keep the next move yours.',
+      writeThis: studentWork ? `Current work: ${studentWork.slice(0, 80)}` : undefined,
+      askNext: 'Which part of the board result matches your thinking, and which part feels different?',
+      waitFor: 'The student connects the visual or checked result to one step of their own reasoning.',
+      avoid: [
+        'Do not read the whole tool output aloud.',
+        'Do not solve past the next student decision.',
+      ],
+    }
+  }
+
+  if (situation === 'student_stuck') {
+    return {
+      topic,
+      label: guide.label,
+      gradeLevel,
+      situation,
+      recommendedTool,
+      sayThis: 'Let us shrink the problem to one decision.',
+      writeThis: studentWork ? `Look at this step: ${studentWork.slice(0, 90)}` : 'Write the knowns and the question.',
+      askNext: 'What is the one thing this step is trying to do?',
+      waitFor: 'A partial explanation, even if it is uncertain.',
+      avoid: [
+        'Do not tell the final answer first.',
+        'Do not introduce a second strategy until the student tries one move.',
+      ],
+    }
+  }
+
+  if (situation === 'checking_work') {
+    return {
+      topic,
+      label: guide.label,
+      gradeLevel,
+      situation,
+      recommendedTool,
+      sayThis: 'Let us check the reasoning before we decide if the answer is right.',
+      writeThis: studentWork ? `Check: ${studentWork.slice(0, 90)}` : 'Put the previous step and next step side by side.',
+      askNext: 'What operation or relationship connects these two lines?',
+      waitFor: 'A reason for the step, not just yes or no.',
+      avoid: [
+        'Do not mark it wrong without naming the reasoning issue.',
+        'Do not reveal the corrected answer before the student explains the step.',
+      ],
+    }
+  }
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel,
+    situation,
+    recommendedTool,
+    sayThis: 'Let us make the structure visible before calculating.',
+    writeThis: 'Knowns, unknown, relationship',
+    askNext: 'What do we know, what are we finding, and what relationship connects them?',
+    waitFor: 'The student names the quantities or relationship in their own words.',
+    avoid: [
+      'Do not start with a formula unless the student already named the relationship.',
+      'Do not fill the board with every step at once.',
     ],
   }
 }

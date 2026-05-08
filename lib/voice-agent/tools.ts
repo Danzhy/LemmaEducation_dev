@@ -31,6 +31,7 @@ import {
   mathCheckStep,
   mathSolveLinear,
   misconceptionDiagnosis,
+  nextStepCoach,
   numberLineScene,
   orderOfOperationsScene,
   placeValueChartScene,
@@ -607,6 +608,45 @@ export function createVoiceAgentTools() {
             problem: params.problem,
             maxSteps: params.maxSteps,
             stopBeforeFinal: params.stopBeforeFinal,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'next_step_coach',
+      description:
+        'Convert student work, goal, and optional prior tool output into one concise human-tutor move: what to say, what to write, what to ask next, and what not to do. Use this after tools or when deciding how to keep the student thinking.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          studentWork: { type: 'string' },
+          goal: { type: 'string' },
+          lastToolName: { type: 'string' },
+          lastToolResult: { type: 'string' },
+        },
+        required: ['topic'],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          gradeLevel?: string
+          studentWork?: string
+          goal?: string
+          lastToolName?: string
+          lastToolResult?: string
+        }
+        return stringifyResult(
+          nextStepCoach({
+            topic: params.topic,
+            gradeLevel: params.gradeLevel,
+            studentWork: params.studentWork,
+            goal: params.goal,
+            lastToolName: params.lastToolName,
+            lastToolResult: params.lastToolResult,
           })
         )
       },
