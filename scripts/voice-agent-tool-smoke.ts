@@ -277,6 +277,20 @@ assert(
   'math_check_step should catch percent-change base mistakes.'
 )
 
+const validDecimalRoundingStep = mathCheckStep('round 3.746 to nearest hundredths', '3.75')
+assert(
+  validDecimalRoundingStep.verdict === 'valid' &&
+    validDecimalRoundingStep.hintTarget.includes('next digit'),
+  'math_check_step should validate decimal rounding steps.'
+)
+
+const invalidDecimalRoundingStep = mathCheckStep('round 3.746 to nearest hundredths', '3.74')
+assert(
+  invalidDecimalRoundingStep.verdict === 'invalid' &&
+    invalidDecimalRoundingStep.hintTarget.includes('target place'),
+  'math_check_step should catch decimal rounding mistakes.'
+)
+
 const invalidDecimalStep = mathCheckStep('0.4 + 0.08', '0.12')
 assert(
   invalidDecimalStep.verdict === 'invalid' &&

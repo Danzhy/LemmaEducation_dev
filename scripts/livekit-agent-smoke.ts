@@ -108,6 +108,14 @@ async function main() {
     { previousStep: 'from 80 to 100', nextStep: '20% increase' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-percent-change-step-check' }
   )
+  const validDecimalRoundingStep = await tools.math_check_step.execute(
+    { previousStep: 'round 3.746 to nearest hundredths', nextStep: '3.75' },
+    { ctx: {} as never, toolCallId: 'smoke-decimal-rounding-step-check' }
+  )
+  const invalidDecimalRoundingStep = await tools.math_check_step.execute(
+    { previousStep: 'round 3.746 to nearest hundredths', nextStep: '3.74' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-decimal-rounding-step-check' }
+  )
   const invalidDecimalStep = await tools.math_check_step.execute(
     { previousStep: '0.4 + 0.08', nextStep: '0.12' },
     { ctx: {} as never, toolCallId: 'smoke-decimal-step-check' }
@@ -386,6 +394,20 @@ async function main() {
     !JSON.stringify(invalidPercentChangeStep).includes('percent-change base')
   ) {
     throw new Error(`math_check_step did not reject a percent-change base mistake: ${JSON.stringify(invalidPercentChangeStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validDecimalRoundingStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validDecimalRoundingStep).includes('next digit')
+  ) {
+    throw new Error(`math_check_step did not accept a decimal rounding step: ${JSON.stringify(validDecimalRoundingStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidDecimalRoundingStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidDecimalRoundingStep).includes('target place')
+  ) {
+    throw new Error(`math_check_step did not reject a decimal rounding mistake: ${JSON.stringify(invalidDecimalRoundingStep)}`)
   }
 
   if (

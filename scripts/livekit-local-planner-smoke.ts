@@ -60,6 +60,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes decimal rounding requests to the rounding tool',
+    prompt: 'Round 3.746 to the nearest hundredth.',
+    expectedTools: ['round_number'],
+    inspect: (input) => {
+      assert.equal(input.value, 3.746)
+      assert.equal(input.place, 'hundredths')
+    },
+  },
+  {
     name: 'routes measurement conversions to unit conversion board setup',
     prompt: 'Convert 2.5 meters to centimeters.',
     expectedTools: ['unit_conversion'],
@@ -150,6 +159,15 @@ const cases: PlannerCase[] = [
     inspect: (input) => {
       assert.equal(input.previousStep, 'from 80 to 100')
       assert.equal(input.nextStep, '20% increase')
+    },
+  },
+  {
+    name: 'checks decimal rounding attempts before classifying the mistake',
+    prompt: 'I rounded 3.746 to the nearest hundredth and got 3.74. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'round 3.746 to nearest hundredths')
+      assert.equal(input.nextStep, '3.74')
     },
   },
   {

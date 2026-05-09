@@ -594,6 +594,57 @@ function checkPercentChangeStep(previousStep: string, nextStep: string): MathSte
   }
 }
 
+function extractRoundingPlace(text: string) {
+  const lower = text.toLowerCase()
+  if (/\bthousandths?\b/.test(lower)) return 'thousandths'
+  if (/\bhundredths?\b/.test(lower)) return 'hundredths'
+  if (/\btenths?\b/.test(lower)) return 'tenths'
+  if (/\bthousands?\b/.test(lower)) return 'thousands'
+  if (/\bhundreds?\b/.test(lower)) return 'hundreds'
+  if (/\btens?\b/.test(lower)) return 'tens'
+  if (/\bones?|units?\b/.test(lower)) return 'ones'
+  return null
+}
+
+function extractRoundedValue(text: string) {
+  const match = text.replace(/,/g, '').match(new RegExp(PLAIN_NUMBER_PATTERN))
+  return match ? parsePlainNumber(match[0]) : null
+}
+
+function checkDecimalRoundingStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\b(round|rounded|nearest)\b/i.test(combined)) return null
+
+  const place = extractRoundingPlace(previousStep)
+  const sourceValue = extractRoundedValue(previousStep)
+  const studentValue = extractRoundedValue(nextStep)
+  if (!place || sourceValue === null || studentValue === null) return null
+
+  try {
+    const factor = resolveRoundingFactor(place)
+    const rounded = roundPoint(Math.round(sourceValue / factor) * factor, 6)
+    const checkedDigit = getRoundingCheckedDigit(sourceValue, factor)
+    const roundsUp = checkedDigit >= 5
+    const valuesMatch = isNearlyEqual(rounded, studentValue, factor < 1 ? factor / 10 : 1e-6)
+    const roundingReason = `Rounding ${formatNumber(sourceValue, 6)} to the nearest ${place} gives ${formatNumber(
+      rounded,
+      6
+    )}. The next digit is ${checkedDigit}, so we ${roundsUp ? 'round up' : 'keep the target place and round down'}.`
+
+    return {
+      verdict: valuesMatch ? 'valid' : 'invalid',
+      reason: valuesMatch
+        ? roundingReason
+        : `${roundingReason} The student answer is ${formatNumber(studentValue, 6)}.`,
+      hintTarget: valuesMatch
+        ? 'explain how the next digit controls the rounding'
+        : 'identify the target place and check the next digit',
+    }
+  } catch {
+    return null
+  }
+}
+
 function evaluateComparableExpression(expression: string): ComparableExpression {
   const unitQuantity = parseUnitQuantity(expression)
   if (unitQuantity) {
@@ -772,6 +823,8 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasPercentChangeWork:
       /%|\bpercent\b/i.test(nextStep) &&
       /\b(percent\s+change|increase|increased|decrease|decreased|from|to|original|new|old)\b/i.test(combined),
+    hasDecimalRoundingWork:
+      /\b(round|rounded|nearest)\b/i.test(combined) && /\d+\.\d+/.test(combined) && Boolean(extractRoundingPlace(combined)),
     hasRatioWork: /-?\d+(?:\.\d+)?\s*:\s*-?\d+(?:\.\d+)?/.test(combined),
     hasDecimalWork: /\d+\.\d+/.test(combined),
     hasIntegerSignWork: /(^|[=+\-*/(]\s*)-\d/.test(combined),
@@ -818,6 +871,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasPercentWork) {
     return 'convert the percent to an equivalent decimal or fraction first'
+  }
+  if (features.hasDecimalRoundingWork) {
+    return 'identify the target place and check the next digit'
   }
   if (features.hasRatioWork) {
     return 'scale both parts of the ratio by the same factor'
@@ -2561,6 +2617,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const percentChangeStep = checkPercentChangeStep(previousStep, nextStep)
   if (percentChangeStep) {
     return percentChangeStep
+  }
+
+  const decimalRoundingStep = checkDecimalRoundingStep(previousStep, nextStep)
+  if (decimalRoundingStep) {
+    return decimalRoundingStep
   }
 
   if (!prev.includes('=') && !next.includes('=')) {

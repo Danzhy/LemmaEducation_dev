@@ -200,11 +200,19 @@ function extractSlopeRequest(text: string) {
 }
 
 function pickPlaceValue(lower: string) {
-  if (lower.includes('hundredth')) return 'hundredths'
-  if (lower.includes('tenth')) return 'tenths'
-  if (lower.includes('thousand')) return 'thousands'
-  if (lower.includes('hundred')) return 'hundreds'
-  return 'tens'
+  return extractLocalRoundingPlace(lower) ?? 'tens'
+}
+
+function extractLocalRoundingPlace(text: string) {
+  const lower = text.toLowerCase()
+  if (/\bthousandths?\b/.test(lower)) return 'thousandths'
+  if (/\bhundredths?\b/.test(lower)) return 'hundredths'
+  if (/\btenths?\b/.test(lower)) return 'tenths'
+  if (/\bthousands?\b/.test(lower)) return 'thousands'
+  if (/\bhundreds?\b/.test(lower)) return 'hundreds'
+  if (/\btens?\b/.test(lower)) return 'tens'
+  if (/\bones?|units?\b/.test(lower)) return 'ones'
+  return null
 }
 
 function extractIntegerOperation(text: string) {
@@ -235,7 +243,11 @@ function hasMathToken(value: string) {
 }
 
 function hasMathStructure(value: string) {
-  return /[+\-*/=:%^()]|\/|\bof\b/i.test(value) || hasKnownUnitQuantity(value)
+  return (
+    /[+\-*/=:%^()]|\/|\bof\b/i.test(value) ||
+    /\b(round|rounded|nearest|tenths?|hundredths?|thousandths?|ones?|tens?|hundreds?|thousands?)\b/i.test(value) ||
+    hasKnownUnitQuantity(value)
+  )
 }
 
 function buildStepPair(previousStep: string, nextStep: string): StudentStepPair | null {
@@ -428,6 +440,31 @@ function extractPercentChangeAttempt(text: string): StudentStepPair | null {
   )
 }
 
+function extractDecimalRoundingAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(round|rounded|nearest)\b/i.test(normalized)) return null
+
+  const place = extractLocalRoundingPlace(normalized)
+  if (!place) return null
+
+  const sourceMatch =
+    normalized.match(new RegExp(`\\bround(?:ed)?\\s+\\$?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')) ??
+    normalized.match(new RegExp(`\\$?\\s*(${LOCAL_NUMBER_PATTERN})\\s+rounded\\s+to\\s+(?:the\\s+)?(?:nearest\\s+)?`, 'i'))
+  if (!sourceMatch) return null
+
+  const source = parseLocalPlainNumber(sourceMatch[1])
+  if (source === null) return null
+
+  const afterSource = normalized.slice((sourceMatch.index ?? 0) + sourceMatch[0].length)
+  const answerMatch =
+    afterSource.match(new RegExp(`\\b(?:got|gets|equals?|is|as)\\s+\\$?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')) ??
+    afterSource.match(new RegExp(`=\\s*\\$?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i'))
+  const answer = answerMatch ? parseLocalPlainNumber(answerMatch[1]) : null
+  if (answer === null) return null
+
+  return buildStepPair(`round ${source} to nearest ${place}`, String(answer))
+}
+
 function extractAlgebraExpressionAttempt(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
@@ -506,6 +543,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const percentChangeAttempt = extractPercentChangeAttempt(normalized)
   if (percentChangeAttempt) return percentChangeAttempt
 
+  const decimalRoundingAttempt = extractDecimalRoundingAttempt(normalized)
+  if (decimalRoundingAttempt) return decimalRoundingAttempt
+
   const slopeAttempt = extractSlopeAttempt(normalized)
   if (slopeAttempt) return slopeAttempt
 
@@ -536,7 +576,7 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
 function inferLocalTopic(text: string) {
   const lower = text.toLowerCase()
   if (extractFractions(text).length > 0 || /\bfraction|denominator|numerator\b/.test(lower)) return 'fractions'
-  if (/\bdecimal|percent|%|hundredths|tenths\b/.test(lower)) return 'decimals and percents'
+  if (/\bdecimal|percent|%|round|rounded|nearest|place value|tenths?|hundredths?|thousandths?|ones?|tens?|hundreds?|thousands?\b/.test(lower)) return 'decimals and percents'
   if (/\bratio|rate|per one|unit rate|scale\b/.test(lower)) return 'ratios'
   if (/\bequation|variable|solve for x|\bx\b/.test(lower)) return 'equations'
   if (/\bnegative|positive|integer|signed|minus\b|-\d/.test(lower)) return 'integers'
@@ -559,7 +599,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(lower)
   const hasStudentAttempt =
     /\b(i tried|i got|i found|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
-    /\b(i added|i subtracted|i calculated|i evaluated|i did|i worked out|i simplified|and got)\b/.test(lower) ||
+    /\b(i added|i subtracted|i calculated|i evaluated|i did|i worked out|i simplified|i rounded|rounded|and got)\b/.test(lower) ||
     /\b(went from|changed from|increased from|decreased from|percent change)\b/.test(lower) ||
     prompt.includes('=')
   const asksForCurriculumContext =
