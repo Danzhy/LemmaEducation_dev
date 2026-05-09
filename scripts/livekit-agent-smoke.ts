@@ -38,6 +38,7 @@ async function main() {
     'worked_example_fader',
     'graph_function',
     'coordinate_distance',
+    'slope_triangle',
     'fraction_strip',
     'percent_bar',
     'ratio_table',
@@ -103,6 +104,14 @@ async function main() {
     { previousStep: 'distance from (2, 3) to (5, 7)', nextStep: '4' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-distance-step-check' }
   )
+  const validSlopeStep = await tools.math_check_step.execute(
+    { previousStep: 'slope from (1, 2) to (5, 6)', nextStep: '1' },
+    { ctx: {} as never, toolCallId: 'smoke-slope-step-check' }
+  )
+  const invalidSlopeStep = await tools.math_check_step.execute(
+    { previousStep: 'slope from (1, 2) to (5, 6)', nextStep: '4' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-slope-step-check' }
+  )
   const invalidNumericEqualityStep = await tools.math_check_step.execute(
     { previousStep: '3/4 = 6/8', nextStep: '3/4 = 7/8' },
     { ctx: {} as never, toolCallId: 'smoke-numeric-equality-step-check' }
@@ -110,6 +119,10 @@ async function main() {
   const graphResult = await tools.graph_function.execute(
     { expression: '2*x + 1' },
     { ctx: {} as never, toolCallId: 'smoke-graph' }
+  )
+  const slopeTriangleResult = await tools.slope_triangle.execute(
+    { pointA: { x: 1, y: 2 }, pointB: { x: 5, y: 6 } },
+    { ctx: {} as never, toolCallId: 'smoke-slope-triangle' }
   )
   const teachingResult = await tools.tutor_teaching_sequence.execute(
     {
@@ -325,12 +338,27 @@ async function main() {
     throw new Error(`math_check_step did not reject an invalid coordinate distance: ${JSON.stringify(invalidCoordinateDistanceStep)}`)
   }
 
+  if (!JSON.stringify(validSlopeStep).includes('"verdict":"valid"')) {
+    throw new Error(`math_check_step did not accept a correct slope claim: ${JSON.stringify(validSlopeStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidSlopeStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidSlopeStep).includes('rise over run')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid slope claim: ${JSON.stringify(invalidSlopeStep)}`)
+  }
+
   if (!JSON.stringify(invalidNumericEqualityStep).includes('"verdict":"invalid"')) {
     throw new Error(`math_check_step did not reject a false numeric equality: ${JSON.stringify(invalidNumericEqualityStep)}`)
   }
 
   if (canvasActions.length === 0 || !JSON.stringify(graphResult).includes('canvas')) {
     throw new Error('graph_function did not produce board-renderable actions.')
+  }
+
+  if (!JSON.stringify(slopeTriangleResult).includes('slope')) {
+    throw new Error('slope_triangle did not return a slope board model.')
   }
 
   if (!JSON.stringify(teachingResult).includes('boardPlan')) {

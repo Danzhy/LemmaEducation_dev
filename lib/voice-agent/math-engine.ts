@@ -383,6 +383,79 @@ function checkCoordinateDistanceStep(previousStep: string, nextStep: string): Ma
   }
 }
 
+function parseSlopeValue(text: string): number | 'undefined' | null {
+  const cleaned = text
+    .replace(/[“”]/g, '"')
+    .replace(/[’]/g, "'")
+    .replace(/[?!.,;:]+$/g, '')
+    .trim()
+  if (/\b(undefined|vertical|no\s+slope)\b/i.test(cleaned)) {
+    return 'undefined'
+  }
+
+  const numberPattern = /-?(?:\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*-?(?:\d+(?:\.\d+)?|\.\d+))?/
+  const explicitMatch = cleaned.match(
+    new RegExp(`\\b(?:slope|rate\\s+of\\s+change|m)\\s*(?:is|=|:)?\\s*(${numberPattern.source})`, 'i')
+  )
+  const valueMatch = explicitMatch?.[1] ?? cleaned.match(numberPattern)?.[0]
+  if (!valueMatch) return null
+
+  try {
+    return coerceFiniteNumber(safeEvaluate(normalizeExpression(valueMatch)))
+  } catch {
+    return null
+  }
+}
+
+function checkSlopeStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\b(slope|rate of change|rise|run)\b/i.test(combined)) return null
+
+  const points = parseCoordinatePoints(previousStep)
+  if (points.length < 2 || parseCoordinatePoints(nextStep).length > 0) return null
+
+  const studentSlope = parseSlopeValue(nextStep)
+  if (studentSlope === null) return null
+
+  const [pointA, pointB] = points
+  const rise = pointB.y - pointA.y
+  const run = pointB.x - pointA.x
+  const verticalLine = isNearlyEqual(run, 0)
+
+  if (verticalLine) {
+    const slopeMatches = studentSlope === 'undefined'
+    return {
+      verdict: slopeMatches ? 'valid' : 'invalid',
+      reason: slopeMatches
+        ? `The run is 0, so the slope is undefined.`
+        : `The rise is ${formatNumber(rise, 4)} but the run is 0, so the slope is undefined, not ${formatNumber(studentSlope, 4)}.`,
+      hintTarget: slopeMatches
+        ? 'explain why a vertical line has undefined slope'
+        : 'check the run before writing a numerical slope',
+    }
+  }
+
+  if (studentSlope === 'undefined') {
+    return {
+      verdict: 'invalid',
+      reason: `The rise is ${formatNumber(rise, 4)} and the run is ${formatNumber(run, 4)}, so the slope is ${formatNumber(rise / run, 4)}.`,
+      hintTarget: 'use rise over run before deciding the slope',
+    }
+  }
+
+  const expectedSlope = rise / run
+  const slopeMatches = isNearlyEqual(expectedSlope, studentSlope, 0.01)
+  return {
+    verdict: slopeMatches ? 'valid' : 'invalid',
+    reason: slopeMatches
+      ? `The rise is ${formatNumber(rise, 4)} and the run is ${formatNumber(run, 4)}, so the slope is ${formatNumber(expectedSlope, 4)}.`
+      : `The rise is ${formatNumber(rise, 4)} and the run is ${formatNumber(run, 4)}, so the slope is ${formatNumber(expectedSlope, 4)}, not ${formatNumber(studentSlope, 4)}.`,
+    hintTarget: slopeMatches
+      ? 'explain how rise over run gives the slope'
+      : 'compare rise over run instead of using only one coordinate change',
+  }
+}
+
 function evaluateComparableExpression(expression: string): ComparableExpression {
   const unitQuantity = parseUnitQuantity(expression)
   if (unitQuantity) {
@@ -427,6 +500,9 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasCoordinateDistanceWork:
       /\bdistance|length\b/i.test(combined) &&
       /\(\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*\)/.test(combined),
+    hasSlopeWork:
+      /\b(slope|rate of change|rise|run)\b/i.test(combined) &&
+      /\(\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*\)/.test(combined),
     hasUnitConversionWork: hasKnownUnitQuantity(combined),
     hasFractionWork: /\d+\s*\/\s*\d+/.test(combined),
     hasPercentWork: /%|\bpercent\b/i.test(combined),
@@ -439,6 +515,9 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
 function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures>) {
   if (features.hasCoordinateDistanceWork) {
     return 'use horizontal and vertical changes before deciding the distance'
+  }
+  if (features.hasSlopeWork) {
+    return 'compare rise over run instead of using only one coordinate change'
   }
   if (features.hasUnitConversionWork) {
     return 'use the conversion factor and keep the measurement type the same'
@@ -2104,6 +2183,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const coordinatePointStep = checkCoordinatePointStep(previousStep, nextStep)
   if (coordinatePointStep) {
     return coordinatePointStep
+  }
+
+  const slopeStep = checkSlopeStep(previousStep, nextStep)
+  if (slopeStep) {
+    return slopeStep
   }
 
   const coordinateDistanceStep = checkCoordinateDistanceStep(previousStep, nextStep)

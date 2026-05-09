@@ -280,6 +280,27 @@ assert(
   'math_check_step should catch incorrect coordinate distance claims.'
 )
 
+const validSlopeStep = mathCheckStep('slope from (1, 2) to (5, 6)', '1')
+assert(
+  validSlopeStep.verdict === 'valid' &&
+    validSlopeStep.hintTarget.includes('rise over run'),
+  'math_check_step should validate slope claims between two points.'
+)
+
+const invalidSlopeStep = mathCheckStep('slope from (1, 2) to (5, 6)', '4')
+assert(
+  invalidSlopeStep.verdict === 'invalid' &&
+    invalidSlopeStep.hintTarget.includes('rise over run'),
+  'math_check_step should catch slope claims that use only one coordinate change.'
+)
+
+const validUndefinedSlopeStep = mathCheckStep('slope from (2, 1) to (2, 5)', 'undefined')
+assert(
+  validUndefinedSlopeStep.verdict === 'valid' &&
+    validUndefinedSlopeStep.reason.includes('undefined'),
+  'math_check_step should validate undefined slope for vertical lines.'
+)
+
 const validNumericEqualityStep = mathCheckStep('3/4 = 6/8', '0.75 = 0.75')
 assert(
   validNumericEqualityStep.verdict === 'valid',

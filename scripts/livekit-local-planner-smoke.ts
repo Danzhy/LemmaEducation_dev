@@ -135,12 +135,39 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks slope claims before classifying the mistake',
+    prompt: 'I found the slope from (1, 2) to (5, 6) is 4. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'slope from (1, 2) to (5, 6)')
+      assert.equal(input.nextStep, '4')
+    },
+  },
+  {
+    name: 'checks undefined slope claims before classifying the mistake',
+    prompt: 'I found the slope from (2, 1) to (2, 5) is undefined. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'slope from (2, 1) to (2, 5)')
+      assert.equal(input.nextStep, 'undefined')
+    },
+  },
+  {
     name: 'routes coordinate distance requests to board model',
     prompt: 'Find the distance from (2, 3) to (5, 7) on the coordinate plane.',
     expectedTools: ['coordinate_distance'],
     inspect: (input) => {
       assert.deepEqual(input.pointA, { x: 2, y: 3 })
       assert.deepEqual(input.pointB, { x: 5, y: 7 })
+    },
+  },
+  {
+    name: 'routes slope requests to rise-run board model',
+    prompt: 'Find the slope from (1, 2) to (5, 6).',
+    expectedTools: ['slope_triangle'],
+    inspect: (input) => {
+      assert.deepEqual(input.pointA, { x: 1, y: 2 })
+      assert.deepEqual(input.pointB, { x: 5, y: 6 })
     },
   },
   {
@@ -305,6 +332,14 @@ assert.match(
     [{ summary: 'Prepared unit conversion: 2.5 m = 250 cm.' }]
   ),
   /unit conversion/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'find slope',
+    [{ toolName: 'slope_triangle', input: {} }],
+    [{ summary: 'Prepared a slope triangle with rise 4, run 4, and slope 1.' }]
+  ),
+  /slope triangle/
 )
 assert.match(
   buildLocalAssistantReply(

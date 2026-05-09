@@ -182,6 +182,16 @@ function extractCoordinateDistanceRequest(text: string) {
   }
 }
 
+function extractSlopeRequest(text: string) {
+  if (!/\b(slope|rate of change|rise\s*\/\s*run)\b/i.test(text)) return null
+  const points = extractCoordinatePoints(text)
+  if (points.length < 2) return null
+  return {
+    pointA: { x: points[0].x, y: points[0].y },
+    pointB: { x: points[1].x, y: points[1].y },
+  }
+}
+
 function pickPlaceValue(lower: string) {
   if (lower.includes('hundredth')) return 'hundredths'
   if (lower.includes('tenth')) return 'tenths'
@@ -214,7 +224,7 @@ function cleanStepText(value: string) {
 }
 
 function hasMathToken(value: string) {
-  return /[0-9xX]/.test(value)
+  return /[0-9xX]/.test(value) || /\b(undefined|no\s+slope|vertical)\b/i.test(value)
 }
 
 function hasMathStructure(value: string) {
@@ -280,6 +290,32 @@ function extractCoordinateDistanceAttempt(text: string): StudentStepPair | null 
   )
 }
 
+function extractSlopeAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const points = extractCoordinatePoints(normalized)
+  if (points.length < 2 || !/\b(slope|rate of change|rise\s*\/\s*run)\b/i.test(normalized)) return null
+
+  const numericSlopePattern = String.raw`-?(?:\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*-?(?:\d+(?:\.\d+)?|\.\d+))?`
+  const slopeValuePattern = String.raw`(undefined|no\s+slope|vertical|${numericSlopePattern})`
+  const firstPointIndex = points[0].index
+  const secondPointEnd = points[1].index + points[1].raw.length
+  const beforeFirstPoint = normalized.slice(0, firstPointIndex)
+  const afterSecondPoint = normalized.slice(secondPointEnd)
+  const answerAfter = afterSecondPoint.match(
+    new RegExp(`\\b(?:slope|rate\\s+of\\s+change|m)?\\s*(?:is|equals?|=|was|to)\\s*${slopeValuePattern}`, 'i')
+  )
+  const answerBefore = beforeFirstPoint.match(
+    new RegExp(`\\b(?:got|found|answer(?: is)?|think|slope(?: is)?|m\\s*=)\\s*${slopeValuePattern}`, 'i')
+  )
+  const answer = answerAfter?.[1] ?? answerBefore?.[1]
+  if (!answer) return null
+
+  return buildStepPair(
+    `slope from (${points[0].x}, ${points[0].y}) to (${points[1].x}, ${points[1].y})`,
+    answer
+  )
+}
+
 function extractStudentStepPair(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
@@ -289,6 +325,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
     const pair = buildStepPair(arrowMatch[1], arrowMatch[2])
     if (pair) return pair
   }
+
+  const slopeAttempt = extractSlopeAttempt(normalized)
+  if (slopeAttempt) return slopeAttempt
 
   const coordinateDistanceAttempt = extractCoordinateDistanceAttempt(normalized)
   if (coordinateDistanceAttempt) return coordinateDistanceAttempt
@@ -332,6 +371,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const fractions = extractFractions(prompt)
   const numbers = extractNumbers(prompt)
   const unitConversionRequest = extractUnitConversionRequest(prompt)
+  const slopeRequest = extractSlopeRequest(prompt)
   const coordinateDistanceRequest = extractCoordinateDistanceRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
   const plans: LocalToolPlan[] = []
@@ -550,6 +590,17 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
       })
       return plans
     }
+  }
+
+  if (slopeRequest) {
+    plans.push({
+      toolName: 'slope_triangle',
+      input: {
+        ...slopeRequest,
+        title: 'Slope triangle',
+      },
+    })
+    return plans
   }
 
   if (/\b(graph|plot|parabola|function)\b/i.test(prompt)) {
@@ -971,6 +1022,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'unit_conversion') {
     return 'I set up the unit conversion on the board. Use the conversion factor first, then check whether the measurement still means the same amount.'
+  }
+
+  if (firstTool === 'slope_triangle') {
+    return 'I put a slope triangle on the board. Compare rise to run first, then tell me what the slope means.'
   }
 
   if (firstTool === 'double_number_line' || firstTool === 'unit_rate') {
