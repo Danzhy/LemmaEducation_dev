@@ -132,6 +132,23 @@ const CASES: TutorExperienceCase[] = [
     expectedSubstrings: ['formattedTurn', 'extra_questions_removed', 'oneQuestionOnly'],
   },
   {
+    id: 'short-spoken-answer-dump-removal',
+    title: 'Remove premature final answers from hint/check voice chunks',
+    gradeBand: 'grades 3-7',
+    toolName: 'short_spoken_turn_formatter',
+    input: {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      draftTurn:
+        'The final answer is 5/6. Use a common denominator to compare equal-sized pieces. What denominator could both fractions use?',
+      requiredQuestion: 'What denominator could both fractions use?',
+      mustAskQuestion: true,
+      maxWordsPerChunk: 14,
+      maxChunks: 2,
+    },
+    expectedSubstrings: ['answer_dump_removed', 'oneQuestionOnly', 'What denominator could both fractions use?'],
+  },
+  {
     id: 'voice-interruption-recovery',
     title: 'Resume voice tutoring from the interrupted short chunk',
     gradeBand: 'grades 3-7',

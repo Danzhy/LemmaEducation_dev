@@ -9758,6 +9758,13 @@ function isStudentFacingQuestion(sentence: string) {
   return /\?\s*$/.test(sentence.trim())
 }
 
+function isPrematureAnswerDumpSentence(sentence: string) {
+  const lower = sentence.toLowerCase()
+  return /\b(answer is|final answer|solution is|therefore\s+[a-z]\s*=|so\s+[a-z]\s*=|so the answer is)\b/.test(
+    lower
+  )
+}
+
 function defaultShortTurnQuestion(topic: CurriculumTopic) {
   const questions: Record<CurriculumTopic, string> = {
     place_value: 'Which place should we look at first?',
@@ -9823,7 +9830,11 @@ export function shortSpokenTurnFormatter(input: {
     ? normalizeShortTurnQuestion(input.requiredQuestion || questionCandidates[0], fallbackQuestion)
     : ''
   const explanationSlots = mustAskQuestion ? Math.max(0, maxChunks - 1) : maxChunks
-  const explanationSentences = sentences.filter((sentence) => !isStudentFacingQuestion(sentence)).slice(0, explanationSlots)
+  const removedAnswerDumpSentences = mustAskQuestion ? sentences.filter(isPrematureAnswerDumpSentence) : []
+  const explanationSentences = sentences
+    .filter((sentence) => !isStudentFacingQuestion(sentence))
+    .filter((sentence) => !(mustAskQuestion && isPrematureAnswerDumpSentence(sentence)))
+    .slice(0, explanationSlots)
   const chunks: ShortSpokenTurnFormatterResult['chunks'] = []
   let longChunkTrimmed = false
 
@@ -9867,6 +9878,9 @@ export function shortSpokenTurnFormatter(input: {
   }
   if (longChunkTrimmed) {
     removedSignals.push('long_chunk_trimmed')
+  }
+  if (removedAnswerDumpSentences.length > 0) {
+    removedSignals.push('answer_dump_removed')
   }
   if (mustAskQuestion && !input.requiredQuestion?.trim() && questionCandidates.length === 0) {
     removedSignals.push('student_question_added')

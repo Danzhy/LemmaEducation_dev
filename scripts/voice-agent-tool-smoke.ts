@@ -967,6 +967,24 @@ assert(
   'short_spoken_turn_formatter should trim long drafts into interruptible chunks with one question.'
 )
 
+const answerSafeShortTurn = shortSpokenTurnFormatter({
+  topic: 'fractions',
+  gradeLevel: 'Grade 5',
+  draftTurn:
+    'The final answer is 5/6. Use a common denominator to compare equal-sized pieces. What denominator could both fractions use?',
+  requiredQuestion: 'What denominator could both fractions use?',
+  mustAskQuestion: true,
+  maxWordsPerChunk: 14,
+  maxChunks: 2,
+})
+assert(
+  answerSafeShortTurn.voicePolicy.oneQuestionOnly &&
+    answerSafeShortTurn.voicePolicy.waitsAfterQuestion &&
+    answerSafeShortTurn.removedSignals.includes('answer_dump_removed') &&
+    !answerSafeShortTurn.formattedTurn.includes('5/6'),
+  'short_spoken_turn_formatter should remove premature final answers from hint/check voice turns.'
+)
+
 const interruptionRecovery = voiceInterruptionRecoveryPlan({
   topic: 'fractions',
   gradeLevel: 'Grade 5',

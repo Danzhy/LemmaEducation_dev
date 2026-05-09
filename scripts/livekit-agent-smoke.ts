@@ -580,6 +580,19 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-short-spoken-turn-formatter' }
   )
+  const answerSafeShortTurn = await tools.short_spoken_turn_formatter.execute(
+    {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      draftTurn:
+        'The final answer is 5/6. Use a common denominator to compare equal-sized pieces. What denominator could both fractions use?',
+      requiredQuestion: 'What denominator could both fractions use?',
+      mustAskQuestion: true,
+      maxWordsPerChunk: 14,
+      maxChunks: 2,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-answer-safe-short-spoken-turn' }
+  )
   const interruptionRecovery = await tools.voice_interruption_recovery_plan.execute(
     {
       topic: 'fractions',
@@ -1181,6 +1194,16 @@ async function main() {
     !JSON.stringify(shortSpokenTurn).includes('formattedTurn')
   ) {
     throw new Error(`short_spoken_turn_formatter did not produce one interruptible question: ${JSON.stringify(shortSpokenTurn)}`)
+  }
+
+  if (
+    !JSON.stringify(answerSafeShortTurn).includes('answer_dump_removed') ||
+    JSON.stringify(answerSafeShortTurn).includes('5/6') ||
+    !JSON.stringify(answerSafeShortTurn).includes('"oneQuestionOnly":true')
+  ) {
+    throw new Error(
+      `short_spoken_turn_formatter did not remove a premature final answer: ${JSON.stringify(answerSafeShortTurn)}`
+    )
   }
 
   if (
