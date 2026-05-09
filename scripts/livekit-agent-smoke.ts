@@ -90,6 +90,10 @@ async function main() {
     { previousStep: '3 kg', nextStep: '300 g' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-unit-conversion-step-check' }
   )
+  const invalidCoordinatePointStep = await tools.math_check_step.execute(
+    { previousStep: 'y = 2x + 1', nextStep: '(2, 4)' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-point-step-check' }
+  )
   const invalidNumericEqualityStep = await tools.math_check_step.execute(
     { previousStep: '3/4 = 6/8', nextStep: '3/4 = 7/8' },
     { ctx: {} as never, toolCallId: 'smoke-numeric-equality-step-check' }
@@ -292,6 +296,13 @@ async function main() {
     !JSON.stringify(invalidUnitConversionStep).includes('conversion factor')
   ) {
     throw new Error(`math_check_step did not reject an invalid unit conversion: ${JSON.stringify(invalidUnitConversionStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidCoordinatePointStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidCoordinatePointStep).includes('x-coordinate')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid plotted point: ${JSON.stringify(invalidCoordinatePointStep)}`)
   }
 
   if (!JSON.stringify(invalidNumericEqualityStep).includes('"verdict":"invalid"')) {

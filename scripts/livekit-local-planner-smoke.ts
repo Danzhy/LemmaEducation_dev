@@ -117,6 +117,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks plotted coordinate point before classifying the graphing mistake',
+    prompt: 'Check this: for y = 2x + 1, I plotted (2, 4). Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'y = 2x + 1')
+      assert.equal(input.nextStep, '(2, 4)')
+    },
+  },
+  {
     name: 'routes unit-rate word problems to rate and double number line',
     prompt: 'A store sells 3 notebooks for $6. What is the unit rate?',
     expectedTools: ['unit_rate', 'double_number_line'],

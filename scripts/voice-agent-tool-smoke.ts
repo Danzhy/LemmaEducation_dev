@@ -252,6 +252,20 @@ assert(
   'math_check_step should catch invalid unit conversion steps.'
 )
 
+const validCoordinatePointStep = mathCheckStep('y = 2x + 1', '(2, 5)')
+assert(
+  validCoordinatePointStep.verdict === 'valid' &&
+    validCoordinatePointStep.hintTarget.includes('x-coordinate'),
+  'math_check_step should validate a plotted point that fits a function.'
+)
+
+const invalidCoordinatePointStep = mathCheckStep('y = 2x + 1', '(2, 4)')
+assert(
+  invalidCoordinatePointStep.verdict === 'invalid' &&
+    invalidCoordinatePointStep.hintTarget.includes('x-coordinate'),
+  'math_check_step should catch plotted points that do not fit a function.'
+)
+
 const validNumericEqualityStep = mathCheckStep('3/4 = 6/8', '0.75 = 0.75')
 assert(
   validNumericEqualityStep.verdict === 'valid',

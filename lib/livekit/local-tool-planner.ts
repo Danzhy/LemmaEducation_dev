@@ -221,6 +221,20 @@ function splitSingleNumericEquality(candidate: string) {
   return buildStepPair(parts[0], parts[1])
 }
 
+function extractCoordinatePointAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const expressionMatch = normalized.match(
+    /\by\s*=\s*(.+?)(?=\s+(?:at|when|for|where)\b|\s*,\s*(?:point|i\s+plotted|\(?-?\d)|[?!.;]|$)/i
+  )
+  const pointMatch = normalized.match(
+    /(?:plotted|plot|point|coordinate|ordered pair)?\s*\(?\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*\)?/i
+  )
+  const expression = expressionMatch?.[1]?.trim()
+  if (!expression || !pointMatch) return null
+
+  return buildStepPair(`y = ${expression}`, `(${pointMatch[1]}, ${pointMatch[2]})`)
+}
+
 function extractStudentStepPair(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
@@ -241,6 +255,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
     const pair = buildStepPair(rewriteMatch[1], rewriteMatch[2])
     if (pair) return pair
   }
+
+  const coordinateAttempt = extractCoordinatePointAttempt(normalized)
+  if (coordinateAttempt) return coordinateAttempt
 
   const attemptMatch = normalized.match(
     new RegExp(`\\b(?:i got|i wrote|my answer(?: is)?|i think|check this:?)\\s+(.{1,180}?)${stopBeforeQuestion}`, 'i')

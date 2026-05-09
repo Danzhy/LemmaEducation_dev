@@ -263,6 +263,59 @@ function hasKnownUnitQuantity(text: string) {
   return false
 }
 
+function parseCoordinatePoint(text: string) {
+  const xyMatch = text.match(
+    /\bx\s*=\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*,?\s*\by\s*=\s*(-?(?:\d+(?:\.\d+)?|\.\d+))/i
+  )
+  if (xyMatch) {
+    const x = Number(xyMatch[1])
+    const y = Number(xyMatch[2])
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
+  }
+
+  const pairMatch = text.match(
+    /\(?\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*\)?/
+  )
+  if (!pairMatch) return null
+
+  const x = Number(pairMatch[1])
+  const y = Number(pairMatch[2])
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
+}
+
+function extractFunctionExpressionForPointCheck(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const yEqualsMatch = normalized.match(
+    /\by\s*=\s*(.+?)(?=\s+(?:at|when|for|where)\b|\s*,\s*(?:point|\(?-?\d)|[?!.;]|$)/i
+  )
+  const rawExpression = yEqualsMatch?.[1]?.trim()
+  if (!rawExpression) return null
+
+  return rawExpression.replace(/\s+$/g, '').trim()
+}
+
+function checkCoordinatePointStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const expression = extractFunctionExpressionForPointCheck(previousStep)
+  const point = parseCoordinatePoint(nextStep)
+  if (!expression || !point) return null
+
+  try {
+    const expectedY = coerceFiniteNumber(safeEvaluate(normalizeGraphExpression(expression), { x: point.x }))
+    const pointFits = isNearlyEqual(expectedY, point.y)
+    return {
+      verdict: pointFits ? 'valid' : 'invalid',
+      reason: pointFits
+        ? `The point fits the function because x = ${formatNumber(point.x)} gives y = ${formatNumber(expectedY, 4)}.`
+        : `For this function, x = ${formatNumber(point.x)} gives y = ${formatNumber(expectedY, 4)}, not ${formatNumber(point.y, 4)}.`,
+      hintTarget: pointFits
+        ? 'explain how substituting the x-coordinate gives the y-coordinate'
+        : 'substitute the x-coordinate before plotting the point',
+    }
+  } catch {
+    return null
+  }
+}
+
 function evaluateComparableExpression(expression: string): ComparableExpression {
   const unitQuantity = parseUnitQuantity(expression)
   if (unitQuantity) {
@@ -1973,6 +2026,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
       reason: 'The two steps are algebraically the same.',
       hintTarget: 'keep going from the same equation',
     }
+  }
+
+  const coordinatePointStep = checkCoordinatePointStep(previousStep, nextStep)
+  if (coordinatePointStep) {
+    return coordinatePointStep
   }
 
   if (!prev.includes('=') && !next.includes('=')) {
