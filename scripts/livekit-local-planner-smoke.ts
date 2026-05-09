@@ -214,6 +214,40 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'infers difference-known comparison tapes for fewer-than stories',
+    prompt: 'Noah has 18 fewer stickers than Maya, who has 50 stickers. How many stickers does Noah have?',
+    expectedTools: ['bar_model'],
+    inspect: (input) => {
+      const bars = input.bars as Array<{
+        label: string
+        segments: Array<{ label: string; value: number | string; shaded: boolean }>
+      }>
+      assert.equal(input.title, 'Difference-known comparison tape diagram')
+      assert.equal(bars[0].label, 'Larger 50')
+      assert.equal(bars[0].segments[0].value, 32)
+      assert.equal(bars[0].segments[1].value, 18)
+      assert.equal(bars[1].label, 'Smaller 32')
+      assert.equal(bars[1].segments[1].label, 'Gap 18')
+    },
+  },
+  {
+    name: 'infers difference-known comparison tapes for more-than stories',
+    prompt: 'Noah has 50 cards. Maya has 18 more cards than Noah. How many cards does Maya have?',
+    expectedTools: ['bar_model'],
+    inspect: (input) => {
+      const bars = input.bars as Array<{
+        label: string
+        segments: Array<{ label: string; value: number | string; shaded: boolean }>
+      }>
+      assert.equal(input.title, 'Difference-known comparison tape diagram')
+      assert.equal(bars[0].label, 'Larger 68')
+      assert.equal(bars[0].segments[0].value, 50)
+      assert.equal(bars[0].segments[1].value, 18)
+      assert.equal(bars[1].label, 'Smaller 50')
+      assert.equal(bars[1].segments[1].label, 'Gap 18')
+    },
+  },
+  {
     name: 'routes percent-of-number to calculator plus visual bar',
     prompt: 'What is 25% of 80? Show me the thinking.',
     expectedTools: ['percent_of_number', 'percent_bar'],

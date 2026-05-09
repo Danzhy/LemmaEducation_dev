@@ -443,6 +443,29 @@ function buildComparisonTapeDiagramInput(first: number, second: number, title: s
   }
 }
 
+function buildDifferenceKnownComparisonTapeDiagramInput(
+  anchorAmount: number,
+  difference: number,
+  direction: 'more' | 'fewer' | 'less',
+  title: string
+): LocalTapeDiagramInput | null {
+  if (
+    !Number.isFinite(anchorAmount) ||
+    !Number.isFinite(difference) ||
+    anchorAmount < 0 ||
+    difference < 0
+  ) {
+    return null
+  }
+
+  const comparedAmount = Number(
+    (direction === 'more' ? anchorAmount + difference : anchorAmount - difference).toFixed(6)
+  )
+  if (comparedAmount < 0) return null
+
+  return buildComparisonTapeDiagramInput(anchorAmount, comparedAmount, title)
+}
+
 function buildInferredPartWholeTapeDiagramInput(prompt: string): LocalTapeDiagramInput | null {
   const lower = prompt.toLowerCase()
   const values = extractNumbers(prompt).filter((value) => Number.isFinite(value) && value >= 0).slice(0, 5)
@@ -517,6 +540,49 @@ function buildInferredComparisonTapeDiagramInput(prompt: string): LocalTapeDiagr
     /\bcomparison\s+(?:tape|bar|model|diagram)\b/.test(lower)
   const comparesKnownAmounts = /\b(?:more|fewer|less)\b[\s\S]{0,80}\bthan\b/.test(lower)
   if (!asksForDifference && !comparesKnownAmounts) return null
+
+  const numberPattern = `(${LOCAL_NUMBER_PATTERN})`
+  const differenceBeforeAnchorMatch = lower.match(
+    new RegExp(
+      `${numberPattern}\\s+(?:\\w+\\s+){0,4}(more|fewer|less)\\b[\\s\\S]{0,80}\\bthan\\b[\\s\\S]{0,80}?${numberPattern}`,
+      'i'
+    )
+  )
+  if (differenceBeforeAnchorMatch) {
+    const difference = parseLocalPlainNumber(differenceBeforeAnchorMatch[1])
+    const direction = differenceBeforeAnchorMatch[2].toLowerCase() as 'more' | 'fewer' | 'less'
+    const anchorAmount = parseLocalPlainNumber(differenceBeforeAnchorMatch[3])
+    if (anchorAmount !== null && difference !== null) {
+      const input = buildDifferenceKnownComparisonTapeDiagramInput(
+        anchorAmount,
+        difference,
+        direction,
+        'Difference-known comparison tape diagram'
+      )
+      if (input) return input
+    }
+  }
+
+  const anchorBeforeDifferenceMatch = lower.match(
+    new RegExp(
+      `${numberPattern}\\b[\\s\\S]{0,120}?${numberPattern}\\s+(?:\\w+\\s+){0,4}(more|fewer|less)\\b`,
+      'i'
+    )
+  )
+  if (anchorBeforeDifferenceMatch) {
+    const anchorAmount = parseLocalPlainNumber(anchorBeforeDifferenceMatch[1])
+    const difference = parseLocalPlainNumber(anchorBeforeDifferenceMatch[2])
+    const direction = anchorBeforeDifferenceMatch[3].toLowerCase() as 'more' | 'fewer' | 'less'
+    if (anchorAmount !== null && difference !== null) {
+      const input = buildDifferenceKnownComparisonTapeDiagramInput(
+        anchorAmount,
+        difference,
+        direction,
+        'Difference-known comparison tape diagram'
+      )
+      if (input) return input
+    }
+  }
 
   return buildComparisonTapeDiagramInput(values[0], values[1], 'Comparison tape diagram')
 }
