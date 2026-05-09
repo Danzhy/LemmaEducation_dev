@@ -383,6 +383,7 @@ function hasMathStructure(value: string) {
     /[+\-*/=:%^()]|\/|\bof\b/i.test(value) ||
     /\b(round|rounded|nearest|tenths?|hundredths?|thousandths?|ones?|tens?|hundreds?|thousands?)\b/i.test(value) ||
     /\b(area|perimeter|rectangle|rectangular|triangle|triangular|base|height|altitude)\b/i.test(value) ||
+    /\b(angle|degrees?|complementary|complement|supplementary|supplement|linear\s+pair|straight\s+line)\b/i.test(value) ||
     hasKnownUnitQuantity(value)
   )
 }
@@ -590,6 +591,83 @@ function extractTriangleAreaAttempt(text: string): StudentStepPair | null {
     `area of triangle with base ${dimensions.base} and height ${dimensions.height}`,
     String(answer)
   )
+}
+
+function extractAngleAnswerAfter(text: string) {
+  const answerMatch = text.match(
+    new RegExp(`\\b(?:as|is|was|equals?|=|got|answer(?:\\s+is)?|think)\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (!answerMatch) return null
+  return parseLocalPlainNumber(answerMatch[1])
+}
+
+function extractAngleAnswerBefore(text: string) {
+  const answerMatch =
+    text.match(new RegExp(`\\b(?:got|found|calculated|answer(?:\\s+is)?|think)\\s+(${LOCAL_NUMBER_PATTERN})\\s+(?:for|as)\\b`, 'i')) ??
+    text.match(new RegExp(`\\b(?:got|found|calculated|think)\\b[^.?!]*?\\b(?:as|is)\\s+(${LOCAL_NUMBER_PATTERN})`, 'i'))
+  if (!answerMatch) return null
+  return parseLocalPlainNumber(answerMatch[1])
+}
+
+function extractPairAngleAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const isComplementary = /\b(complementary|complement)\b/i.test(normalized)
+  const isSupplementary = /\b(supplementary|supplement|linear\s+pair|straight\s+line)\b/i.test(normalized)
+  if (isComplementary === isSupplementary) return null
+
+  const directMatch = normalized.match(
+    new RegExp(
+      isComplementary
+        ? `\\b(?:complementary|complement)(?:\\s+angle)?\\s+(?:to|of|with)?\\s*(${LOCAL_NUMBER_PATTERN})`
+        : `\\b(?:supplementary|supplement)(?:\\s+angle)?\\s+(?:to|of|with)?\\s*(${LOCAL_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  const oneAngleMatch = normalized.match(
+    new RegExp(`\\b(?:one\\s+)?angle\\s*(?:is|=|measures?|measured)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  const fallbackNumberMatch = normalized.match(new RegExp(LOCAL_NUMBER_PATTERN, 'i'))
+  const knownMatch = directMatch ?? oneAngleMatch ?? fallbackNumberMatch
+  if (!knownMatch) return null
+
+  const knownAngle = parseLocalPlainNumber(knownMatch[1] ?? knownMatch[0])
+  if (knownAngle === null || knownAngle < 0) return null
+
+  const knownEnd = (knownMatch.index ?? 0) + knownMatch[0].length
+  const answer = extractAngleAnswerAfter(normalized.slice(knownEnd)) ?? extractAngleAnswerBefore(normalized.slice(0, knownEnd))
+  if (answer === null) return null
+
+  const relationship = isComplementary ? 'complementary' : 'supplementary'
+  return buildStepPair(`${relationship} angle to ${knownAngle}`, String(answer))
+}
+
+function extractTriangleAngleAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(triangle|triangular)\b/i.test(normalized) || !/\b(angle|degrees?|missing|third)\b/i.test(normalized)) {
+    return null
+  }
+
+  const pairMatch = normalized.match(
+    new RegExp(
+      `\\b(?:triangle|triangular)\\b[^.?!]*?(${LOCAL_NUMBER_PATTERN})\\s*(?:degrees?|deg)?\\s*(?:and|,)\\s*(${LOCAL_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  if (!pairMatch) return null
+
+  const firstAngle = parseLocalPlainNumber(pairMatch[1])
+  const secondAngle = parseLocalPlainNumber(pairMatch[2])
+  if (firstAngle === null || secondAngle === null || firstAngle < 0 || secondAngle < 0) return null
+
+  const pairEnd = (pairMatch.index ?? 0) + pairMatch[0].length
+  const answer = extractAngleAnswerAfter(normalized.slice(pairEnd)) ?? extractAngleAnswerBefore(normalized.slice(0, pairEnd))
+  if (answer === null) return null
+
+  return buildStepPair(`missing angle in triangle with angles ${firstAngle} and ${secondAngle}`, String(answer))
+}
+
+function extractAngleRelationshipAttempt(text: string) {
+  return extractTriangleAngleAttempt(text) ?? extractPairAngleAttempt(text)
 }
 
 function extractLinearEquationSnippets(text: string) {
@@ -900,6 +978,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
 
   const coordinateDistanceAttempt = extractCoordinateDistanceAttempt(normalized)
   if (coordinateDistanceAttempt) return coordinateDistanceAttempt
+
+  const angleRelationshipAttempt = extractAngleRelationshipAttempt(normalized)
+  if (angleRelationshipAttempt) return angleRelationshipAttempt
 
   const triangleAreaAttempt = extractTriangleAreaAttempt(normalized)
   if (triangleAreaAttempt) return triangleAreaAttempt

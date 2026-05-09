@@ -303,6 +303,24 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks supplementary angle attempts before classifying the mistake',
+    prompt: 'I think the supplementary angle to 110 is 80. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'supplementary angle to 110')
+      assert.equal(input.nextStep, '80')
+    },
+  },
+  {
+    name: 'checks triangle angle-sum attempts before classifying the mistake',
+    prompt: 'I got the missing angle in a triangle with angles 50 and 60 as 80. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'missing angle in triangle with angles 50 and 60')
+      assert.equal(input.nextStep, '80')
+    },
+  },
+  {
     name: 'routes triangle area requests to a triangle diagram',
     prompt: 'Find the area of a triangle with base 10 and height 6.',
     expectedTools: ['geometry_figure'],

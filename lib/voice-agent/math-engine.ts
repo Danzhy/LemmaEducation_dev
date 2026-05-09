@@ -635,6 +635,145 @@ function checkTriangleAreaStep(previousStep: string, nextStep: string): MathStep
   }
 }
 
+type AngleRelationshipPrompt =
+  | {
+      relationship: 'complementary' | 'supplementary'
+      knownAngle: number
+    }
+  | {
+      relationship: 'triangle'
+      knownAngles: [number, number]
+    }
+
+function extractPairAnglePrompt(text: string): AngleRelationshipPrompt | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const isComplementary = /\b(complementary|complement)\b/i.test(normalized)
+  const isSupplementary = /\b(supplementary|supplement|linear\s+pair|straight\s+line)\b/i.test(normalized)
+  if (isComplementary === isSupplementary) return null
+
+  const directMatch = normalized.match(
+    new RegExp(
+      isComplementary
+        ? `\\b(?:complementary|complement)(?:\\s+angle)?\\s+(?:to|of|with)?\\s*(${PLAIN_NUMBER_PATTERN})`
+        : `\\b(?:supplementary|supplement)(?:\\s+angle)?\\s+(?:to|of|with)?\\s*(${PLAIN_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  const oneAngleMatch = normalized.match(
+    new RegExp(`\\b(?:one\\s+)?angle\\s*(?:is|=|measures?|measured)?\\s*(${PLAIN_NUMBER_PATTERN})`, 'i')
+  )
+  const directAngle = directMatch ? parsePlainNumber(directMatch[1]) : null
+  const oneAngle = oneAngleMatch ? parsePlainNumber(oneAngleMatch[1]) : null
+  const knownAngle = directAngle ?? oneAngle ?? extractPlainNumbers(normalized)[0] ?? null
+
+  if (knownAngle === null || knownAngle < 0) return null
+  return {
+    relationship: isComplementary ? 'complementary' : 'supplementary',
+    knownAngle,
+  }
+}
+
+function extractTriangleAnglePrompt(text: string): AngleRelationshipPrompt | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(triangle|triangular)\b/i.test(normalized) || !/\b(angle|degrees?|missing|third)\b/i.test(normalized)) {
+    return null
+  }
+
+  const pairMatch = normalized.match(
+    new RegExp(
+      `\\b(?:triangle|triangular)\\b[^.?!]*?(${PLAIN_NUMBER_PATTERN})\\s*(?:degrees?|deg)?\\s*(?:and|,)\\s*(${PLAIN_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  if (!pairMatch) return null
+
+  const firstAngle = parsePlainNumber(pairMatch[1])
+  const secondAngle = parsePlainNumber(pairMatch[2])
+  if (firstAngle === null || secondAngle === null || firstAngle < 0 || secondAngle < 0) return null
+
+  return {
+    relationship: 'triangle',
+    knownAngles: [firstAngle, secondAngle],
+  }
+}
+
+function extractAngleRelationshipPrompt(text: string) {
+  return extractTriangleAnglePrompt(text) ?? extractPairAnglePrompt(text)
+}
+
+function angleTotalHint(relationship: 'complementary' | 'supplementary') {
+  return relationship === 'complementary'
+    ? 'use 90 degrees for complementary angles, not 180'
+    : 'use 180 degrees for supplementary angles, not 90'
+}
+
+function checkAngleRelationshipStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const prompt = extractAngleRelationshipPrompt(previousStep)
+  const studentAnswer = parseLastPlainNumber(nextStep)
+  if (!prompt || studentAnswer === null) return null
+
+  if (prompt.relationship === 'triangle') {
+    const [firstAngle, secondAngle] = prompt.knownAngles
+    const knownSum = firstAngle + secondAngle
+    const expected = 180 - knownSum
+    if (expected < 0) {
+      return {
+        verdict: 'unclear',
+        reason: `The two known triangle angles add to ${formatNumber(knownSum, 4)} degrees, which is already more than 180 degrees.`,
+        hintTarget: 'check the given angle measures before finding the missing angle',
+      }
+    }
+
+    const answerMatches = isNearlyEqual(expected, studentAnswer, 0.01)
+    const baseReason = `Triangle angles sum to 180 degrees, so the missing angle is 180 - (${formatNumber(
+      firstAngle,
+      4
+    )} + ${formatNumber(secondAngle, 4)}) = ${formatNumber(expected, 4)} degrees.`
+    return {
+      verdict: answerMatches ? 'valid' : 'invalid',
+      reason: answerMatches ? baseReason : `${baseReason} The student answer is ${formatNumber(studentAnswer, 4)} degrees.`,
+      hintTarget: answerMatches
+        ? 'explain why every triangle has a 180 degree angle sum'
+        : isNearlyEqual(knownSum, studentAnswer, 0.01)
+          ? 'subtract the known angles from 180 instead of using their sum as the missing angle'
+          : 'add the known angles, then subtract from 180',
+    }
+  }
+
+  const total = prompt.relationship === 'complementary' ? 90 : 180
+  const expected = total - prompt.knownAngle
+  if (expected < 0) {
+    return {
+      verdict: 'unclear',
+      reason: `A ${prompt.relationship} angle pair totals ${total} degrees, but the given angle is ${formatNumber(
+        prompt.knownAngle,
+        4
+      )} degrees.`,
+      hintTarget: 'check the given angle measure before finding the missing angle',
+    }
+  }
+
+  const answerMatches = isNearlyEqual(expected, studentAnswer, 0.01)
+  const otherTotal = prompt.relationship === 'complementary' ? 180 : 90
+  const otherRelationshipAnswer = otherTotal - prompt.knownAngle
+  const baseReason = `${prompt.relationship[0].toUpperCase()}${prompt.relationship.slice(
+    1
+  )} angles sum to ${total} degrees, so the missing angle is ${total} - ${formatNumber(
+    prompt.knownAngle,
+    4
+  )} = ${formatNumber(expected, 4)} degrees.`
+
+  return {
+    verdict: answerMatches ? 'valid' : 'invalid',
+    reason: answerMatches ? baseReason : `${baseReason} The student answer is ${formatNumber(studentAnswer, 4)} degrees.`,
+    hintTarget: answerMatches
+      ? `explain why ${prompt.relationship} angles use a ${total} degree total`
+      : isNearlyEqual(otherRelationshipAnswer, studentAnswer, 0.01)
+        ? angleTotalHint(prompt.relationship)
+        : `subtract the known angle from ${total} degrees`,
+  }
+}
+
 function extractPercentChangeAmounts(text: string) {
   if (/%|\bpercent\b/i.test(text)) return null
 
@@ -1283,6 +1422,10 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
       /\b(area|triangle|triangular|base|height|altitude)\b/i.test(combined) &&
       /\b(triangle|triangular)\b/i.test(combined) &&
       extractPlainNumbers(combined).length >= 2,
+    hasAngleRelationshipWork:
+      /\b(angle|degrees?|complementary|complement|supplementary|supplement|linear\s+pair|straight\s+line)\b/i.test(
+        combined
+      ) && extractPlainNumbers(combined).length >= 2,
     hasRectangleMeasurementWork:
       /\b(area|perimeter|rectangle|rectangular)\b/i.test(combined) && extractPlainNumbers(combined).length >= 2,
     hasUnitConversionWork: hasKnownUnitQuantity(combined),
@@ -1332,6 +1475,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasTriangleAreaWork) {
     return 'use the triangle area formula and halve the base-times-height product'
+  }
+  if (features.hasAngleRelationshipWork) {
+    return 'use the correct angle-sum relationship before subtracting'
   }
   if (features.hasRectangleMeasurementWork) {
     return 'decide whether the problem asks for square units inside or distance around the boundary'
@@ -3097,6 +3243,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const coordinateDistanceStep = checkCoordinateDistanceStep(previousStep, nextStep)
   if (coordinateDistanceStep) {
     return coordinateDistanceStep
+  }
+
+  const angleRelationshipStep = checkAngleRelationshipStep(previousStep, nextStep)
+  if (angleRelationshipStep) {
+    return angleRelationshipStep
   }
 
   const triangleAreaStep = checkTriangleAreaStep(previousStep, nextStep)

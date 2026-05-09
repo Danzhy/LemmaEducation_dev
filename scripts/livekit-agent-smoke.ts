@@ -193,6 +193,18 @@ async function main() {
     { previousStep: 'area of triangle with base 10 and height 6', nextStep: '60' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-triangle-area-step-check' }
   )
+  const validComplementaryAngleStep = await tools.math_check_step.execute(
+    { previousStep: 'complementary angle to 35', nextStep: '55' },
+    { ctx: {} as never, toolCallId: 'smoke-complementary-angle-step-check' }
+  )
+  const invalidSupplementaryAngleStep = await tools.math_check_step.execute(
+    { previousStep: 'supplementary angle to 110', nextStep: '80' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-supplementary-angle-step-check' }
+  )
+  const invalidTriangleAngleStep = await tools.math_check_step.execute(
+    { previousStep: 'missing angle in triangle with angles 50 and 60', nextStep: '80' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-triangle-angle-step-check' }
+  )
   const invalidCoordinatePointStep = await tools.math_check_step.execute(
     { previousStep: 'y = 2x + 1', nextStep: '(2, 4)' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-point-step-check' }
@@ -582,6 +594,27 @@ async function main() {
     !JSON.stringify(invalidTriangleAreaStep).includes('halve')
   ) {
     throw new Error(`math_check_step did not reject a triangle area base-times-height mistake: ${JSON.stringify(invalidTriangleAreaStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validComplementaryAngleStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validComplementaryAngleStep).includes('90 degree total')
+  ) {
+    throw new Error(`math_check_step did not accept a complementary angle claim: ${JSON.stringify(validComplementaryAngleStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidSupplementaryAngleStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidSupplementaryAngleStep).includes('180 degrees')
+  ) {
+    throw new Error(`math_check_step did not reject a supplementary angle mistake: ${JSON.stringify(invalidSupplementaryAngleStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidTriangleAngleStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidTriangleAngleStep).includes('subtract from 180')
+  ) {
+    throw new Error(`math_check_step did not reject a triangle angle-sum mistake: ${JSON.stringify(invalidTriangleAngleStep)}`)
   }
 
   if (

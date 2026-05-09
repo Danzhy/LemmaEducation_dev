@@ -423,6 +423,27 @@ assert(
   'math_check_step should catch triangle area base-times-height mistakes.'
 )
 
+const validComplementaryAngleStep = mathCheckStep('complementary angle to 35', '55')
+assert(
+  validComplementaryAngleStep.verdict === 'valid' &&
+    validComplementaryAngleStep.hintTarget.includes('90 degree total'),
+  'math_check_step should validate complementary angle claims.'
+)
+
+const invalidSupplementaryAngleStep = mathCheckStep('supplementary angle to 110', '80')
+assert(
+  invalidSupplementaryAngleStep.verdict === 'invalid' &&
+    invalidSupplementaryAngleStep.hintTarget.includes('180 degrees'),
+  'math_check_step should catch supplementary angle total mistakes.'
+)
+
+const invalidTriangleAngleStep = mathCheckStep('missing angle in triangle with angles 50 and 60', '80')
+assert(
+  invalidTriangleAngleStep.verdict === 'invalid' &&
+    invalidTriangleAngleStep.hintTarget.includes('subtract from 180'),
+  'math_check_step should catch triangle angle-sum mistakes.'
+)
+
 const validCoordinatePointStep = mathCheckStep('y = 2x + 1', '(2, 5)')
 assert(
   validCoordinatePointStep.verdict === 'valid' &&
