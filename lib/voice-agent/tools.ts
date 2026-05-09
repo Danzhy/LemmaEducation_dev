@@ -1904,6 +1904,7 @@ export function createVoiceAgentTools() {
               required: ['label', 'values'],
             },
           },
+          highlightColumn: { type: 'string' },
         },
         required: ['columns', 'rows'],
       },
@@ -1912,12 +1913,14 @@ export function createVoiceAgentTools() {
           title?: string
           columns: string[]
           rows: Array<{ label?: string; values: Array<string | number> }>
+          highlightColumn?: string
         }
         return stringifyResult(
           placeValueChartScene({
             title: params.title,
             columns: params.columns,
             rows: params.rows,
+            highlightColumn: params.highlightColumn,
           })
         )
       },

@@ -43,6 +43,7 @@ async function main() {
     'percent_bar',
     'ratio_table',
     'unit_conversion',
+    'place_value_chart',
     'geometry_figure',
   ]
 
@@ -135,6 +136,14 @@ async function main() {
   const invalidPlaceValueValueStep = await tools.math_check_step.execute(
     { previousStep: 'value of 7 in 4,732', nextStep: '70' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-place-value-value-step-check' }
+  )
+  const highlightedPlaceValueChart = await tools.place_value_chart.execute(
+    {
+      columns: ['thousands', 'hundreds', 'tens', 'ones'],
+      rows: [{ label: '4,732', values: ['4', '7', '3', '2'] }],
+      highlightColumn: 'hundreds',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-place-value-chart' }
   )
   const invalidDecimalStep = await tools.math_check_step.execute(
     { previousStep: '0.4 + 0.08', nextStep: '0.12' },
@@ -463,6 +472,13 @@ async function main() {
     !JSON.stringify(invalidPlaceValueValueStep).includes("digit's place")
   ) {
     throw new Error(`math_check_step did not reject a digit-value mistake: ${JSON.stringify(invalidPlaceValueValueStep)}`)
+  }
+
+  if (
+    !JSON.stringify(highlightedPlaceValueChart).includes('highlight_region') ||
+    !JSON.stringify(highlightedPlaceValueChart).includes('Focus: hundreds place')
+  ) {
+    throw new Error(`place_value_chart did not highlight the requested place: ${JSON.stringify(highlightedPlaceValueChart)}`)
   }
 
   if (

@@ -4733,6 +4733,7 @@ export function placeValueChartScene(input: {
     values: Array<string | number>
   }>
   title?: string
+  highlightColumn?: string
 }): CanvasActionResult {
   const columns = input.columns.map((column) => column.trim()).filter(Boolean).slice(0, 8)
   const rows = input.rows
@@ -4758,6 +4759,10 @@ export function placeValueChartScene(input: {
   const rowHeight = 48
   const tableWidth = rowHeaderWidth + columnWidth * columns.length
   const tableHeight = rowHeight * (rows.length + 1)
+  const normalizedHighlightColumn = input.highlightColumn?.trim().toLowerCase().replace(/\s+/g, ' ')
+  const highlightColumnIndex = normalizedHighlightColumn
+    ? columns.findIndex((column) => column.toLowerCase().replace(/\s+/g, ' ') === normalizedHighlightColumn)
+    : -1
 
   const actions: TutorCanvasAction[] = [
     clearToolLayer(),
@@ -4787,6 +4792,20 @@ export function placeValueChartScene(input: {
     )
   }
 
+  if (highlightColumnIndex >= 0) {
+    const highlightX = x + rowHeaderWidth + columnWidth * highlightColumnIndex
+    actions.push({
+      id: createId(),
+      type: 'highlight_region',
+      x: highlightX + 3,
+      y: y + 3,
+      width: columnWidth - 6,
+      height: tableHeight - 6,
+      color: 'yellow',
+      opacity: 0.2,
+    })
+  }
+
   columns.forEach((column, index) => {
     const columnX = x + rowHeaderWidth + columnWidth * index
     if (index > 0) {
@@ -4805,6 +4824,17 @@ export function placeValueChartScene(input: {
       })
     )
   })
+
+  if (highlightColumnIndex >= 0) {
+    const highlightX = x + rowHeaderWidth + columnWidth * highlightColumnIndex
+    const highlightLabel = columns[highlightColumnIndex]
+    actions.push(
+      textLabel(highlightX + 8, y + tableHeight + 14, `Focus: ${highlightLabel} place`, {
+        width: Math.max(140, columnWidth + 48),
+        color: 'orange',
+      })
+    )
+  }
 
   rows.forEach((row, rowIndex) => {
     const rowY = y + rowHeight * (rowIndex + 1)

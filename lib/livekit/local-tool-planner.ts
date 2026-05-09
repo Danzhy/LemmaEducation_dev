@@ -17,6 +17,33 @@ type StudentStepPair = {
 const LOCAL_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
 const LOCAL_PLACE_VALUE_PATTERN =
   String.raw`thousandths?|hundredths?|tenths?|thousands?|hundreds?|tens?|ones?|units?`
+const LOCAL_PLACE_VALUE_EXPONENTS: Record<string, number> = {
+  thousandths: -3,
+  thousandth: -3,
+  hundredths: -2,
+  hundredth: -2,
+  tenths: -1,
+  tenth: -1,
+  ones: 0,
+  one: 0,
+  units: 0,
+  unit: 0,
+  tens: 1,
+  ten: 1,
+  hundreds: 2,
+  hundred: 2,
+  thousands: 3,
+  thousand: 3,
+}
+const LOCAL_PLACE_VALUE_LABELS_BY_EXPONENT: Record<number, string> = {
+  [-3]: 'thousandths',
+  [-2]: 'hundredths',
+  [-1]: 'tenths',
+  0: 'ones',
+  1: 'tens',
+  2: 'hundreds',
+  3: 'thousands',
+}
 
 function formatToolNameForStudent(toolName: string) {
   return toolName.replace(/_/g, ' ')
@@ -95,6 +122,113 @@ function parseLocalNumberToken(token: string) {
 function parseLocalPlainNumber(token: string) {
   const value = Number(token.replace(/,/g, ''))
   return Number.isFinite(value) ? value : null
+}
+
+function normalizeLocalPlaceValue(place: string) {
+  const match = place.toLowerCase().match(new RegExp(`\\b(${LOCAL_PLACE_VALUE_PATTERN})\\b`))
+  return match ? match[1] : null
+}
+
+function localPlaceValueExponent(place: string) {
+  const normalized = normalizeLocalPlaceValue(place)
+  return normalized ? LOCAL_PLACE_VALUE_EXPONENTS[normalized] ?? null : null
+}
+
+function localPlaceValueLabel(exponent: number) {
+  return LOCAL_PLACE_VALUE_LABELS_BY_EXPONENT[exponent] ?? 'place'
+}
+
+function splitLocalPlaceValueNumber(numberText: string) {
+  const compact = numberText.replace(/,/g, '').trim()
+  const match = compact.match(/^[-+]?(?:(\d+)(?:\.(\d*))?|\.(\d+))$/)
+  if (!match) return null
+
+  return {
+    integerDigits: (match[1] ?? '0').replace(/^0+(?=\d)/, '') || '0',
+    fractionalDigits: match[2] ?? match[3] ?? '',
+  }
+}
+
+function localDigitAtExponent(
+  split: { integerDigits: string; fractionalDigits: string },
+  exponent: number
+) {
+  if (exponent >= 0) {
+    const index = split.integerDigits.length - 1 - exponent
+    return index >= 0 ? split.integerDigits[index] : '0'
+  }
+
+  const index = Math.abs(exponent) - 1
+  return index < split.fractionalDigits.length ? split.fractionalDigits[index] : '0'
+}
+
+function findLocalSingleDigitExponent(numberText: string, targetDigit: string) {
+  const split = splitLocalPlaceValueNumber(numberText)
+  if (!split) return null
+
+  const exponents: number[] = []
+  for (let index = 0; index < split.integerDigits.length; index += 1) {
+    if (split.integerDigits[index] === targetDigit) {
+      exponents.push(split.integerDigits.length - 1 - index)
+    }
+  }
+  for (let index = 0; index < split.fractionalDigits.length; index += 1) {
+    if (split.fractionalDigits[index] === targetDigit) {
+      exponents.push(-(index + 1))
+    }
+  }
+
+  return exponents.length === 1 ? exponents[0] : null
+}
+
+function buildLocalPlaceValueChartInput(numberText: string, highlightExponent: number) {
+  const split = splitLocalPlaceValueNumber(numberText)
+  if (!split) return null
+
+  const highestExponent = Math.min(3, Math.max(split.integerDigits.length - 1, highlightExponent, 0))
+  const lowestNumberExponent = split.fractionalDigits.length > 0 ? -split.fractionalDigits.length : 0
+  const lowestExponent = Math.max(-3, Math.min(lowestNumberExponent, highlightExponent, 0))
+  const columns: string[] = []
+  const values: string[] = []
+
+  for (let exponent = highestExponent; exponent >= lowestExponent; exponent -= 1) {
+    columns.push(localPlaceValueLabel(exponent))
+    values.push(localDigitAtExponent(split, exponent))
+  }
+
+  if (columns.length < 2) {
+    columns.unshift('tens')
+    values.unshift('0')
+  }
+
+  return {
+    title: `Place value in ${numberText}`,
+    columns,
+    rows: [{ label: numberText, values }],
+    highlightColumn: localPlaceValueLabel(highlightExponent),
+  }
+}
+
+function buildLocalPlaceValueChartInputFromStepPair(pair: StudentStepPair) {
+  const digitAtPlaceMatch = pair.previousStep.match(
+    new RegExp(`\\bdigit\\s+in\\s+(${LOCAL_PLACE_VALUE_PATTERN})\\s+place\\s+of\\s+(${LOCAL_NUMBER_PATTERN})\\b`, 'i')
+  )
+  if (digitAtPlaceMatch) {
+    const exponent = localPlaceValueExponent(digitAtPlaceMatch[1])
+    if (exponent === null) return null
+    return buildLocalPlaceValueChartInput(digitAtPlaceMatch[2], exponent)
+  }
+
+  const digitValueMatch = pair.previousStep.match(
+    new RegExp(`\\bvalue\\s+of\\s+([0-9])\\s+in\\s+(${LOCAL_NUMBER_PATTERN})\\b`, 'i')
+  )
+  if (digitValueMatch) {
+    const exponent = findLocalSingleDigitExponent(digitValueMatch[2], digitValueMatch[1])
+    if (exponent === null) return null
+    return buildLocalPlaceValueChartInput(digitValueMatch[2], exponent)
+  }
+
+  return null
 }
 
 function lookupLocalUnit(unitToken: string) {
@@ -871,6 +1005,13 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
         toolName: 'math_check_step',
         input: studentStepPair,
       })
+      const placeValueChartInput = buildLocalPlaceValueChartInputFromStepPair(studentStepPair)
+      if (placeValueChartInput) {
+        plans.push({
+          toolName: 'place_value_chart',
+          input: placeValueChartInput,
+        })
+      }
     }
     plans.push({
       toolName: 'mistake_pattern_classifier',
@@ -1286,11 +1427,13 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
       (output): output is { verdict?: string; reason?: string; hintTarget?: string } =>
         Boolean(output && typeof output === 'object' && 'verdict' in output)
     )
+    const hasPlaceValueChart = plans.some((plan) => plan.toolName === 'place_value_chart')
+    const boardCue = hasPlaceValueChart ? ' I also highlighted the place-value chart so the target column is visible.' : ''
     if (checkedStep?.verdict === 'valid') {
-      return `I checked that step first, and it stays equivalent. ${checkedStep.reason} What rule made that step work?`
+      return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
     }
     if (checkedStep?.verdict === 'invalid') {
-      return `I checked that step first, and something changed. ${checkedStep.reason} What should we check about ${checkedStep.hintTarget}?`
+      return `I checked that step first, and something changed. ${checkedStep.reason}${boardCue} What should we check about ${checkedStep.hintTarget}?`
     }
     return 'I tried to check that step first, but the notation needs to be clearer. Can you rewrite the previous line and the next line separately?'
   }

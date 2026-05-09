@@ -9,7 +9,7 @@ type PlannerCase = {
   name: string
   prompt: string
   expectedTools: string[]
-  inspect?: (firstInput: Record<string, unknown>) => void
+  inspect?: (firstInput: Record<string, unknown>, plans: ReturnType<typeof planLocalToolTurn>) => void
 }
 
 const cases: PlannerCase[] = [
@@ -182,19 +182,25 @@ const cases: PlannerCase[] = [
   {
     name: 'checks decimal place-value digit attempts before classifying the mistake',
     prompt: 'I think the digit in the hundredths place of 3.746 is 7. Is that right?',
-    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
-    inspect: (input) => {
+    expectedTools: ['math_check_step', 'place_value_chart', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
       assert.equal(input.previousStep, 'digit in hundredths place of 3.746')
       assert.equal(input.nextStep, '7')
+      assert.equal(plans[1].input.highlightColumn, 'hundredths')
+      assert.deepEqual(plans[1].input.columns, ['ones', 'tenths', 'hundredths', 'thousandths'])
+      assert.deepEqual(plans[1].input.rows, [{ label: '3.746', values: ['3', '7', '4', '6'] }])
     },
   },
   {
     name: 'checks whole-number digit-value attempts before classifying the mistake',
     prompt: 'I think the value of the 7 in 4,732 is 70. Is that right?',
-    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
-    inspect: (input) => {
+    expectedTools: ['math_check_step', 'place_value_chart', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
       assert.equal(input.previousStep, 'value of 7 in 4,732')
       assert.equal(input.nextStep, '70')
+      assert.equal(plans[1].input.highlightColumn, 'hundreds')
+      assert.deepEqual(plans[1].input.columns, ['thousands', 'hundreds', 'tens', 'ones'])
+      assert.deepEqual(plans[1].input.rows, [{ label: '4,732', values: ['4', '7', '3', '2'] }])
     },
   },
   {
@@ -378,7 +384,7 @@ for (const testCase of cases) {
     testCase.expectedTools,
     testCase.name
   )
-  testCase.inspect?.(plans[0].input)
+  testCase.inspect?.(plans[0].input, plans)
 }
 
 assert.match(
@@ -428,10 +434,10 @@ assert.match(
 assert.match(
   buildLocalAssistantReply(
     'is this right',
-    [{ toolName: 'math_check_step', input: {} }],
+    [{ toolName: 'math_check_step', input: {} }, { toolName: 'place_value_chart', input: {} }],
     [{ verdict: 'valid', reason: 'Both equations keep the same solution, x = 4.', hintTarget: 'inverse operations' }]
   ),
-  /stays equivalent/i
+  /place-value chart/i
 )
 assert.match(
   buildLocalAssistantReply(

@@ -158,7 +158,12 @@ const smokeCases: SmokeCase[] = [
   },
   {
     name: 'place_value_chart',
-    run: () => placeValueChartScene({ columns: ['ones', 'tenths', 'hundredths'], rows: [{ label: '3.47', values: [3, 4, 7] }] }),
+    run: () =>
+      placeValueChartScene({
+        columns: ['ones', 'tenths', 'hundredths'],
+        rows: [{ label: '3.47', values: [3, 4, 7] }],
+        highlightColumn: 'hundredths',
+      }),
   },
   {
     name: 'factor_tree',
@@ -197,6 +202,17 @@ const smokeCases: SmokeCase[] = [
 for (const smokeCase of smokeCases) {
   assertCanvasResult(smokeCase.name, smokeCase.run())
 }
+
+const highlightedPlaceValueChart = placeValueChartScene({
+  columns: ['ones', 'tenths', 'hundredths'],
+  rows: [{ label: '3.47', values: [3, 4, 7] }],
+  highlightColumn: 'hundredths',
+})
+assert(
+  highlightedPlaceValueChart.canvasActions.some((action) => action.type === 'highlight_region') &&
+    JSON.stringify(highlightedPlaceValueChart).includes('Focus: hundredths place'),
+  'place_value_chart should highlight the target place when requested.'
+)
 
 const correctAnswer = mathCheckAnswer({ problemExpression: '3/4+2/3', studentAnswer: '17/12' })
 assert(correctAnswer.verdict === 'correct', 'math_check_answer should mark 17/12 as correct.')
