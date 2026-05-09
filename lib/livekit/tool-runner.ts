@@ -31,6 +31,14 @@ let toolRegistry: Map<string, ToolWithInvoke> | null = null
 type JsonSchemaObject = {
   type?: unknown
   enum?: unknown
+  minimum?: unknown
+  maximum?: unknown
+  exclusiveMinimum?: unknown
+  exclusiveMaximum?: unknown
+  minLength?: unknown
+  maxLength?: unknown
+  minItems?: unknown
+  maxItems?: unknown
   additionalProperties?: unknown
   properties?: Record<string, JsonSchemaObject | boolean>
   required?: unknown
@@ -116,6 +124,14 @@ function formatEnumValues(values: unknown) {
     : ''
 }
 
+function finiteSchemaNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function nonNegativeSchemaInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
+}
+
 function getRequiredProperties(schema: JsonSchemaObject) {
   return Array.isArray(schema.required)
     ? schema.required.filter((key): key is string => typeof key === 'string')
@@ -176,6 +192,40 @@ function assertAllowedSchemaProperties(
     )
   }
 
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const minimum = finiteSchemaNumber(schema.minimum)
+    if (minimum !== null && value < minimum) {
+      throw new Error(`Tool input${formatToolInputField(path)} must be at least ${minimum}.`)
+    }
+
+    const maximum = finiteSchemaNumber(schema.maximum)
+    if (maximum !== null && value > maximum) {
+      throw new Error(`Tool input${formatToolInputField(path)} must be at most ${maximum}.`)
+    }
+
+    const exclusiveMinimum = finiteSchemaNumber(schema.exclusiveMinimum)
+    if (exclusiveMinimum !== null && value <= exclusiveMinimum) {
+      throw new Error(`Tool input${formatToolInputField(path)} must be greater than ${exclusiveMinimum}.`)
+    }
+
+    const exclusiveMaximum = finiteSchemaNumber(schema.exclusiveMaximum)
+    if (exclusiveMaximum !== null && value >= exclusiveMaximum) {
+      throw new Error(`Tool input${formatToolInputField(path)} must be less than ${exclusiveMaximum}.`)
+    }
+  }
+
+  if (typeof value === 'string') {
+    const minLength = nonNegativeSchemaInteger(schema.minLength)
+    if (minLength !== null && value.length < minLength) {
+      throw new Error(`Tool input${formatToolInputField(path)} must be at least ${minLength} characters.`)
+    }
+
+    const maxLength = nonNegativeSchemaInteger(schema.maxLength)
+    if (maxLength !== null && value.length > maxLength) {
+      throw new Error(`Tool input${formatToolInputField(path)} must be at most ${maxLength} characters.`)
+    }
+  }
+
   if (schemaTypeIncludes(schema, 'object')) {
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {
       if (path.length === 0) throw new Error('Tool input must be a JSON object.')
@@ -216,9 +266,17 @@ function assertAllowedSchemaProperties(
   }
 
   if (schemaTypeIncludes(schema, 'array') && Array.isArray(value)) {
-    if (value.length > MAX_SCHEMA_ARRAY_ITEMS) {
+    const minItems = nonNegativeSchemaInteger(schema.minItems)
+    if (minItems !== null && value.length < minItems) {
       throw new Error(
-        `Tool input${formatToolInputField(path)} has too many items (${value.length} > ${MAX_SCHEMA_ARRAY_ITEMS}).`
+        `Tool input${formatToolInputField(path)} needs at least ${minItems} items.`
+      )
+    }
+
+    const maxItems = nonNegativeSchemaInteger(schema.maxItems) ?? MAX_SCHEMA_ARRAY_ITEMS
+    if (value.length > maxItems) {
+      throw new Error(
+        `Tool input${formatToolInputField(path)} has too many items (${value.length} > ${maxItems}).`
       )
     }
 

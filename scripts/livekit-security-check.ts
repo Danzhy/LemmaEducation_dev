@@ -54,9 +54,15 @@ function main() {
   assertIncludes('lib/livekit/tool-runner.ts', 'MAX_SCHEMA_ARRAY_ITEMS')
   assertIncludes('lib/livekit/tool-runner.ts', 'Number.isFinite')
   assertIncludes('lib/livekit/tool-runner.ts', 'schema.enum')
+  assertIncludes('lib/livekit/tool-runner.ts', 'schema.minimum')
+  assertIncludes('lib/livekit/tool-runner.ts', 'schema.maxLength')
+  assertIncludes('lib/livekit/tool-runner.ts', 'schema.minItems')
   assertIncludes('scripts/livekit-agent-smoke.ts', 'start: { x: 20, y: 40, hiddenInstruction')
   assertIncludes('scripts/livekit-agent-smoke.ts', "start: { x: '20', y: 40 }")
   assertIncludes('scripts/livekit-agent-smoke.ts', 'Array.from({ length: 65 }')
+  assertIncludes('scripts/livekit-agent-smoke.ts', 'points: [{ x: 0, y: 0 }]')
+  assertIncludes('scripts/livekit-agent-smoke.ts', 'start: { x: 1000000, y: 40 }')
+  assertIncludes('scripts/livekit-agent-smoke.ts', "text: 'x'.repeat(121)")
   assertIncludes('scripts/livekit-agent-smoke.ts', 'smoke-missing-required-tool-field-rejection')
   assertIncludes('scripts/livekit-agent-smoke.ts', 'missing required field\\.pointB\\.y')
   assertIncludes('workers/livekit-tutor-agent.ts', 'AutoSubscribe.AUDIO_ONLY')
@@ -74,7 +80,7 @@ function main() {
       {
         ok: true,
         checkedClientFiles: clientFiles.length,
-        checkedServerGuards: 31,
+        checkedServerGuards: 37,
       },
       null,
       2

@@ -146,6 +146,49 @@ async function main() {
     oversizedCanvasArrayRejected =
       error instanceof Error && /field\.points.*too many items/i.test(error.message)
   }
+  let undersizedCanvasArrayRejected = false
+  try {
+    await runLiveKitTutorTool(
+      'canvas_action',
+      {
+        actionType: 'plot_polyline',
+        points: [{ x: 0, y: 0 }],
+      }
+    )
+  } catch (error) {
+    undersizedCanvasArrayRejected =
+      error instanceof Error && /field\.points.*at least 2 items/i.test(error.message)
+  }
+  let canvasCoordinateOverflowRejected = false
+  try {
+    await runLiveKitTutorTool(
+      'canvas_action',
+      {
+        actionType: 'draw_line_segment',
+        start: { x: 1000000, y: 40 },
+        end: { x: 160, y: 40 },
+        label: 'base',
+      }
+    )
+  } catch (error) {
+    canvasCoordinateOverflowRejected =
+      error instanceof Error && /field\.start\.x.*at most 10000/i.test(error.message)
+  }
+  let canvasTextLengthRejected = false
+  try {
+    await runLiveKitTutorTool(
+      'canvas_action',
+      {
+        actionType: 'place_text_label',
+        x: 20,
+        y: 40,
+        text: 'x'.repeat(121),
+      }
+    )
+  } catch (error) {
+    canvasTextLengthRejected =
+      error instanceof Error && /field\.text.*at most 120 characters/i.test(error.message)
+  }
   let missingRequiredToolFieldRejected = false
   try {
     await tools.math_check_step.execute(
@@ -779,6 +822,18 @@ async function main() {
 
   if (!oversizedCanvasArrayRejected) {
     throw new Error('LiveKit tool runner did not reject an oversized structured canvas array.')
+  }
+
+  if (!undersizedCanvasArrayRejected) {
+    throw new Error('LiveKit tool runner did not reject an undersized structured canvas array.')
+  }
+
+  if (!canvasCoordinateOverflowRejected) {
+    throw new Error('LiveKit tool runner did not reject a structured canvas coordinate overflow.')
+  }
+
+  if (!canvasTextLengthRejected) {
+    throw new Error('LiveKit tool runner did not reject an overlong structured canvas label.')
   }
 
   if (!missingRequiredToolFieldRejected) {

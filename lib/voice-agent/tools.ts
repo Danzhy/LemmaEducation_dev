@@ -209,6 +209,12 @@ const STRUCTURED_CANVAS_ACTIONS = new Set([
   'coordinate_plane',
 ])
 
+const TOOL_COORDINATE_NUMBER_SCHEMA = { type: 'number', minimum: -10000, maximum: 10000 }
+const TOOL_DIMENSION_NUMBER_SCHEMA = { type: 'number', minimum: 0, maximum: 2000 }
+const TOOL_DOMAIN_NUMBER_SCHEMA = { type: 'number', minimum: -10000, maximum: 10000 }
+const TOOL_SHORT_LABEL_SCHEMA = { type: 'string', maxLength: 80 }
+const TOOL_BOARD_TEXT_SCHEMA = { type: 'string', maxLength: 120 }
+
 function assertSafeCanvasActionInput(input: Parameters<typeof canvasAction>[0]) {
   if (!STRUCTURED_CANVAS_ACTIONS.has(input.actionType)) {
     throw new Error(
@@ -1600,14 +1606,15 @@ export function createVoiceAgentTools() {
         type: 'object',
         additionalProperties: false,
         properties: {
-          expression: { type: 'string' },
-          domainStart: { type: 'number' },
-          domainEnd: { type: 'number' },
+          expression: { type: 'string', maxLength: 160 },
+          domainStart: TOOL_DOMAIN_NUMBER_SCHEMA,
+          domainEnd: TOOL_DOMAIN_NUMBER_SCHEMA,
           graphType: { type: 'string', enum: ['cartesian'] },
-          title: { type: 'string' },
+          title: TOOL_SHORT_LABEL_SCHEMA,
           noteLines: {
             type: 'array',
-            items: { type: 'string' },
+            maxItems: 3,
+            items: { type: 'string', maxLength: 90 },
           },
           showXIntercepts: { type: 'boolean' },
           showYIntercept: { type: 'boolean' },
@@ -1653,12 +1660,14 @@ export function createVoiceAgentTools() {
         type: 'object',
         additionalProperties: false,
         properties: {
-          expression: { type: 'string' },
-          domainStart: { type: 'number' },
-          domainEnd: { type: 'number' },
+          expression: { type: 'string', maxLength: 160 },
+          domainStart: TOOL_DOMAIN_NUMBER_SCHEMA,
+          domainEnd: TOOL_DOMAIN_NUMBER_SCHEMA,
           clearExisting: { type: 'boolean' },
           features: {
             type: 'array',
+            minItems: 1,
+            maxItems: 4,
             items: {
               type: 'string',
               enum: ['x-intercepts', 'y-intercept', 'vertex', 'axis-of-symmetry'],
@@ -1697,17 +1706,18 @@ export function createVoiceAgentTools() {
         type: 'object',
         additionalProperties: false,
         properties: {
-          expression: { type: 'string' },
+          expression: { type: 'string', maxLength: 160 },
           xValues: {
             type: 'array',
-            items: { type: 'number' },
+            maxItems: 25,
+            items: TOOL_DOMAIN_NUMBER_SCHEMA,
           },
           highlightXValue: {
-            type: 'number',
+            ...TOOL_DOMAIN_NUMBER_SCHEMA,
             description: 'Optional x-value whose table row should be highlighted for focused feedback.',
           },
           highlightLabel: {
-            type: 'string',
+            ...TOOL_SHORT_LABEL_SCHEMA,
             description: 'Short optional label for the highlighted row.',
           },
         },
@@ -2805,8 +2815,8 @@ export function createVoiceAgentTools() {
             type: 'object',
             additionalProperties: false,
             properties: {
-              x: { type: 'number' },
-              y: { type: 'number' },
+              x: TOOL_COORDINATE_NUMBER_SCHEMA,
+              y: TOOL_COORDINATE_NUMBER_SCHEMA,
             },
             required: ['x', 'y'],
           },
@@ -2814,12 +2824,12 @@ export function createVoiceAgentTools() {
             type: 'object',
             additionalProperties: false,
             properties: {
-              x: { type: 'number' },
-              y: { type: 'number' },
+              x: TOOL_COORDINATE_NUMBER_SCHEMA,
+              y: TOOL_COORDINATE_NUMBER_SCHEMA,
             },
             required: ['x', 'y'],
           },
-          title: { type: 'string' },
+          title: TOOL_SHORT_LABEL_SCHEMA,
         },
         required: ['pointA', 'pointB'],
       },
@@ -2875,8 +2885,8 @@ export function createVoiceAgentTools() {
             type: 'object',
             additionalProperties: false,
             properties: {
-              x: { type: 'number' },
-              y: { type: 'number' },
+              x: TOOL_COORDINATE_NUMBER_SCHEMA,
+              y: TOOL_COORDINATE_NUMBER_SCHEMA,
             },
             required: ['x', 'y'],
           },
@@ -2884,12 +2894,12 @@ export function createVoiceAgentTools() {
             type: 'object',
             additionalProperties: false,
             properties: {
-              x: { type: 'number' },
-              y: { type: 'number' },
+              x: TOOL_COORDINATE_NUMBER_SCHEMA,
+              y: TOOL_COORDINATE_NUMBER_SCHEMA,
             },
             required: ['x', 'y'],
           },
-          title: { type: 'string' },
+          title: TOOL_SHORT_LABEL_SCHEMA,
         },
         required: ['pointA', 'pointB'],
       },
@@ -2934,13 +2944,13 @@ export function createVoiceAgentTools() {
           },
           clearFirst: { type: 'boolean' },
           focusAfter: { type: 'boolean' },
-          x: { type: 'number' },
-          y: { type: 'number' },
-          width: { type: 'number' },
-          height: { type: 'number' },
-          text: { type: 'string' },
-          latex: { type: 'string' },
-          label: { type: 'string' },
+          x: TOOL_COORDINATE_NUMBER_SCHEMA,
+          y: TOOL_COORDINATE_NUMBER_SCHEMA,
+          width: TOOL_DIMENSION_NUMBER_SCHEMA,
+          height: TOOL_DIMENSION_NUMBER_SCHEMA,
+          text: TOOL_BOARD_TEXT_SCHEMA,
+          latex: { type: 'string', maxLength: 180 },
+          label: TOOL_SHORT_LABEL_SCHEMA,
           color: {
             type: 'string',
             enum: [
@@ -2969,19 +2979,19 @@ export function createVoiceAgentTools() {
             type: 'string',
             enum: ['none', 'semi', 'solid'],
           },
-          opacity: { type: 'number' },
+          opacity: { type: 'number', minimum: 0, maximum: 1 },
           labelPosition: {
             type: 'string',
             enum: ['top', 'bottom', 'left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right'],
           },
-          labelWidth: { type: 'number' },
+          labelWidth: { type: 'number', minimum: 20, maximum: 320 },
           displayMode: { type: 'boolean' },
           start: {
             type: 'object',
             additionalProperties: false,
             properties: {
-              x: { type: 'number' },
-              y: { type: 'number' },
+              x: TOOL_COORDINATE_NUMBER_SCHEMA,
+              y: TOOL_COORDINATE_NUMBER_SCHEMA,
             },
             required: ['x', 'y'],
           },
@@ -2989,8 +2999,8 @@ export function createVoiceAgentTools() {
             type: 'object',
             additionalProperties: false,
             properties: {
-              x: { type: 'number' },
-              y: { type: 'number' },
+              x: TOOL_COORDINATE_NUMBER_SCHEMA,
+              y: TOOL_COORDINATE_NUMBER_SCHEMA,
             },
             required: ['x', 'y'],
           },
@@ -2998,40 +3008,43 @@ export function createVoiceAgentTools() {
             type: 'object',
             additionalProperties: false,
             properties: {
-              x: { type: 'number' },
-              y: { type: 'number' },
+              x: TOOL_COORDINATE_NUMBER_SCHEMA,
+              y: TOOL_COORDINATE_NUMBER_SCHEMA,
             },
             required: ['x', 'y'],
           },
-          xLength: { type: 'number' },
-          yLength: { type: 'number' },
-          xLabel: { type: 'string' },
-          yLabel: { type: 'string' },
+          xLength: { type: 'number', minimum: 10, maximum: 2000 },
+          yLength: { type: 'number', minimum: 10, maximum: 2000 },
+          xLabel: { type: 'string', maxLength: 24 },
+          yLabel: { type: 'string', maxLength: 24 },
           points: {
             type: 'array',
+            minItems: 2,
+            maxItems: 64,
             items: {
               type: 'object',
               additionalProperties: false,
               properties: {
-                x: { type: 'number' },
-                y: { type: 'number' },
+                x: TOOL_COORDINATE_NUMBER_SCHEMA,
+                y: TOOL_COORDINATE_NUMBER_SCHEMA,
               },
               required: ['x', 'y'],
             },
           },
           noteLines: {
             type: 'array',
-            items: { type: 'string' },
+            maxItems: 4,
+            items: { type: 'string', maxLength: 90 },
           },
-          title: { type: 'string' },
+          title: TOOL_SHORT_LABEL_SCHEMA,
           coordinateSpace: {
             type: 'string',
             enum: ['canvas', 'graph'],
           },
-          xDomainStart: { type: 'number' },
-          xDomainEnd: { type: 'number' },
-          yDomainStart: { type: 'number' },
-          yDomainEnd: { type: 'number' },
+          xDomainStart: TOOL_DOMAIN_NUMBER_SCHEMA,
+          xDomainEnd: TOOL_DOMAIN_NUMBER_SCHEMA,
+          yDomainStart: TOOL_DOMAIN_NUMBER_SCHEMA,
+          yDomainEnd: TOOL_DOMAIN_NUMBER_SCHEMA,
         },
         required: ['actionType'],
       },
