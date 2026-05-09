@@ -164,6 +164,33 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'continues after a mean attempt with only the original data values',
+    prompt: 'I got 5. What is the mean of 4, 7, 3, 7, and 9?',
+    expectedTools: ['answer_disclosure_gate', 'statistics_summary'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.deepEqual(plans[1].input.values, [4, 7, 3, 7, 9])
+    },
+  },
+  {
+    name: 'continues after a unit-rate attempt with the original rate pair',
+    prompt: 'I got $2 per notebook. What is the unit rate for 3 notebooks costing $6?',
+    expectedTools: ['answer_disclosure_gate', 'unit_rate', 'double_number_line'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.equal(plans[1].input.quantity, 3)
+      assert.equal(plans[1].input.value, 6)
+      assert.equal(plans[1].input.quantityLabel, 'notebooks')
+      assert.equal(plans[1].input.valueLabel, 'dollars')
+      assert.deepEqual(plans[2].input.pairs, [
+        { top: 0, bottom: 0, label: 'start' },
+        { top: 3, bottom: 6, label: 'given' },
+      ])
+    },
+  },
+  {
     name: 'routes explicit next-move planning to tutor response planner',
     prompt: 'I got 1/2 + 1/3 = 2/5. What should we do next?',
     expectedTools: ['tutor_response_planner'],

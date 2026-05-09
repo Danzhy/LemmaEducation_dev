@@ -139,6 +139,10 @@ function extractNumbers(text: string) {
   return [...text.matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => Number(match[0]))
 }
 
+function normalizeLocalPromptText(text: string) {
+  return text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+}
+
 type LocalMeasurementType = 'length' | 'mass' | 'capacity' | 'time'
 
 type LocalUnitQuantity = {
@@ -1137,7 +1141,13 @@ function extractStatisticsSummaryRequest(text: string) {
   const statistic = extractLocalStatisticsKind(text)
   if (!statistic) return null
 
-  const values = extractNumbers(text).slice(0, 24)
+  const afterStatistic = text.slice(statistic.index + statistic.label.length)
+  const dataMatch = afterStatistic.match(/\b(?:of|for|from|with|values?|data(?:\s+set)?)\b([\s\S]{0,260})/i)
+  const candidate = dataMatch?.[1] ?? afterStatistic
+  const answerLeadPattern = String.raw`\b(?:i\s+(?:got|found|think)|my\s+answer|and\s+got|got|equals?|is|was|=)\s+(?:no\s+mode|none|${LOCAL_NUMBER_PATTERN})`
+  const stopMatch = candidate.search(new RegExp(`${answerLeadPattern}|[?!]`, 'i'))
+  const dataSegment = stopMatch >= 0 ? candidate.slice(0, stopMatch) : candidate
+  const values = extractNumbers(dataSegment).slice(0, 24)
   if (values.length < 2) return null
 
   return {
@@ -1229,6 +1239,58 @@ function buildLocalProbabilityModelInputFromStepPair(stepPair: StudentStepPair) 
   const setup = extractLocalProbabilitySetup(stepPair.previousStep)
   if (!setup) return null
   return probabilityModelInputFromSetup(setup)
+}
+
+type LocalUnitRateRequest = {
+  quantity: number
+  value: number
+  quantityLabel: string
+  valueLabel: string
+}
+
+function extractLocalUnitRateRequest(text: string): LocalUnitRateRequest | null {
+  const normalized = normalizeLocalPromptText(text)
+  const quantityFirstMatch = normalized.match(
+    new RegExp(
+      String.raw`\b(${LOCAL_NUMBER_PATTERN})\s+([A-Za-z][A-Za-z-]*)(?:s)?\s+(?:costs?|costing|priced\s+at|for|=|is|are)\s+\$?\s*(${LOCAL_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  if (quantityFirstMatch) {
+    const quantity = parseLocalPlainNumber(quantityFirstMatch[1])
+    const value = parseLocalPlainNumber(quantityFirstMatch[3])
+    const quantityLabel = normalizeLocalUnitLabel(quantityFirstMatch[2])
+    if (quantity !== null && value !== null && quantity > 0 && quantityLabel) {
+      return {
+        quantity,
+        value,
+        quantityLabel,
+        valueLabel: /\$|dollars?|cost|price/i.test(quantityFirstMatch[0]) ? 'dollars' : 'value',
+      }
+    }
+  }
+
+  const valueFirstMatch = normalized.match(
+    new RegExp(
+      String.raw`\$?\s*(${LOCAL_NUMBER_PATTERN})\s+(?:for|per)\s+(${LOCAL_NUMBER_PATTERN})\s+([A-Za-z][A-Za-z-]*)(?:s)?\b`,
+      'i'
+    )
+  )
+  if (valueFirstMatch) {
+    const value = parseLocalPlainNumber(valueFirstMatch[1])
+    const quantity = parseLocalPlainNumber(valueFirstMatch[2])
+    const quantityLabel = normalizeLocalUnitLabel(valueFirstMatch[3])
+    if (quantity !== null && value !== null && quantity > 0 && quantityLabel) {
+      return {
+        quantity,
+        value,
+        quantityLabel,
+        valueLabel: /\$|dollars?|cost|price/i.test(valueFirstMatch[0]) ? 'dollars' : 'value',
+      }
+    }
+  }
+
+  return null
 }
 
 function extractFunctionExpressionForInterceptAttempt(text: string) {
@@ -2274,6 +2336,7 @@ export function planLocalToolTurn(
   const tableOfValuesRequest = extractTableOfValuesRequest(prompt)
   const statisticsSummaryRequest = extractStatisticsSummaryRequest(prompt)
   const probabilityModelRequest = extractProbabilityModelRequest(prompt)
+  const unitRateRequest = extractLocalUnitRateRequest(prompt)
   const percentOfRequest = extractLocalPercentOfRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
   const tapeDiagramInput = buildLocalTapeDiagramInput(prompt)
@@ -2839,26 +2902,31 @@ export function planLocalToolTurn(
     return plans
   }
 
-  if (/\b(double number line|unit rate|cost|ratio|notebook|recipe|muffin)s?\b/.test(lower) && numbers.length >= 2) {
-    const quantity = numbers[0]
-    const value = numbers[1]
-    const target = numbers[2]
+  if (
+    /\b(double number line|unit rate|cost|ratio|notebook|recipe|muffin)s?\b/.test(lower) &&
+    (unitRateRequest || numbers.length >= 2)
+  ) {
+    const quantity = unitRateRequest?.quantity ?? numbers[0]
+    const value = unitRateRequest?.value ?? numbers[1]
+    const target = unitRateRequest ? undefined : numbers[2]
+    const quantityLabel = unitRateRequest?.quantityLabel ?? (/notebook/.test(lower) ? 'notebooks' : 'units')
+    const valueLabel = unitRateRequest?.valueLabel ?? (/\$|cost/.test(lower) ? 'dollars' : 'value')
     if (/unit rate|cost/.test(lower)) {
       plans.push({
         toolName: 'unit_rate',
         input: {
           quantity,
           value,
-          quantityLabel: /notebook/.test(lower) ? 'notebooks' : 'units',
-          valueLabel: /\$|cost/.test(lower) ? 'dollars' : 'value',
+          quantityLabel,
+          valueLabel,
         },
       })
     }
     plans.push({
       toolName: 'double_number_line',
       input: {
-        topLabel: /notebook/.test(lower) ? 'notebooks' : 'quantity',
-        bottomLabel: /\$|cost/.test(lower) ? 'cost' : 'value',
+        topLabel: quantityLabel,
+        bottomLabel: valueLabel === 'dollars' ? 'cost' : valueLabel,
         pairs: [
           { top: 0, bottom: 0, label: 'start' },
           { top: quantity, bottom: value, label: 'given' },
