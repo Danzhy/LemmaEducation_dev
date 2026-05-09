@@ -70,6 +70,14 @@ async function main() {
     { previousStep: '3 1/2 - 1 1/4', nextStep: '2 3/4' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-mixed-number-step-check' }
   )
+  const validMixedNumberMultiplicationStep = await tools.math_check_step.execute(
+    { previousStep: '1 1/2 * 2 2/3', nextStep: '4' },
+    { ctx: {} as never, toolCallId: 'smoke-mixed-number-multiplication-step-check' }
+  )
+  const invalidMixedNumberDivisionStep = await tools.math_check_step.execute(
+    { previousStep: '3 1/2 / 1 3/4', nextStep: '1 1/2' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-mixed-number-division-step-check' }
+  )
   const validDistributiveStep = await tools.math_check_step.execute(
     { previousStep: '3(x + 4)', nextStep: '3x + 12' },
     { ctx: {} as never, toolCallId: 'smoke-distributive-step-check' }
@@ -444,6 +452,24 @@ async function main() {
     !JSON.stringify(invalidMixedNumberStep).includes('mixed numbers')
   ) {
     throw new Error(`math_check_step did not reject an invalid mixed-number step: ${JSON.stringify(invalidMixedNumberStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validMixedNumberMultiplicationStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validMixedNumberMultiplicationStep).includes('mixed numbers')
+  ) {
+    throw new Error(
+      `math_check_step did not accept a mixed-number multiplication step: ${JSON.stringify(validMixedNumberMultiplicationStep)}`
+    )
+  }
+
+  if (
+    !JSON.stringify(invalidMixedNumberDivisionStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidMixedNumberDivisionStep).includes('mixed numbers')
+  ) {
+    throw new Error(
+      `math_check_step did not reject an invalid mixed-number division step: ${JSON.stringify(invalidMixedNumberDivisionStep)}`
+    )
   }
 
   if (

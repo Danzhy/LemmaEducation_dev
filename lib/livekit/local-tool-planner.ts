@@ -988,6 +988,7 @@ function extractMixedNumberOperationAttempt(text: string): StudentStepPair | nul
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const valuePattern = String.raw`-?(?:\d+\s+\d+\s*\/\s*\d+|\d+\s*\/\s*-?\d+|\d+(?:\.\d+)?|\.\d+)`
   const answerVerb = String.raw`(?:got|gets|equals?|is|=)`
+  const hasMixedOperand = (...values: string[]) => values.some((value) => /\d+\s+\d+\s*\/\s*\d+/.test(value))
 
   const additionMatch = normalized.match(
     new RegExp(
@@ -1017,6 +1018,46 @@ function extractMixedNumberOperationAttempt(text: string): StudentStepPair | nul
   )
   if (minusMatch) {
     return buildStepPair(`${minusMatch[1]} - ${minusMatch[2]}`, minusMatch[3])
+  }
+
+  const multiplyByMatch = normalized.match(
+    new RegExp(
+      `\\b(?:i\\s+)?(?:multiplied|multiply)\\s+(${valuePattern})\\s+(?:by|times|x|×|\\*)\\s+(${valuePattern})\\s+(?:and\\s+)?${answerVerb}\\s+(${valuePattern})`,
+      'i'
+    )
+  )
+  if (multiplyByMatch && hasMixedOperand(multiplyByMatch[1], multiplyByMatch[2], multiplyByMatch[3])) {
+    return buildStepPair(`${multiplyByMatch[1]} * ${multiplyByMatch[2]}`, multiplyByMatch[3])
+  }
+
+  const timesMatch = normalized.match(
+    new RegExp(
+      `\\b(${valuePattern})\\s+(?:times|x|×|\\*)\\s+(${valuePattern})\\s+(?:and\\s+)?${answerVerb}\\s+(${valuePattern})`,
+      'i'
+    )
+  )
+  if (timesMatch && hasMixedOperand(timesMatch[1], timesMatch[2], timesMatch[3])) {
+    return buildStepPair(`${timesMatch[1]} * ${timesMatch[2]}`, timesMatch[3])
+  }
+
+  const divideByMatch = normalized.match(
+    new RegExp(
+      `\\b(?:i\\s+)?(?:divided|divide)\\s+(${valuePattern})\\s+by\\s+(${valuePattern})\\s+(?:and\\s+)?${answerVerb}\\s+(${valuePattern})`,
+      'i'
+    )
+  )
+  if (divideByMatch && hasMixedOperand(divideByMatch[1], divideByMatch[2], divideByMatch[3])) {
+    return buildStepPair(`${divideByMatch[1]} / ${divideByMatch[2]}`, divideByMatch[3])
+  }
+
+  const dividedMatch = normalized.match(
+    new RegExp(
+      `\\b(${valuePattern})\\s+(?:divided\\s+by|÷|/)\\s+(${valuePattern})\\s+(?:and\\s+)?${answerVerb}\\s+(${valuePattern})`,
+      'i'
+    )
+  )
+  if (dividedMatch && hasMixedOperand(dividedMatch[1], dividedMatch[2], dividedMatch[3])) {
+    return buildStepPair(`${dividedMatch[1]} / ${dividedMatch[2]}`, dividedMatch[3])
   }
 
   return null
@@ -1334,7 +1375,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(lower)
   const hasStudentAttempt =
     /\b(i tried|i got|i found|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
-    /\b(i added|i subtracted|i calculated|i evaluated|i did|i worked out|i simplified|i rounded|rounded|and got)\b/.test(lower) ||
+    /\b(i added|i subtracted|i multiplied|i divided|i calculated|i evaluated|i did|i worked out|i simplified|i rounded|rounded|and got)\b/.test(lower) ||
     /\b(went from|changed from|increased from|decreased from|percent change)\b/.test(lower) ||
     /\b(percent error|actual value|accepted value|measured value|estimate)\b/.test(lower) ||
     prompt.includes('=')

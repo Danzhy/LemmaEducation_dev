@@ -117,6 +117,24 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks natural mixed-number multiplication before classifying the mistake',
+    prompt: 'I multiplied 1 1/2 by 2 2/3 and got 3 1/2. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '1 1/2 * 2 2/3')
+      assert.equal(input.nextStep, '3 1/2')
+    },
+  },
+  {
+    name: 'checks natural mixed-number division before classifying the mistake',
+    prompt: 'I divided 3 1/2 by 1 3/4 and got 1 1/2. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '3 1/2 / 1 3/4')
+      assert.equal(input.nextStep, '1 1/2')
+    },
+  },
+  {
     name: 'checks explicit algebra rewrite before classifying the step',
     prompt: 'I changed 2x + 3 = 11 to 2x = 8. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],

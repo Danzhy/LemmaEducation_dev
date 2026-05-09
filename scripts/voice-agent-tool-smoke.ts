@@ -269,6 +269,20 @@ assert(
   'math_check_step should catch mixed-number subtraction mistakes.'
 )
 
+const validMixedNumberMultiplicationStep = mathCheckStep('1 1/2 * 2 2/3', '4')
+assert(
+  validMixedNumberMultiplicationStep.verdict === 'valid' &&
+    validMixedNumberMultiplicationStep.hintTarget.includes('mixed numbers'),
+  'math_check_step should validate mixed-number multiplication steps.'
+)
+
+const invalidMixedNumberDivisionStep = mathCheckStep('3 1/2 / 1 3/4', '1 1/2')
+assert(
+  invalidMixedNumberDivisionStep.verdict === 'invalid' &&
+    invalidMixedNumberDivisionStep.hintTarget.includes('mixed numbers'),
+  'math_check_step should catch mixed-number division mistakes.'
+)
+
 const validDistributiveStep = mathCheckStep('3(x + 4)', '3x + 12')
 assert(
   validDistributiveStep.verdict === 'valid' &&
