@@ -480,6 +480,17 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes explicit number-line highlight requests to number_line',
+    prompt: 'Draw a number line from -5 to 5 and highlight -3 and 2.',
+    expectedTools: ['number_line'],
+    inspect: (input) => {
+      assert.equal(input.start, -5)
+      assert.equal(input.end, 5)
+      assert.deepEqual(input.highlightValues, [-3, 2])
+      assert.equal(input.title, 'Number line')
+    },
+  },
+  {
     name: 'checks explicit wrong fraction step before classifying the mistake',
     prompt: 'I got 1/2 + 1/3 = 2/5. Why is this wrong?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],

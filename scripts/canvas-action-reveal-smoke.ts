@@ -829,6 +829,34 @@ async function main() {
     secondPrompt: 'Show the complementary angle to 45 on the board.',
   })
 
+  await assertTypedPreviewVisualReplacesRepeatedShapes({
+    name: 'graph annotation typed-preview visual',
+    expectedToolName: 'graph_function',
+    firstPrompt: 'Graph y = 2x + 1 from x = -3 to 3 and mark the x-intercept and y-intercept.',
+    secondPrompt: 'Graph y = 2x + 1 from x = -3 to 3 and mark the x-intercept and y-intercept.',
+  })
+
+  await assertTypedPreviewVisualReplacesRepeatedShapes({
+    name: 'number-line typed-preview visual',
+    expectedToolName: 'number_line',
+    firstPrompt: 'Draw a number line from -5 to 5 and highlight -3 and 2.',
+    secondPrompt: 'Draw a number line from -5 to 5 and highlight -2 and 3.',
+  })
+
+  await assertTypedPreviewVisualReplacesRepeatedShapes({
+    name: 'probability typed-preview visual',
+    expectedToolName: 'probability_model',
+    firstPrompt: 'Show the probability of 3 favorable outcomes out of 8.',
+    secondPrompt: 'Show the probability of 5 favorable outcomes out of 8.',
+  })
+
+  await assertTypedPreviewVisualReplacesRepeatedShapes({
+    name: 'composite-area typed-preview visual',
+    expectedToolName: 'composite_area_model',
+    firstPrompt: 'A shape is made of 3 by 4 and 2 by 5 rectangles. What is the total area?',
+    secondPrompt: 'A shape is made of 3 by 4 and 2 by 5 rectangles. What is the total area?',
+  })
+
   console.log('Canvas action reveal smoke passed.')
   process.exit(0)
 }

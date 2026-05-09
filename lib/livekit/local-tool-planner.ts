@@ -931,6 +931,58 @@ function extractIntegerOperation(text: string) {
   } as const
 }
 
+function extractLocalNumberLineRequest(text: string) {
+  const normalized = normalizeLocalPromptText(text)
+  if (!/\bnumber line\b/i.test(normalized) || /\bdouble number line\b/i.test(normalized)) return null
+
+  const numericMatches = [...normalized.matchAll(new RegExp(LOCAL_NUMBER_PATTERN, 'g'))]
+    .map((match) => ({
+      value: parseLocalPlainNumber(match[0]),
+      index: match.index ?? -1,
+      raw: match[0],
+    }))
+    .filter(
+      (match): match is { value: number; index: number; raw: string } =>
+        match.value !== null && Number.isFinite(match.value) && match.index >= 0
+    )
+
+  if (numericMatches.length === 0) return null
+
+  const rangeMatch = normalized.match(
+    new RegExp(`\\b(?:from|between)\\s+(${LOCAL_NUMBER_PATTERN})\\s+(?:to|and|through)\\s+(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  const start = rangeMatch ? parseLocalPlainNumber(rangeMatch[1]) : null
+  const end = rangeMatch ? parseLocalPlainNumber(rangeMatch[2]) : null
+  const rangeStart = rangeMatch?.index ?? -1
+  const rangeEnd = rangeMatch ? rangeStart + rangeMatch[0].length : -1
+
+  const highlightValues = numericMatches
+    .filter((match) => !(rangeMatch && match.index >= rangeStart && match.index < rangeEnd))
+    .map((match) => match.value)
+    .slice(0, 8)
+
+  if (start !== null && end !== null && start !== end) {
+    return {
+      start: Math.min(start, end),
+      end: Math.max(start, end),
+      highlightValues,
+      title: 'Number line',
+    }
+  }
+
+  const values = highlightValues.length > 0 ? highlightValues : numericMatches.map((match) => match.value).slice(0, 8)
+  const minValue = Math.min(...values, 0)
+  const maxValue = Math.max(...values, 0)
+  const padding = minValue === maxValue ? 2 : Math.max(1, Math.ceil((maxValue - minValue) * 0.15))
+
+  return {
+    start: Math.floor(minValue - padding),
+    end: Math.ceil(maxValue + padding),
+    highlightValues: values,
+    title: 'Number line',
+  }
+}
+
 function cleanStepText(value: string) {
   return value
     .replace(/[“”]/g, '"')
@@ -2452,6 +2504,7 @@ export function planLocalToolTurn(
   const percentOfRequest = extractLocalPercentOfRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
   const tapeDiagramInput = buildLocalTapeDiagramInput(prompt)
+  const numberLineRequest = extractLocalNumberLineRequest(prompt)
   const plans: LocalToolPlan[] = []
   const asksForFullSolution = isLocalAnswerDisclosureRequest(prompt)
   const hasExplicitStudentAttempt =
@@ -2856,6 +2909,14 @@ export function planLocalToolTurn(
         operation: integerOperation.operation,
         title: 'Integer operation',
       },
+    })
+    return plans
+  }
+
+  if (numberLineRequest) {
+    plans.push({
+      toolName: 'number_line',
+      input: numberLineRequest,
     })
     return plans
   }
