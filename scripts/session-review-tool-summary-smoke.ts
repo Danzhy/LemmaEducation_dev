@@ -57,6 +57,40 @@ assert(
   'Step-check summaries should avoid dumping raw calculation payloads.'
 )
 
+const masterySummary = summarizeToolEventForReview({
+  eventType: 'tool_completed',
+  toolName: 'session_mastery_snapshot',
+  status: 'completed',
+  input: {
+    transcriptExcerpt: 'Private transcript: my older sibling did the first one for me.',
+    studentWork: 'Private student work scratchpad.',
+  },
+  output: {
+    label: 'Fraction addition',
+    confidence: 'medium',
+    needsReview: ['Check whether the whole is the same size before adding parts.'],
+    teacherReviewNote: 'Review fraction addition with one short diagnostic before moving faster.',
+    suggestedNextTutorMove: 'Ask the student to draw two same-size fraction strips before adding.',
+  },
+})
+const masteryText = summaryText(masterySummary)
+assert(
+  masteryText.includes('Fraction addition') && masteryText.includes('medium confidence'),
+  'Mastery snapshots should surface teacher-safe confidence and topic evidence.'
+)
+assert(
+  masteryText.includes('short diagnostic') && masteryText.includes('fraction strips'),
+  'Mastery snapshots should keep the review note and next tutor move visible.'
+)
+assert(
+  masteryText.includes('Raw transcript, student work, and tool payloads remain hidden'),
+  'Mastery snapshots should explain that raw learning artifacts stay hidden.'
+)
+assert(
+  !masteryText.includes('older sibling') && !masteryText.includes('scratchpad'),
+  'Mastery snapshot summaries must not leak raw transcript or student work input.'
+)
+
 const canvasSummary = summarizeToolEventForReview({
   eventType: 'canvas_action',
   toolName: 'graph_function',

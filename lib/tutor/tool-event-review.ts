@@ -19,7 +19,6 @@ const PRIVATE_CONTEXT_TOOLS = new Set([
   'curriculum_search',
   'learner_context',
   'adaptive_review_plan',
-  'session_mastery_snapshot',
 ])
 
 const GUARDRAIL_TOOLS = new Set([
@@ -65,6 +64,15 @@ function formatValue(value: unknown) {
 function readString(record: Record<string, unknown> | null, key: string) {
   const value = record?.[key]
   return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function readStringList(record: Record<string, unknown> | null, key: string) {
+  const value = record?.[key]
+  if (!Array.isArray(value)) return []
+
+  return value
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim())
 }
 
 function countCanvasActions(output: unknown) {
@@ -127,6 +135,23 @@ export function summarizeToolEventForReview(event: ToolEventForReview): ToolEven
     const severity = readString(outputRecord, 'severity')
     if (pattern) details.push(`Likely misconception: ${formatValue(pattern)}.`)
     if (severity) details.push(`Review priority: ${formatValue(severity)}.`)
+  } else if (event.toolName === 'session_mastery_snapshot') {
+    const label = readString(outputRecord, 'label') ?? readString(outputRecord, 'topic')
+    const confidence = readString(outputRecord, 'confidence')
+    const teacherReviewNote = readString(outputRecord, 'teacherReviewNote')
+    const suggestedNextTutorMove = readString(outputRecord, 'suggestedNextTutorMove')
+    const needsReview = readStringList(outputRecord, 'needsReview')
+
+    if (label) details.push(`Learning focus: ${label}.`)
+    if (confidence) details.push(`Mastery signal: ${formatValue(confidence)} confidence.`)
+    if (needsReview.length > 0) {
+      details.push(`Review need: ${needsReview[0]}.`)
+    } else {
+      details.push('Review need: none flagged by the snapshot.')
+    }
+    if (teacherReviewNote) details.push(`Teacher note: ${teacherReviewNote}`)
+    if (suggestedNextTutorMove) details.push(`Next tutor move: ${suggestedNextTutorMove}`)
+    details.push('Raw transcript, student work, and tool payloads remain hidden in normal review.')
   } else if (GUARDRAIL_TOOLS.has(event.toolName)) {
     const decision = readString(outputRecord, 'decision')
     const riskLevel = readString(outputRecord, 'riskLevel')
