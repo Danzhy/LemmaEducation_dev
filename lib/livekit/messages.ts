@@ -1,4 +1,5 @@
 import type { TutorChatMessage, TutorToolEvent } from '@/lib/tutor/session-adapter'
+import { TUTOR_SILENT_BOARD_CONTEXT_MARKER } from '@/lib/tutor/silent-board-context'
 
 export const LIVEKIT_TOPICS = {
   userText: 'lemma.user.text',
@@ -59,4 +60,43 @@ export function decodeLiveKitPayload(payload: Uint8Array) {
   } catch {
     return null
   }
+}
+
+const STUDENT_VISIBLE_ASSISTANT_TEXT_BLOCKLIST = [
+  TUTOR_SILENT_BOARD_CONTEXT_MARKER,
+  'Visible board summary:',
+  'Tool visuals:',
+  'lemma.canvas.context',
+  'lemma.tool.event',
+  '"type":"tool_event"',
+  '"type": "tool_event"',
+  '"toolName"',
+  '"canvasActions"',
+  '"boardDescription"',
+]
+
+export function sanitizeLiveKitAssistantTextForStudent(value: unknown) {
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  const compact = trimmed.replace(/\s+/g, ' ')
+  const compactLower = compact.toLowerCase()
+  const leaksHiddenPayload = STUDENT_VISIBLE_ASSISTANT_TEXT_BLOCKLIST.some((pattern) =>
+    compactLower.includes(pattern.toLowerCase())
+  )
+  return leaksHiddenPayload ? '' : trimmed
+}
+
+export function coerceLiveKitAssistantText(parsed: LiveKitTutorPayload | null, rawText: string) {
+  if (parsed?.type === 'assistant_text') {
+    return sanitizeLiveKitAssistantTextForStudent(parsed.text)
+  }
+
+  if (parsed?.type === 'chat_message' && parsed.message.role === 'assistant') {
+    return sanitizeLiveKitAssistantTextForStudent(parsed.message.content)
+  }
+
+  if (parsed) return ''
+  return sanitizeLiveKitAssistantTextForStudent(rawText)
 }

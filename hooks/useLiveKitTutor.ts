@@ -16,6 +16,7 @@ import type { TutorState } from '@/components/TutorAvatar'
 import { TUTOR_INACTIVITY_PAUSE_SECONDS } from '@/lib/tutor/constants'
 import {
   LIVEKIT_TOPICS,
+  coerceLiveKitAssistantText,
   decodeLiveKitPayload,
   type LiveKitTutorPayload,
 } from '@/lib/livekit/messages'
@@ -97,12 +98,6 @@ function parseRpcPayload(data: RpcInvocationData) {
 async function sendLiveKitText(room: Room | null, topic: string, payload: LiveKitTutorPayload) {
   if (!room || room.state !== ConnectionState.Connected) return
   await room.localParticipant.sendText(JSON.stringify(payload), { topic })
-}
-
-function coerceAssistantText(parsed: LiveKitTutorPayload | null, rawText: string) {
-  if (parsed?.type === 'assistant_text') return parsed.text
-  if (parsed?.type === 'chat_message' && parsed.message.role === 'assistant') return parsed.message.content
-  return rawText
 }
 
 async function callServerLiveKitTool(sessionId: string | null, toolName: string, input: unknown) {
@@ -681,7 +676,7 @@ export function useLiveKitTutor({
           setState('speaking')
         }
         const parsed = parseJsonSafely(rawText) as LiveKitTutorPayload | null
-        const content = coerceAssistantText(parsed, rawText).trim()
+        const content = coerceLiveKitAssistantText(parsed, rawText).trim()
         if (content) {
           setChatHistory((prev) => [...prev, { role: 'assistant', content, source: 'assistant' }])
         }
@@ -752,7 +747,7 @@ export function useLiveKitTutor({
       room.on(RoomEvent.DataReceived, (payload: Uint8Array, _participant, _kind, topic) => {
         const parsed = decodeLiveKitPayload(payload)
         if (topic === LIVEKIT_TOPICS.assistantText) {
-          const content = coerceAssistantText(parsed, new TextDecoder().decode(payload)).trim()
+          const content = coerceLiveKitAssistantText(parsed, new TextDecoder().decode(payload)).trim()
           if (content) {
             setChatHistory((prev) => [...prev, { role: 'assistant', content, source: 'assistant' }])
           }

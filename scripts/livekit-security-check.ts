@@ -1,4 +1,12 @@
+import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import {
+  coerceLiveKitAssistantText,
+  decodeLiveKitPayload,
+  encodeLiveKitPayload,
+  type LiveKitTutorPayload,
+} from '@/lib/livekit/messages'
+import { buildSilentTutorBoardContext } from '@/lib/tutor/silent-board-context'
 
 function read(path: string) {
   return readFileSync(path, 'utf8')
@@ -32,6 +40,7 @@ function main() {
   }
 
   assertExcludes('hooks/useLiveKitTutor.ts', '@/lib/livekit/tool-runner')
+  assertIncludes('hooks/useLiveKitTutor.ts', 'coerceLiveKitAssistantText')
   assertIncludes('app/api/livekit/session/route.ts', 'getSessionUserId()')
   assertIncludes('app/api/livekit/session/route.ts', 'takeTutorApiRateLimit')
   assertIncludes('app/api/livekit/session/route.ts', "ttl: '10m'")
@@ -75,12 +84,94 @@ function main() {
   assertIncludes('app/api/voice-agent/tool-log/route.ts', 'MAX_TOOL_LOG_METADATA_BYTES')
   assertIncludes('app/api/voice-agent/tool-log/route.ts', 'PAYLOAD_TOO_LARGE')
 
+  const visibleAssistantPayload = {
+    type: 'assistant_text',
+    text: 'I put the graph on the board. Which point should we check first?',
+    final: true,
+    createdAt: Date.now(),
+  } satisfies LiveKitTutorPayload
+  assert.equal(
+    coerceLiveKitAssistantText(decodeLiveKitPayload(encodeLiveKitPayload(visibleAssistantPayload)), ''),
+    visibleAssistantPayload.text
+  )
+
+  const visibleChatPayload = {
+    type: 'chat_message',
+    message: {
+      role: 'assistant',
+      content: 'I checked the visible board first. What label should we confirm?',
+      source: 'assistant',
+    },
+    createdAt: Date.now(),
+  } satisfies LiveKitTutorPayload
+  assert.equal(
+    coerceLiveKitAssistantText(decodeLiveKitPayload(encodeLiveKitPayload(visibleChatPayload)), ''),
+    visibleChatPayload.message.content
+  )
+
+  const hiddenBoardContext = buildSilentTutorBoardContext(
+    'Visible board summary: triangle with base 8 and height 5. Tool visuals: geometry figure.'
+  )
+  assert.equal(
+    coerceLiveKitAssistantText(
+      {
+        type: 'assistant_text',
+        text: hiddenBoardContext,
+        createdAt: Date.now(),
+      },
+      hiddenBoardContext
+    ),
+    ''
+  )
+
+  const toolEventPayload = {
+    type: 'tool_event',
+    event: {
+      type: 'tool_completed',
+      toolName: 'board_state_summarizer',
+      output: {
+        boardDescription: 'Visible board summary: triangle with labels.',
+      },
+    },
+  } satisfies LiveKitTutorPayload
+  assert.equal(
+    coerceLiveKitAssistantText(
+      decodeLiveKitPayload(encodeLiveKitPayload(toolEventPayload)),
+      JSON.stringify(toolEventPayload)
+    ),
+    ''
+  )
+
+  const canvasContextPayload = {
+    type: 'canvas_context',
+    mimeType: 'image/png',
+    dataBase64: 'abc123',
+    sessionId: null,
+    createdAt: Date.now(),
+  } satisfies LiveKitTutorPayload
+  assert.equal(
+    coerceLiveKitAssistantText(
+      decodeLiveKitPayload(encodeLiveKitPayload(canvasContextPayload)),
+      JSON.stringify(canvasContextPayload)
+    ),
+    ''
+  )
+
+  assert.equal(
+    coerceLiveKitAssistantText(
+      null,
+      '{"type":"tool_event","event":{"toolName":"board_state_summarizer","output":{"boardDescription":"Visible board summary: hidden"}}}'
+    ),
+    ''
+  )
+
   console.log(
     JSON.stringify(
       {
         ok: true,
         checkedClientFiles: clientFiles.length,
         checkedServerGuards: 37,
+        checkedStudentVisibleLiveKitMessages: 6,
       },
       null,
       2
