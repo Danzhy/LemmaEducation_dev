@@ -549,8 +549,9 @@ const complementaryAngleDiagram = angleDiagramScene({
 })
 assert(
   complementaryAngleDiagram.summary.includes('complementary angle relationship') &&
-    JSON.stringify(complementaryAngleDiagram).includes('35 degrees + 55 degrees = 90 degrees'),
-  'angle_diagram should draw complementary angle relationship notes.'
+    JSON.stringify(complementaryAngleDiagram).includes('1. Total: complementary = 90') &&
+    JSON.stringify(complementaryAngleDiagram).includes('3. Missing: 90 - 35'),
+  'angle_diagram should draw complementary angle relationship reveal notes.'
 )
 
 const attemptedSupplementaryAngleDiagram = angleDiagramScene({
@@ -562,8 +563,12 @@ const attemptedSupplementaryAngleDiagram = angleDiagramScene({
 })
 assert(
   attemptedSupplementaryAngleDiagram.summary.includes('student tried 80 degrees') &&
-    JSON.stringify(attemptedSupplementaryAngleDiagram).includes('Tried: 110 + 80 = 190 degrees'),
-  'angle_diagram should preserve the student attempted angle in relationship notes.'
+    attemptedSupplementaryAngleDiagram.summary.includes('board reveal is ordered total, student try, check') &&
+    JSON.stringify(attemptedSupplementaryAngleDiagram).includes('1. Total: supplementary = 180') &&
+    JSON.stringify(attemptedSupplementaryAngleDiagram).includes('2. Student try: 110 + 80 = 190') &&
+    JSON.stringify(attemptedSupplementaryAngleDiagram).includes('3. Check: 10 degrees over the total') &&
+    JSON.stringify(attemptedSupplementaryAngleDiagram).includes('4. Correct: 180 - 110 = ?'),
+  'angle_diagram should preserve the student attempted angle in ordered reveal notes.'
 )
 
 const triangleAngleDiagram = angleDiagramScene({
@@ -576,9 +581,11 @@ const triangleAngleDiagram = angleDiagramScene({
 })
 assert(
   triangleAngleDiagram.summary.includes('triangle angle-sum') &&
-    JSON.stringify(triangleAngleDiagram).includes('50 + 60 + ? = 180') &&
-    JSON.stringify(triangleAngleDiagram).includes('Tried: 50 + 60 + 80 = 190'),
-  'angle_diagram should draw triangle angle-sum relationship notes.'
+    JSON.stringify(triangleAngleDiagram).includes('1. Total: triangle = 180') &&
+    JSON.stringify(triangleAngleDiagram).includes('2. Student try: 50 + 60 + 80 = 190') &&
+    JSON.stringify(triangleAngleDiagram).includes('3. Check: 10 degrees over the total') &&
+    JSON.stringify(triangleAngleDiagram).includes('4. Correct: 180 - (50 + 60) = ?'),
+  'angle_diagram should draw triangle angle-sum reveal notes.'
 )
 
 const validCoordinatePointStep = mathCheckStep('y = 2x + 1', '(2, 5)')

@@ -5723,6 +5723,23 @@ export function angleDiagramScene(input: {
   attemptedAngle?: number
 }): CanvasActionResult {
   const relationshipType = input.relationshipType ?? 'single'
+  const angleRevealLine = (
+    step: number,
+    label: string,
+    value: string,
+    options?: { maxValueLength?: number }
+  ) => {
+    const maxValueLength = options?.maxValueLength ?? 38
+    const trimmedValue = value.trim()
+    const displayValue =
+      trimmedValue.length > maxValueLength ? `${trimmedValue.slice(0, maxValueLength - 3).trim()}...` : trimmedValue
+    return `${step}. ${label}: ${displayValue}`
+  }
+  const angleAttemptCheckLine = (attemptedTotal: number, targetTotal: number) => {
+    const difference = attemptedTotal - targetTotal
+    if (isNearlyEqual(difference, 0, 0.01)) return 'matches the total'
+    return `${formatNumber(Math.abs(difference), 1)} degrees ${difference > 0 ? 'over' : 'under'} the total`
+  }
   if (relationshipType === 'complementary' || relationshipType === 'supplementary') {
     const total = relationshipType === 'complementary' ? 90 : 180
     const knownAngle = clamp(input.knownAngle ?? input.degrees, 0, total)
@@ -5764,10 +5781,32 @@ export function angleDiagramScene(input: {
       input.title?.trim() ||
       (relationshipType === 'complementary' ? 'Complementary angles' : 'Supplementary angles')
     const totalLabel = relationshipType === 'complementary' ? '90 degree total' : '180 degree total'
+    const relationshipLabel = relationshipType === 'complementary' ? 'complementary = 90' : 'supplementary = 180'
     const missingLabel = input.label?.trim() || `? = ${formatNumber(missingAngle, 1)} degrees`
     const knownLabel = `${formatNumber(knownAngle, 1)} degrees`
     const knownLabelPoint = labelAt(0, knownAngle, arcRadius + 52)
     const missingLabelPoint = labelAt(knownAngle, total, arcRadius + 78)
+    const revealLines =
+      attemptedAngle === null
+        ? [
+            angleRevealLine(1, 'Total', relationshipLabel),
+            angleRevealLine(2, 'Known', `${formatNumber(knownAngle, 1)} degrees`),
+            angleRevealLine(3, 'Missing', `${total} - ${formatNumber(knownAngle, 1)}`),
+            '4. Your turn: what completes the angle pair?',
+          ]
+        : [
+            angleRevealLine(1, 'Total', relationshipLabel),
+            angleRevealLine(
+              2,
+              'Student try',
+              `${formatNumber(knownAngle, 1)} + ${formatNumber(attemptedAngle, 1)} = ${formatNumber(
+                attemptedTotal ?? 0,
+                1
+              )}`
+            ),
+            angleRevealLine(3, 'Check', angleAttemptCheckLine(attemptedTotal ?? 0, total)),
+            angleRevealLine(4, 'Correct', `${total} - ${formatNumber(knownAngle, 1)} = ?`),
+          ]
 
     const actions: TutorCanvasAction[] = [
       clearToolLayer(),
@@ -5799,35 +5838,19 @@ export function angleDiagramScene(input: {
         width: NOTE_FRAME.width - 32,
         color: 'black',
       }),
-      textLabel(
-        NOTE_FRAME.x + 16,
-        NOTE_FRAME.y + 62,
-        `${formatNumber(knownAngle, 1)} degrees + ${formatNumber(missingAngle, 1)} degrees = ${total} degrees`,
-        {
+      ...revealLines.map((line, index) =>
+        textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 58 + index * 52, line, {
           width: NOTE_FRAME.width - 32,
-          color: 'black',
-        }
+          color:
+            attemptedAngle !== null && index === 1
+              ? attemptedMatches
+                ? 'green'
+                : 'orange'
+              : index === 3
+                ? 'green'
+                : 'black',
+        })
       ),
-      textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 124, `Missing: ${total} - ${formatNumber(knownAngle, 1)}`, {
-        width: NOTE_FRAME.width - 32,
-        color: 'green',
-      }),
-      ...(attemptedAngle === null
-        ? []
-        : [
-            textLabel(
-              NOTE_FRAME.x + 16,
-              NOTE_FRAME.y + 176,
-              `Tried: ${formatNumber(knownAngle, 1)} + ${formatNumber(
-                attemptedAngle,
-                1
-              )} = ${formatNumber(attemptedTotal ?? 0, 1)} degrees`,
-              {
-                width: NOTE_FRAME.width - 32,
-                color: attemptedMatches ? 'green' : 'orange',
-              }
-            ),
-          ]),
     ]
 
     if (relationshipType === 'complementary') {
@@ -5853,8 +5876,13 @@ export function angleDiagramScene(input: {
         knownAngle,
         1
       )} degree known angle and ${formatNumber(missingAngle, 1)} degree missing angle${
-        attemptedAngle === null ? '' : `; student tried ${formatNumber(attemptedAngle, 1)} degrees`
-      }.`,
+        attemptedAngle === null
+          ? ''
+          : `; student tried ${formatNumber(attemptedAngle, 1)} degrees with a total of ${formatNumber(
+              attemptedTotal ?? 0,
+              1
+            )} degrees`
+      }. The board reveal is ordered total, student try, check, correction prompt.`,
       canvasActions: actions,
     }
   }
@@ -5869,6 +5897,33 @@ export function angleDiagramScene(input: {
         : null
     const attemptedSum = attemptedAngle === null ? null : firstAngle + secondAngle + attemptedAngle
     const attemptedMatches = attemptedAngle !== null && isNearlyEqual(attemptedAngle, missingAngle, 0.01)
+    const revealLines =
+      attemptedAngle === null
+        ? [
+            angleRevealLine(1, 'Total', 'triangle = 180'),
+            angleRevealLine(2, 'Knowns', `${formatNumber(firstAngle, 1)} + ${formatNumber(secondAngle, 1)}`),
+            angleRevealLine(3, 'Missing', `180 - (${formatNumber(firstAngle, 1)} + ${formatNumber(secondAngle, 1)})`),
+            '4. Your turn: what completes the triangle?',
+          ]
+        : [
+            angleRevealLine(1, 'Total', 'triangle = 180'),
+            angleRevealLine(
+              2,
+              'Student try',
+              `${formatNumber(firstAngle, 1)} + ${formatNumber(secondAngle, 1)} + ${formatNumber(
+                attemptedAngle,
+                1
+              )} = ${formatNumber(attemptedSum ?? 0, 1)}`,
+              { maxValueLength: 42 }
+            ),
+            angleRevealLine(3, 'Check', angleAttemptCheckLine(attemptedSum ?? 0, 180)),
+            angleRevealLine(
+              4,
+              'Correct',
+              `180 - (${formatNumber(firstAngle, 1)} + ${formatNumber(secondAngle, 1)}) = ?`,
+              { maxValueLength: 42 }
+            ),
+          ]
     const a = { x: TOOL_SCENE.x + 152, y: TOOL_SCENE.y + 376 }
     const b = { x: TOOL_SCENE.x + 610, y: TOOL_SCENE.y + 376 }
     const c = { x: TOOL_SCENE.x + 382, y: TOOL_SCENE.y + 128 }
@@ -5915,37 +5970,18 @@ export function angleDiagramScene(input: {
         width: NOTE_FRAME.width - 32,
         color: 'black',
       }),
-      textLabel(
-        NOTE_FRAME.x + 16,
-        NOTE_FRAME.y + 68,
-        `${formatNumber(firstAngle, 1)} + ${formatNumber(secondAngle, 1)} + ? = 180`,
-        {
+      ...revealLines.map((line, index) =>
+        textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 58 + index * 52, line, {
           width: NOTE_FRAME.width - 32,
-          color: 'black',
-        }
-      ),
-      textLabel(
-        NOTE_FRAME.x + 16,
-        NOTE_FRAME.y + 122,
-        `? = 180 - (${formatNumber(firstAngle, 1)} + ${formatNumber(secondAngle, 1)})`,
-        {
-          width: NOTE_FRAME.width - 32,
-          color: 'green',
-        }
-      ),
-      textLabel(
-        NOTE_FRAME.x + 16,
-        NOTE_FRAME.y + 184,
-        attemptedAngle === null
-          ? 'Diagram is labeled for the relationship.'
-          : `Tried: ${formatNumber(firstAngle, 1)} + ${formatNumber(secondAngle, 1)} + ${formatNumber(
-              attemptedAngle,
-              1
-            )} = ${formatNumber(attemptedSum ?? 0, 1)}`,
-        {
-          width: NOTE_FRAME.width - 32,
-          color: attemptedAngle === null ? 'grey' : attemptedMatches ? 'green' : 'orange',
-        }
+          color:
+            attemptedAngle !== null && index === 1
+              ? attemptedMatches
+                ? 'green'
+                : 'orange'
+              : index === 3
+                ? 'green'
+                : 'black',
+        })
       ),
       focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
     ]
@@ -5955,8 +5991,13 @@ export function angleDiagramScene(input: {
         firstAngle,
         1
       )} and ${formatNumber(secondAngle, 1)}, and missing angle ${formatNumber(missingAngle, 1)} degrees${
-        attemptedAngle === null ? '' : `; student tried ${formatNumber(attemptedAngle, 1)} degrees`
-      }.`,
+        attemptedAngle === null
+          ? ''
+          : `; student tried ${formatNumber(attemptedAngle, 1)} degrees with a total of ${formatNumber(
+              attemptedSum ?? 0,
+              1
+            )} degrees`
+      }. The board reveal is ordered total, student try, check, correction prompt.`,
       canvasActions: actions,
     }
   }

@@ -981,16 +981,20 @@ async function main() {
 
   if (
     !JSON.stringify(supplementaryAngleDiagramResult).includes('supplementary angle relationship') ||
-    !JSON.stringify(supplementaryAngleDiagramResult).includes('110 degrees + 70 degrees = 180 degrees') ||
-    !JSON.stringify(supplementaryAngleDiagramResult).includes('Tried: 110 + 80 = 190 degrees')
+    !JSON.stringify(supplementaryAngleDiagramResult).includes('1. Total: supplementary = 180') ||
+    !JSON.stringify(supplementaryAngleDiagramResult).includes('2. Student try: 110 + 80 = 190') ||
+    !JSON.stringify(supplementaryAngleDiagramResult).includes('3. Check: 10 degrees over the total') ||
+    !JSON.stringify(supplementaryAngleDiagramResult).includes('4. Correct: 180 - 110 = ?')
   ) {
     throw new Error('angle_diagram did not return a supplementary angle relationship model.')
   }
 
   if (
     !JSON.stringify(triangleAngleDiagramResult).includes('triangle angle-sum') ||
-    !JSON.stringify(triangleAngleDiagramResult).includes('50 + 60 + ? = 180') ||
-    !JSON.stringify(triangleAngleDiagramResult).includes('Tried: 50 + 60 + 80 = 190')
+    !JSON.stringify(triangleAngleDiagramResult).includes('1. Total: triangle = 180') ||
+    !JSON.stringify(triangleAngleDiagramResult).includes('2. Student try: 50 + 60 + 80 = 190') ||
+    !JSON.stringify(triangleAngleDiagramResult).includes('3. Check: 10 degrees over the total') ||
+    !JSON.stringify(triangleAngleDiagramResult).includes('4. Correct: 180 - (50 + 60) = ?')
   ) {
     throw new Error('angle_diagram did not return a triangle angle-sum model.')
   }
