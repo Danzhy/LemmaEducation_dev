@@ -206,10 +206,10 @@ const cases: PlannerCase[] = [
       }>
       assert.equal(input.title, 'Comparison tape diagram')
       assert.equal(bars.length, 2)
-      assert.equal(bars[0].label, 'Larger 42')
+      assert.equal(bars[0].label, 'Maya 42 pages')
       assert.equal(bars[0].segments[0].value, 27)
       assert.equal(bars[0].segments[1].value, 15)
-      assert.equal(bars[1].label, 'Smaller 27')
+      assert.equal(bars[1].label, 'Noah 27 pages')
       assert.equal(bars[1].segments[1].label, 'Gap 15')
     },
   },
@@ -223,10 +223,10 @@ const cases: PlannerCase[] = [
         segments: Array<{ label: string; value: number | string; shaded: boolean }>
       }>
       assert.equal(input.title, 'Difference-known comparison tape diagram')
-      assert.equal(bars[0].label, 'Larger 50')
+      assert.equal(bars[0].label, 'Maya 50 stickers')
       assert.equal(bars[0].segments[0].value, 32)
       assert.equal(bars[0].segments[1].value, 18)
-      assert.equal(bars[1].label, 'Smaller 32')
+      assert.equal(bars[1].label, 'Noah 32 stickers')
       assert.equal(bars[1].segments[1].label, 'Gap 18')
     },
   },
@@ -240,10 +240,10 @@ const cases: PlannerCase[] = [
         segments: Array<{ label: string; value: number | string; shaded: boolean }>
       }>
       assert.equal(input.title, 'Difference-known comparison tape diagram')
-      assert.equal(bars[0].label, 'Larger 68')
+      assert.equal(bars[0].label, 'Maya 68 cards')
       assert.equal(bars[0].segments[0].value, 50)
       assert.equal(bars[0].segments[1].value, 18)
-      assert.equal(bars[1].label, 'Smaller 50')
+      assert.equal(bars[1].label, 'Noah 50 cards')
       assert.equal(bars[1].segments[1].label, 'Gap 18')
     },
   },

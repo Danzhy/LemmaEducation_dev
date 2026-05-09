@@ -26,6 +26,18 @@ type LocalTapeDiagramInput = {
   }>
 }
 
+type LocalComparisonLabelHints = {
+  firstName?: string
+  secondName?: string
+  unitLabel?: string
+}
+
+type LocalNamedQuantityMention = {
+  name: string
+  amount: number
+  unitLabel?: string
+}
+
 type LocalCompositeAreaPiece = {
   width: number
   height: number
@@ -43,6 +55,7 @@ type LocalFraction = {
 }
 
 const LOCAL_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
+const LOCAL_NAME_PATTERN = String.raw`[A-Z][A-Za-z'-]{1,30}`
 const LOCAL_PLACE_VALUE_PATTERN =
   String.raw`thousandths?|hundredths?|tenths?|thousands?|hundreds?|tens?|ones?|units?`
 const LOCAL_PLACE_VALUE_EXPONENTS: Record<string, number> = {
@@ -79,6 +92,43 @@ function formatToolNameForStudent(toolName: string) {
 
 function formatLocalNumber(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(4).replace(/\.?0+$/g, '')
+}
+
+function normalizeLocalEntityName(name?: string | null) {
+  const trimmed = name?.trim().replace(/[^\w'-]+$/g, '')
+  if (!trimmed) return undefined
+  if (/^(?:how|what|when|where|which|why|who|there|the|a|an)$/i.test(trimmed)) return undefined
+  return trimmed
+}
+
+function normalizeLocalUnitLabel(unit?: string | null) {
+  const trimmed = unit?.trim().toLowerCase().replace(/[^a-z-]+$/g, '')
+  if (!trimmed) return undefined
+  if (
+    /^(?:more|fewer|less|than|who|what|how|many|much|does|do|did|has|have|had|is|are|was|were|left|remaining)$/i.test(
+      trimmed
+    )
+  ) {
+    return undefined
+  }
+  return trimmed
+}
+
+function chooseLocalComparisonUnit(...units: Array<string | undefined>) {
+  const normalized = units.map((unit) => normalizeLocalUnitLabel(unit)).filter((unit): unit is string => Boolean(unit))
+  if (normalized.length === 0) return undefined
+  const unique = new Set(normalized)
+  return unique.size === 1 ? normalized[0] : undefined
+}
+
+function formatComparisonBarLabel(role: 'Larger' | 'Smaller', value: number, name?: string, unitLabel?: string) {
+  const amount = formatLocalNumber(value)
+  const normalizedName = normalizeLocalEntityName(name)
+  const normalizedUnit = normalizeLocalUnitLabel(unitLabel)
+  if (normalizedName) {
+    return `${normalizedName} ${amount}${normalizedUnit ? ` ${normalizedUnit}` : ''}`
+  }
+  return `${role} ${amount}`
 }
 
 function extractNumbers(text: string) {
@@ -408,7 +458,94 @@ function buildPartWholeTapeDiagramInput(whole: number, known: number, title: str
   }
 }
 
-function buildComparisonTapeDiagramInput(first: number, second: number, title: string): LocalTapeDiagramInput | null {
+function extractNamedQuantityMentions(prompt: string): LocalNamedQuantityMention[] {
+  const namePattern = `(${LOCAL_NAME_PATTERN})`
+  const amountPattern = `(${LOCAL_NUMBER_PATTERN})`
+  const verbPattern =
+    String.raw`(?:has|have|had|read|reads|collected|scored|earned|saved|made|ran|walked|spent|used|sold|ate|found|picked|owns|got|gets|bought|needs)`
+  const regex = new RegExp(
+    String.raw`\b${namePattern}\s+${verbPattern}\s+(?:\w+\s+){0,4}?${amountPattern}(?:\s+([A-Za-z][A-Za-z-]*))?`,
+    'g'
+  )
+
+  const mentions: LocalNamedQuantityMention[] = []
+  for (const match of prompt.matchAll(regex)) {
+    const name = normalizeLocalEntityName(match[1])
+    const amount = parseLocalPlainNumber(match[2])
+    if (!name || amount === null || amount < 0) continue
+
+    const unitLabel = normalizeLocalUnitLabel(match[3])
+    const mention: LocalNamedQuantityMention = { name, amount }
+    if (unitLabel) mention.unitLabel = unitLabel
+    mentions.push(mention)
+  }
+
+  return mentions
+}
+
+function buildDirectComparisonLabelHints(prompt: string): LocalComparisonLabelHints | undefined {
+  const mentions = extractNamedQuantityMentions(prompt).slice(0, 2)
+  if (mentions.length < 2) return undefined
+
+  return {
+    firstName: mentions[0].name,
+    secondName: mentions[1].name,
+    unitLabel: chooseLocalComparisonUnit(mentions[0].unitLabel, mentions[1].unitLabel),
+  }
+}
+
+function buildDifferenceBeforeAnchorLabelHints(
+  prompt: string,
+  direction: 'more' | 'fewer' | 'less'
+): LocalComparisonLabelHints | undefined {
+  const match = prompt.match(
+    new RegExp(
+      String.raw`\b(${LOCAL_NAME_PATTERN})\s+(?:has|have|had|is|are|read|reads|collected|scored|earned|saved|made|owns|got|gets)?\s+(${LOCAL_NUMBER_PATTERN})\s+(more|fewer|less)(?:\s+([A-Za-z][A-Za-z-]*))?\s+than\s+(${LOCAL_NAME_PATTERN})\b[\s\S]{0,90}?(${LOCAL_NUMBER_PATTERN})(?:\s+([A-Za-z][A-Za-z-]*))?`,
+      'i'
+    )
+  )
+  if (!match || match[3].toLowerCase() !== direction) return undefined
+
+  const subjectName = normalizeLocalEntityName(match[1])
+  const anchorName = normalizeLocalEntityName(match[5])
+  if (!subjectName && !anchorName) return undefined
+
+  return {
+    firstName: anchorName,
+    secondName: subjectName,
+    unitLabel: chooseLocalComparisonUnit(match[4], match[7]),
+  }
+}
+
+function buildAnchorBeforeDifferenceLabelHints(
+  prompt: string,
+  direction: 'more' | 'fewer' | 'less'
+): LocalComparisonLabelHints | undefined {
+  const match = prompt.match(
+    new RegExp(
+      String.raw`\b(${LOCAL_NAME_PATTERN})\s+(?:has|have|had|is|are|read|reads|collected|scored|earned|saved|made|owns|got|gets)\s+(${LOCAL_NUMBER_PATTERN})(?:\s+([A-Za-z][A-Za-z-]*))?\b[\s\S]{0,140}?\b(${LOCAL_NAME_PATTERN})\s+(?:has|have|had|is|are|read|reads|collected|scored|earned|saved|made|owns|got|gets)?\s+(${LOCAL_NUMBER_PATTERN})\s+(more|fewer|less)(?:\s+([A-Za-z][A-Za-z-]*))?\s+than\s+(${LOCAL_NAME_PATTERN})\b`,
+      'i'
+    )
+  )
+  if (!match || match[6].toLowerCase() !== direction) return undefined
+
+  const anchorName = normalizeLocalEntityName(match[1])
+  const subjectName = normalizeLocalEntityName(match[4])
+  if (!anchorName && !subjectName) return undefined
+
+  return {
+    firstName: anchorName,
+    secondName: subjectName,
+    unitLabel: chooseLocalComparisonUnit(match[3], match[7]),
+  }
+}
+
+function buildComparisonTapeDiagramInput(
+  first: number,
+  second: number,
+  title: string,
+  labelHints?: LocalComparisonLabelHints
+): LocalTapeDiagramInput | null {
   if (!Number.isFinite(first) || !Number.isFinite(second) || first < 0 || second < 0) {
     return null
   }
@@ -416,6 +553,9 @@ function buildComparisonTapeDiagramInput(first: number, second: number, title: s
   const larger = Math.max(first, second)
   const smaller = Math.min(first, second)
   const difference = Number((larger - smaller).toFixed(6))
+  const firstIsLarger = first >= second
+  const largerName = firstIsLarger ? labelHints?.firstName : labelHints?.secondName
+  const smallerName = firstIsLarger ? labelHints?.secondName : labelHints?.firstName
   const largerSegments = [
     { label: `Matching ${formatLocalNumber(smaller)}`, value: smaller, shaded: true },
   ]
@@ -432,11 +572,11 @@ function buildComparisonTapeDiagramInput(first: number, second: number, title: s
     title,
     bars: [
       {
-        label: `Larger ${formatLocalNumber(larger)}`,
+        label: formatComparisonBarLabel('Larger', larger, largerName, labelHints?.unitLabel),
         segments: largerSegments,
       },
       {
-        label: `Smaller ${formatLocalNumber(smaller)}`,
+        label: formatComparisonBarLabel('Smaller', smaller, smallerName, labelHints?.unitLabel),
         segments: smallerSegments,
       },
     ],
@@ -447,7 +587,8 @@ function buildDifferenceKnownComparisonTapeDiagramInput(
   anchorAmount: number,
   difference: number,
   direction: 'more' | 'fewer' | 'less',
-  title: string
+  title: string,
+  labelHints?: LocalComparisonLabelHints
 ): LocalTapeDiagramInput | null {
   if (
     !Number.isFinite(anchorAmount) ||
@@ -463,7 +604,7 @@ function buildDifferenceKnownComparisonTapeDiagramInput(
   )
   if (comparedAmount < 0) return null
 
-  return buildComparisonTapeDiagramInput(anchorAmount, comparedAmount, title)
+  return buildComparisonTapeDiagramInput(anchorAmount, comparedAmount, title, labelHints)
 }
 
 function buildInferredPartWholeTapeDiagramInput(prompt: string): LocalTapeDiagramInput | null {
@@ -557,7 +698,8 @@ function buildInferredComparisonTapeDiagramInput(prompt: string): LocalTapeDiagr
         anchorAmount,
         difference,
         direction,
-        'Difference-known comparison tape diagram'
+        'Difference-known comparison tape diagram',
+        buildDifferenceBeforeAnchorLabelHints(prompt, direction)
       )
       if (input) return input
     }
@@ -578,13 +720,19 @@ function buildInferredComparisonTapeDiagramInput(prompt: string): LocalTapeDiagr
         anchorAmount,
         difference,
         direction,
-        'Difference-known comparison tape diagram'
+        'Difference-known comparison tape diagram',
+        buildAnchorBeforeDifferenceLabelHints(prompt, direction)
       )
       if (input) return input
     }
   }
 
-  return buildComparisonTapeDiagramInput(values[0], values[1], 'Comparison tape diagram')
+  return buildComparisonTapeDiagramInput(
+    values[0],
+    values[1],
+    'Comparison tape diagram',
+    buildDirectComparisonLabelHints(prompt)
+  )
 }
 
 function buildLocalTapeDiagramInput(prompt: string) {
