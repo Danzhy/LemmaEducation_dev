@@ -7081,6 +7081,8 @@ export function ratioTableScene(input: {
   rightLabel: string
   rows: Array<{ left: string | number; right: string | number }>
   title?: string
+  highlightRowIndex?: number
+  highlightLabel?: string
 }): CanvasActionResult {
   const rows = input.rows.slice(0, 8).filter((row) => row.left !== '' && row.right !== '')
   if (rows.length === 0) {
@@ -7093,6 +7095,13 @@ export function ratioTableScene(input: {
   const rowHeight = 48
   const tableWidth = columnWidth * 2
   const tableHeight = rowHeight * (rows.length + 1)
+  const highlightRowIndex =
+    typeof input.highlightRowIndex === 'number' &&
+    Number.isInteger(input.highlightRowIndex) &&
+    input.highlightRowIndex >= 0 &&
+    input.highlightRowIndex < rows.length
+      ? input.highlightRowIndex
+      : null
   const actions: TutorCanvasAction[] = [
     clearToolLayer(),
     ...buildSceneChrome(input.title?.trim() || 'Ratio table'),
@@ -7126,6 +7135,17 @@ export function ratioTableScene(input: {
 
   rows.forEach((row, index) => {
     const rowY = y + rowHeight * (index + 1)
+    if (index === highlightRowIndex) {
+      actions.push(
+        rectangle(x, rowY, tableWidth, rowHeight, {
+          color: 'light-green',
+          fill: 'semi',
+          opacity: 0.18,
+          dash: 'solid',
+          size: 's',
+        })
+      )
+    }
     actions.push(
       lineSegment({ x, y: rowY }, { x: x + tableWidth, y: rowY }, {
         color: 'blue',
@@ -7141,6 +7161,14 @@ export function ratioTableScene(input: {
         color: 'black',
       })
     )
+    if (index === highlightRowIndex && input.highlightLabel?.trim()) {
+      actions.push(
+        textLabel(x + tableWidth + 18, rowY + 12, input.highlightLabel.trim(), {
+          width: 126,
+          color: 'green',
+        })
+      )
+    }
   })
 
   actions.push(

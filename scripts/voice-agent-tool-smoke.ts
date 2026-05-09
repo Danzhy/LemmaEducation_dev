@@ -137,7 +137,13 @@ const smokeCases: SmokeCase[] = [
   },
   {
     name: 'ratio_table',
-    run: () => ratioTableScene({ leftLabel: 'cups', rightLabel: 'people', rows: [{ left: 2, right: 4 }, { left: 3, right: 6 }] }),
+    run: () => ratioTableScene({
+      leftLabel: 'cups',
+      rightLabel: 'people',
+      rows: [{ left: 2, right: 4 }, { left: 3, right: 6 }],
+      highlightRowIndex: 1,
+      highlightLabel: 'target row',
+    }),
   },
   {
     name: 'data_display',

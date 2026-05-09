@@ -2019,6 +2019,8 @@ export function createVoiceAgentTools() {
           leftLabel: { type: 'string' },
           rightLabel: { type: 'string' },
           title: { type: 'string' },
+          highlightRowIndex: { type: 'number' },
+          highlightLabel: { type: 'string' },
           rows: {
             type: 'array',
             items: {
@@ -2039,6 +2041,8 @@ export function createVoiceAgentTools() {
           leftLabel: string
           rightLabel: string
           title?: string
+          highlightRowIndex?: number
+          highlightLabel?: string
           rows: Array<{ left: string | number; right: string | number }>
         }
         return stringifyResult(
@@ -2046,6 +2050,8 @@ export function createVoiceAgentTools() {
             leftLabel: params.leftLabel,
             rightLabel: params.rightLabel,
             title: params.title,
+            highlightRowIndex: params.highlightRowIndex,
+            highlightLabel: params.highlightLabel,
             rows: params.rows,
           })
         )

@@ -694,6 +694,21 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-integer-operation' }
   )
+  const highlightedRatioTable = await tools.ratio_table.execute(
+    {
+      leftLabel: 'red',
+      rightLabel: 'blue',
+      rows: [
+        { left: 3, right: 5 },
+        { left: 6, right: 10 },
+        { left: 12, right: 20 },
+      ],
+      title: 'Ratio table check',
+      highlightRowIndex: 2,
+      highlightLabel: 'target row',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-highlighted-ratio-table' }
+  )
   const masterySnapshot = await tools.session_mastery_snapshot.execute(
     {
       topic: 'ratios',
@@ -1510,6 +1525,10 @@ async function main() {
 
   if (!JSON.stringify(integerOperation).includes('"result":2')) {
     throw new Error('integer_operation_scene did not return the signed integer result.')
+  }
+
+  if (!JSON.stringify(highlightedRatioTable).includes('target row')) {
+    throw new Error('ratio_table did not render a target-row highlight label.')
   }
 
   if (!JSON.stringify(masterySnapshot).includes('teacherReviewNote')) {

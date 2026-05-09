@@ -249,20 +249,20 @@ const cases: PlannerCase[] = [
     },
   },
   {
-    name: 'checks ratio-table target scaling mistakes before classifying the error',
-    prompt: 'The ratio table has 3 red to 5 blue. I got 18 blue for 12 red. Is that right?',
-    expectedTools: ['math_check_step', 'unit_rate', 'double_number_line', 'mistake_pattern_classifier'],
+    name: 'checks ratio-table target scaling mistakes with a target-row table before classifying the error',
+    prompt: 'The ratio table has 3 red to 5 blue and 6 red to 10 blue. Target 12 red; I got 18 blue. Is that right?',
+    expectedTools: ['math_check_step', 'ratio_table', 'mistake_pattern_classifier'],
     inspect: (input, plans) => {
       assert.equal(input.previousStep, 'unit rate for 3 red make 5 blue; target 12 red')
       assert.equal(input.nextStep, '18 blue')
-      assert.equal(plans[1].input.quantity, 3)
-      assert.equal(plans[1].input.value, 5)
-      assert.equal(plans[1].input.quantityLabel, 'red')
-      assert.equal(plans[1].input.valueLabel, 'blue')
-      assert.deepEqual(plans[2].input.pairs, [
-        { top: 0, bottom: 0, label: 'start' },
-        { top: 3, bottom: 5, label: 'given' },
-        { top: 12, bottom: 20, label: 'target' },
+      assert.equal(plans[1].input.leftLabel, 'red')
+      assert.equal(plans[1].input.rightLabel, 'blue')
+      assert.equal(plans[1].input.highlightRowIndex, 2)
+      assert.equal(plans[1].input.highlightLabel, 'target row')
+      assert.deepEqual(plans[1].input.rows, [
+        { left: '3', right: '5' },
+        { left: '6', right: '10' },
+        { left: '12', right: '20' },
       ])
     },
   },

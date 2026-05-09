@@ -1631,6 +1631,15 @@ type LocalUnitRateRequest = {
   target?: number
 }
 
+type LocalRatioTableInput = {
+  leftLabel: string
+  rightLabel: string
+  rows: Array<{ left: string | number; right: string | number }>
+  title?: string
+  highlightRowIndex?: number
+  highlightLabel?: string
+}
+
 function extractLocalUnitRateRequest(text: string): LocalUnitRateRequest | null {
   const normalized = normalizeLocalPromptText(text)
   const ratioTableMatch = normalized.match(
@@ -1895,6 +1904,82 @@ function buildLocalUnitRateVisualInputFromStepPair(pair: StudentStepPair) {
   }
 }
 
+function extractLocalRatioTableSetupText(text: string) {
+  return normalizeLocalPromptText(text)
+    .split(
+      /\b(?:i\s+(?:got|found|calculated|think)|my answer|answer(?:\s+is)?|is that right|is this right|check my work|correct)\b/i
+    )[0]
+    .trim()
+}
+
+function extractLocalKnownRatioRows(text: string, request: LocalUnitRateRequest) {
+  const setupText = extractLocalRatioTableSetupText(text)
+  const quantityPattern = localUnitMatchPattern(request.quantityLabel)
+  const valuePattern = localUnitMatchPattern(request.valueLabel)
+  if (!quantityPattern || !valuePattern) return []
+
+  const rows: Array<{ left: number; right: number }> = []
+  const seen = new Set<string>()
+  const connector = String.raw`(?:to|for\s+every|for|make|makes|making|serves|yields?|=|:)`
+  const pushRow = (left: number | null, right: number | null) => {
+    if (left === null || right === null || left <= 0 || right <= 0) return
+    const key = `${formatLocalNumber(left)}:${formatLocalNumber(right)}`
+    if (seen.has(key)) return
+    seen.add(key)
+    rows.push({ left, right })
+  }
+
+  const quantityFirstPattern = new RegExp(
+    String.raw`\b(${LOCAL_NUMBER_PATTERN})\s+${quantityPattern}\s+${connector}\s+(${LOCAL_NUMBER_PATTERN})\s+${valuePattern}\b`,
+    'gi'
+  )
+  for (const match of setupText.matchAll(quantityFirstPattern)) {
+    pushRow(parseLocalPlainNumber(match[1]), parseLocalPlainNumber(match[2]))
+  }
+
+  const valueFirstPattern = new RegExp(
+    String.raw`\b(${LOCAL_NUMBER_PATTERN})\s+${valuePattern}\s+${connector}\s+(${LOCAL_NUMBER_PATTERN})\s+${quantityPattern}\b`,
+    'gi'
+  )
+  for (const match of setupText.matchAll(valueFirstPattern)) {
+    pushRow(parseLocalPlainNumber(match[2]), parseLocalPlainNumber(match[1]))
+  }
+
+  return rows.slice(0, 6)
+}
+
+function buildLocalRatioTableScalingInput(prompt: string, pair: StudentStepPair): LocalRatioTableInput | null {
+  if (!/\b(ratio\s+table|table)\b/i.test(prompt)) return null
+
+  const request = extractLocalUnitRateRequest(pair.previousStep)
+  if (!request || typeof request.target !== 'number') return null
+
+  const rows = extractLocalKnownRatioRows(prompt, request)
+  if (rows.length === 0) {
+    rows.push({ left: request.quantity, right: request.value })
+  }
+
+  const expectedValue = (request.value / request.quantity) * request.target
+  const targetKey = `${formatLocalNumber(request.target)}:${formatLocalNumber(expectedValue)}`
+  let highlightRowIndex = rows.findIndex((row) => `${formatLocalNumber(row.left)}:${formatLocalNumber(row.right)}` === targetKey)
+  if (highlightRowIndex === -1) {
+    rows.push({ left: request.target, right: expectedValue })
+    highlightRowIndex = rows.length - 1
+  }
+
+  return {
+    leftLabel: request.quantityLabel,
+    rightLabel: request.valueLabel,
+    rows: rows.map((row) => ({
+      left: formatLocalNumber(row.left),
+      right: formatLocalNumber(row.right),
+    })),
+    title: 'Ratio table check',
+    highlightRowIndex,
+    highlightLabel: 'target row',
+  }
+}
+
 function isLocalDistanceUnit(unit: string) {
   return /^(?:miles?|kilometers?|kilometres?|meters?|metres?|feet|foot|yards?)$/i.test(unit)
 }
@@ -1940,7 +2025,7 @@ function extractLocalRateTarget(text: string, afterIndex: number, quantityLabel:
   const targetMatch =
     afterGiven.match(
       new RegExp(
-        `\\b(?:for|in|over|at|when|if|to|make|makes|making)\\s+(${LOCAL_NUMBER_PATTERN})\\s+${unitPattern}\\b`,
+        `\\b(?:target|if\\s+i\\s+need|need|for|in|over|at|when|if|to|make|makes|making)\\s+(${LOCAL_NUMBER_PATTERN})\\s+${unitPattern}\\b`,
         'i'
       )
     ) ?? afterGiven.match(new RegExp(`\\b(${LOCAL_NUMBER_PATTERN})\\s+${unitPattern}\\b`, 'i'))
@@ -3727,8 +3812,14 @@ export function planLocalToolTurn(
           input: probabilityModelInput,
         })
       }
+      const ratioTableScalingInput = buildLocalRatioTableScalingInput(prompt, studentStepPair)
       const unitRateVisualInput = buildLocalUnitRateVisualInputFromStepPair(studentStepPair)
-      if (unitRateVisualInput) {
+      if (ratioTableScalingInput) {
+        plans.push({
+          toolName: 'ratio_table',
+          input: ratioTableScalingInput,
+        })
+      } else if (unitRateVisualInput) {
         plans.push({
           toolName: 'unit_rate',
           input: unitRateVisualInput.unitRate,
@@ -4361,6 +4452,13 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     const hasStatisticsSummary = plans.some((plan) => plan.toolName === 'statistics_summary')
     const hasProbabilityModel = plans.some((plan) => plan.toolName === 'probability_model')
     const hasRatioTable = plans.some((plan) => plan.toolName === 'ratio_table')
+    const hasCrossProductTable =
+      plans.some(
+        (plan) =>
+          plan.toolName === 'ratio_table' &&
+          typeof plan.input.title === 'string' &&
+          /cross-product/i.test(plan.input.title)
+      ) || /cross products?/i.test(checkedStep?.reason ?? checkedStep?.hintTarget ?? '')
     const boardCue = hasPlaceValueChart
       ? ' I also highlighted the place-value chart so the target column is visible.'
       : hasCompositeAreaModel
@@ -4379,8 +4477,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
                     ? ' I also put the data summary on the board.'
                     : hasProbabilityModel
                       ? ' I also put the probability model on the board.'
-                      : hasRatioTable
+                      : hasCrossProductTable
                         ? ' I also put the cross-product table on the board.'
+                        : hasRatioTable
+                          ? ' I also put the ratio table check on the board.'
                         : ''
     if (checkedStep?.verdict === 'valid') {
       return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
