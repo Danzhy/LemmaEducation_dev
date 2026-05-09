@@ -1983,6 +1983,10 @@ export function createVoiceAgentTools() {
           knownAngle: { type: 'number' },
           secondKnownAngle: { type: 'number' },
           missingAngle: { type: 'number' },
+          attemptedAngle: {
+            type: 'number',
+            description: 'Optional student-attempted missing angle to show why a checked claim does or does not fit.',
+          },
         },
         required: ['degrees'],
       },
@@ -1996,6 +2000,7 @@ export function createVoiceAgentTools() {
           knownAngle?: number
           secondKnownAngle?: number
           missingAngle?: number
+          attemptedAngle?: number
         }
         return stringifyResult(
           angleDiagramScene({
@@ -2007,6 +2012,7 @@ export function createVoiceAgentTools() {
             knownAngle: params.knownAngle,
             secondKnownAngle: params.secondKnownAngle,
             missingAngle: params.missingAngle,
+            attemptedAngle: params.attemptedAngle,
           })
         )
       },

@@ -602,6 +602,7 @@ const cases: PlannerCase[] = [
       assert.equal(plans[1].input.relationshipType, 'supplementary')
       assert.equal(plans[1].input.knownAngle, 110)
       assert.equal(plans[1].input.missingAngle, 70)
+      assert.equal(plans[1].input.attemptedAngle, 80)
     },
   },
   {
@@ -615,6 +616,7 @@ const cases: PlannerCase[] = [
       assert.equal(plans[1].input.knownAngle, 50)
       assert.equal(plans[1].input.secondKnownAngle, 60)
       assert.equal(plans[1].input.missingAngle, 70)
+      assert.equal(plans[1].input.attemptedAngle, 80)
     },
   },
   {

@@ -1749,7 +1749,14 @@ function buildLocalAngleDiagramInputFromText(text: string) {
 }
 
 function buildLocalAngleDiagramInputFromStepPair(pair: StudentStepPair) {
-  return buildLocalAngleDiagramInputFromText(pair.previousStep)
+  const input = buildLocalAngleDiagramInputFromText(pair.previousStep)
+  const attemptedAngle = parseLocalPlainNumber(pair.nextStep)
+  if (!input || attemptedAngle === null || attemptedAngle < 0) return input
+
+  return {
+    ...input,
+    attemptedAngle,
+  }
 }
 
 function extractLinearEquationSnippets(text: string) {

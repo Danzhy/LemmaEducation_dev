@@ -357,6 +357,7 @@ async function main() {
       relationshipType: 'supplementary',
       knownAngle: 110,
       missingAngle: 70,
+      attemptedAngle: 80,
     },
     { ctx: {} as never, toolCallId: 'smoke-supplementary-angle-diagram' }
   )
@@ -367,6 +368,7 @@ async function main() {
       knownAngle: 50,
       secondKnownAngle: 60,
       missingAngle: 70,
+      attemptedAngle: 80,
     },
     { ctx: {} as never, toolCallId: 'smoke-triangle-angle-diagram' }
   )
@@ -979,14 +981,16 @@ async function main() {
 
   if (
     !JSON.stringify(supplementaryAngleDiagramResult).includes('supplementary angle relationship') ||
-    !JSON.stringify(supplementaryAngleDiagramResult).includes('110 degrees + 70 degrees = 180 degrees')
+    !JSON.stringify(supplementaryAngleDiagramResult).includes('110 degrees + 70 degrees = 180 degrees') ||
+    !JSON.stringify(supplementaryAngleDiagramResult).includes('Tried: 110 + 80 = 190 degrees')
   ) {
     throw new Error('angle_diagram did not return a supplementary angle relationship model.')
   }
 
   if (
     !JSON.stringify(triangleAngleDiagramResult).includes('triangle angle-sum') ||
-    !JSON.stringify(triangleAngleDiagramResult).includes('50 + 60 + ? = 180')
+    !JSON.stringify(triangleAngleDiagramResult).includes('50 + 60 + ? = 180') ||
+    !JSON.stringify(triangleAngleDiagramResult).includes('Tried: 50 + 60 + 80 = 190')
   ) {
     throw new Error('angle_diagram did not return a triangle angle-sum model.')
   }

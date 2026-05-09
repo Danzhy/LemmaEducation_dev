@@ -553,16 +553,31 @@ assert(
   'angle_diagram should draw complementary angle relationship notes.'
 )
 
+const attemptedSupplementaryAngleDiagram = angleDiagramScene({
+  degrees: 70,
+  relationshipType: 'supplementary',
+  knownAngle: 110,
+  missingAngle: 70,
+  attemptedAngle: 80,
+})
+assert(
+  attemptedSupplementaryAngleDiagram.summary.includes('student tried 80 degrees') &&
+    JSON.stringify(attemptedSupplementaryAngleDiagram).includes('Tried: 110 + 80 = 190 degrees'),
+  'angle_diagram should preserve the student attempted angle in relationship notes.'
+)
+
 const triangleAngleDiagram = angleDiagramScene({
   degrees: 70,
   relationshipType: 'triangle_sum',
   knownAngle: 50,
   secondKnownAngle: 60,
   missingAngle: 70,
+  attemptedAngle: 80,
 })
 assert(
   triangleAngleDiagram.summary.includes('triangle angle-sum') &&
-    JSON.stringify(triangleAngleDiagram).includes('50 + 60 + ? = 180'),
+    JSON.stringify(triangleAngleDiagram).includes('50 + 60 + ? = 180') &&
+    JSON.stringify(triangleAngleDiagram).includes('Tried: 50 + 60 + 80 = 190'),
   'angle_diagram should draw triangle angle-sum relationship notes.'
 )
 

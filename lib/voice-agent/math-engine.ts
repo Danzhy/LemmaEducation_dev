@@ -5720,12 +5720,19 @@ export function angleDiagramScene(input: {
   knownAngle?: number
   secondKnownAngle?: number
   missingAngle?: number
+  attemptedAngle?: number
 }): CanvasActionResult {
   const relationshipType = input.relationshipType ?? 'single'
   if (relationshipType === 'complementary' || relationshipType === 'supplementary') {
     const total = relationshipType === 'complementary' ? 90 : 180
     const knownAngle = clamp(input.knownAngle ?? input.degrees, 0, total)
     const missingAngle = clamp(input.missingAngle ?? total - knownAngle, 0, total)
+    const attemptedAngle =
+      typeof input.attemptedAngle === 'number' && Number.isFinite(input.attemptedAngle) && input.attemptedAngle >= 0
+        ? input.attemptedAngle
+        : null
+    const attemptedTotal = attemptedAngle === null ? null : knownAngle + attemptedAngle
+    const attemptedMatches = attemptedAngle !== null && isNearlyEqual(attemptedAngle, missingAngle, 0.01)
     const vertex = { x: TOOL_SCENE.x + 332, y: TOOL_SCENE.y + 350 }
     const rayLength = 250
     const arcRadius = 76
@@ -5805,6 +5812,22 @@ export function angleDiagramScene(input: {
         width: NOTE_FRAME.width - 32,
         color: 'green',
       }),
+      ...(attemptedAngle === null
+        ? []
+        : [
+            textLabel(
+              NOTE_FRAME.x + 16,
+              NOTE_FRAME.y + 176,
+              `Tried: ${formatNumber(knownAngle, 1)} + ${formatNumber(
+                attemptedAngle,
+                1
+              )} = ${formatNumber(attemptedTotal ?? 0, 1)} degrees`,
+              {
+                width: NOTE_FRAME.width - 32,
+                color: attemptedMatches ? 'green' : 'orange',
+              }
+            ),
+          ]),
     ]
 
     if (relationshipType === 'complementary') {
@@ -5829,7 +5852,9 @@ export function angleDiagramScene(input: {
       summary: `Prepared a ${relationshipType} angle relationship diagram with a ${formatNumber(
         knownAngle,
         1
-      )} degree known angle and ${formatNumber(missingAngle, 1)} degree missing angle.`,
+      )} degree known angle and ${formatNumber(missingAngle, 1)} degree missing angle${
+        attemptedAngle === null ? '' : `; student tried ${formatNumber(attemptedAngle, 1)} degrees`
+      }.`,
       canvasActions: actions,
     }
   }
@@ -5838,6 +5863,12 @@ export function angleDiagramScene(input: {
     const firstAngle = clamp(input.knownAngle ?? 0, 0, 180)
     const secondAngle = clamp(input.secondKnownAngle ?? 0, 0, 180)
     const missingAngle = clamp(input.missingAngle ?? 180 - firstAngle - secondAngle, 0, 180)
+    const attemptedAngle =
+      typeof input.attemptedAngle === 'number' && Number.isFinite(input.attemptedAngle) && input.attemptedAngle >= 0
+        ? input.attemptedAngle
+        : null
+    const attemptedSum = attemptedAngle === null ? null : firstAngle + secondAngle + attemptedAngle
+    const attemptedMatches = attemptedAngle !== null && isNearlyEqual(attemptedAngle, missingAngle, 0.01)
     const a = { x: TOOL_SCENE.x + 152, y: TOOL_SCENE.y + 376 }
     const b = { x: TOOL_SCENE.x + 610, y: TOOL_SCENE.y + 376 }
     const c = { x: TOOL_SCENE.x + 382, y: TOOL_SCENE.y + 128 }
@@ -5902,10 +5933,20 @@ export function angleDiagramScene(input: {
           color: 'green',
         }
       ),
-      textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 184, 'Diagram is labeled for the relationship.', {
-        width: NOTE_FRAME.width - 32,
-        color: 'grey',
-      }),
+      textLabel(
+        NOTE_FRAME.x + 16,
+        NOTE_FRAME.y + 184,
+        attemptedAngle === null
+          ? 'Diagram is labeled for the relationship.'
+          : `Tried: ${formatNumber(firstAngle, 1)} + ${formatNumber(secondAngle, 1)} + ${formatNumber(
+              attemptedAngle,
+              1
+            )} = ${formatNumber(attemptedSum ?? 0, 1)}`,
+        {
+          width: NOTE_FRAME.width - 32,
+          color: attemptedAngle === null ? 'grey' : attemptedMatches ? 'green' : 'orange',
+        }
+      ),
       focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
     ]
 
@@ -5913,7 +5954,9 @@ export function angleDiagramScene(input: {
       summary: `Prepared a triangle angle-sum diagram with known angles ${formatNumber(
         firstAngle,
         1
-      )} and ${formatNumber(secondAngle, 1)}, and missing angle ${formatNumber(missingAngle, 1)} degrees.`,
+      )} and ${formatNumber(secondAngle, 1)}, and missing angle ${formatNumber(missingAngle, 1)} degrees${
+        attemptedAngle === null ? '' : `; student tried ${formatNumber(attemptedAngle, 1)} degrees`
+      }.`,
       canvasActions: actions,
     }
   }
