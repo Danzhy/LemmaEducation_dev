@@ -415,6 +415,247 @@ function checkCoordinateDistanceStep(previousStep: string, nextStep: string): Ma
   }
 }
 
+function extractCoordinateTriangleVerticesForStep(text: string): CoordinateTriangleVertex[] | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(triangle|triangular|vertices?|points?|coordinates?|diagram|board)\b/i.test(normalized)) return null
+
+  const labeledPattern = new RegExp(
+    `\\b([A-Z])\\s*(?:=|:)?\\s*\\(\\s*(${PLAIN_NUMBER_PATTERN})\\s*,\\s*(${PLAIN_NUMBER_PATTERN})\\s*\\)`,
+    'gi'
+  )
+  const vertices: CoordinateTriangleVertex[] = []
+  const seenLabels = new Set<string>()
+  for (const match of normalized.matchAll(labeledPattern)) {
+    const label = normalizeCoordinateTriangleLabel(match[1], String.fromCharCode(65 + vertices.length))
+    const x = parsePlainNumber(match[2])
+    const y = parsePlainNumber(match[3])
+    if (x === null || y === null || Math.abs(x) > 1000 || Math.abs(y) > 1000) continue
+    if (seenLabels.has(label.toLowerCase())) continue
+    seenLabels.add(label.toLowerCase())
+    vertices.push({ label, x, y })
+    if (vertices.length >= 3) return vertices
+  }
+
+  const unlabeledPattern = new RegExp(`\\(\\s*(${PLAIN_NUMBER_PATTERN})\\s*,\\s*(${PLAIN_NUMBER_PATTERN})\\s*\\)`, 'g')
+  const unlabeledMatches = [...normalized.matchAll(unlabeledPattern)]
+  if (vertices.length === 0 && unlabeledMatches.length >= 3 && /\b(vertices?|points?|coordinates?)\b/i.test(normalized)) {
+    return unlabeledMatches.slice(0, 3).map((match, index) => ({
+      label: String.fromCharCode(65 + index),
+      x: parsePlainNumber(match[1]) ?? 0,
+      y: parsePlainNumber(match[2]) ?? 0,
+    }))
+  }
+
+  return vertices.length >= 3 ? vertices : null
+}
+
+function extractCoordinateTriangleBaseLabelsForStep(text: string, vertices: CoordinateTriangleVertex[]): [string, string] {
+  const vertexLabels = new Set(vertices.map((vertex) => vertex.label.toLowerCase()))
+  const basePatterns = [
+    /\bbase\s*(?:is|=|:|as|to|onto|along|using)?\s*([A-Z])\s*([A-Z])\b/i,
+    /\b(?:to|onto|on|using)\s+(?:the\s+)?(?:base|side|segment)?\s*([A-Z])\s*([A-Z])\b/i,
+    /\bbetween\s+([A-Z])\s*(?:and|&)\s*([A-Z])\b/i,
+  ]
+
+  for (const pattern of basePatterns) {
+    const match = text.match(pattern)
+    if (!match) continue
+    const first = match[1]
+    const second = match[2]
+    if (
+      first.toLowerCase() !== second.toLowerCase() &&
+      vertexLabels.has(first.toLowerCase()) &&
+      vertexLabels.has(second.toLowerCase())
+    ) {
+      return [first, second]
+    }
+  }
+
+  return [vertices[0].label, vertices[1].label]
+}
+
+function getCoordinateTriangleMetrics(text: string) {
+  const vertices = extractCoordinateTriangleVerticesForStep(text)
+  if (!vertices) return null
+
+  const [firstBaseLabel, secondBaseLabel] = extractCoordinateTriangleBaseLabelsForStep(text, vertices)
+  const baseStart = vertices.find((vertex) => vertex.label.toLowerCase() === firstBaseLabel.toLowerCase())
+  const baseEnd = vertices.find((vertex) => vertex.label.toLowerCase() === secondBaseLabel.toLowerCase())
+  const apex = vertices.find(
+    (vertex) =>
+      vertex.label.toLowerCase() !== firstBaseLabel.toLowerCase() &&
+      vertex.label.toLowerCase() !== secondBaseLabel.toLowerCase()
+  )
+  if (!baseStart || !baseEnd || !apex) return null
+
+  const baseLength = distanceBetweenCoordinatePoints(baseStart, baseEnd)
+  if (isNearlyEqual(baseLength, 0)) return null
+
+  const doubleArea = Math.abs(
+    (baseEnd.x - baseStart.x) * (apex.y - baseStart.y) - (baseEnd.y - baseStart.y) * (apex.x - baseStart.x)
+  )
+  if (isNearlyEqual(doubleArea, 0)) return null
+
+  const altitudeLength = doubleArea / baseLength
+  const triangleArea = doubleArea / 2
+  const slantedSideLengths = [distanceBetweenCoordinatePoints(apex, baseStart), distanceBetweenCoordinatePoints(apex, baseEnd)]
+
+  return {
+    vertices,
+    baseStart,
+    baseEnd,
+    apex,
+    baseName: `${baseStart.label}${baseEnd.label}`,
+    baseLength,
+    altitudeLength,
+    triangleArea,
+    slantedSideLengths,
+  }
+}
+
+function parseCoordinateTriangleLabeledMeasurement(text: string, kind: 'base' | 'height') {
+  const cleaned = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const pattern =
+    kind === 'base'
+      ? new RegExp(
+          `\\b(?:base(?:\\s+[A-Z]\\s*[A-Z])?|length\\s+of\\s+[A-Z]\\s*[A-Z])\\s*(?:length)?\\s*(?:is|=|:)?\\s*(${PLAIN_NUMBER_PATTERN})`,
+          'i'
+        )
+      : new RegExp(
+          `\\b(?:height|altitude)(?:\\s+(?:from|to|onto|on)\\s+[A-Z]\\s*[A-Z]?)?\\s*(?:is|=|:)?\\s*(${PLAIN_NUMBER_PATTERN})`,
+          'i'
+        )
+  const match = cleaned.match(pattern)
+  if (!match) return null
+  return parsePlainNumber(match[1])
+}
+
+function parseCoordinateTriangleAreaClaim(text: string) {
+  const cleaned = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const gotAreaMatch = cleaned.match(
+    new RegExp(`\\b(?:got|found|calculated|think|answer(?:\\s+is)?)\\s+(?:the\\s+)?area\\s*(?:is|=|as)?\\s*(${PLAIN_NUMBER_PATTERN})`, 'i')
+  )
+  if (gotAreaMatch) return parsePlainNumber(gotAreaMatch[1])
+
+  const beforeAreaMatch = cleaned.match(
+    new RegExp(
+      `\\b(?:got|found|calculated|answer(?:\\s+is)?|think)\\s+(${PLAIN_NUMBER_PATTERN})\\s+(?:square\\s+\\w+\\s+)?(?:for\\s+)?(?:the\\s+)?area\\b`,
+      'i'
+    )
+  )
+  if (beforeAreaMatch) return parsePlainNumber(beforeAreaMatch[1])
+
+  const afterAreaMatch = cleaned.match(
+    new RegExp(`\\barea\\b[^.?!]{0,80}?\\b(?:is|=|as|equals?|got)\\s*(${PLAIN_NUMBER_PATTERN})`, 'i')
+  )
+  if (afterAreaMatch) return parsePlainNumber(afterAreaMatch[1])
+
+  return parseLastPlainNumber(cleaned)
+}
+
+function coordinateTriangleReasonPrefix(metrics: NonNullable<ReturnType<typeof getCoordinateTriangleMetrics>>) {
+  return `Triangle ${metrics.vertices
+    .map((vertex) => `${vertex.label}(${formatNumber(vertex.x, 4)}, ${formatNumber(vertex.y, 4)})`)
+    .join(', ')} using base ${metrics.baseName} has base ${formatNumber(metrics.baseLength, 4)} and perpendicular altitude ${formatNumber(
+    metrics.altitudeLength,
+    4
+  )}.`
+}
+
+function checkCoordinateTriangleStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\b(triangle|triangular)\b/i.test(combined) || !/\(\s*-?\d/.test(combined)) return null
+
+  const metrics = getCoordinateTriangleMetrics(previousStep)
+  if (!metrics) return null
+
+  const target =
+    /\barea\b/i.test(previousStep)
+      ? 'area'
+      : /\b(height|altitude)\b/i.test(previousStep)
+        ? 'height'
+        : /\bbase\b/i.test(previousStep)
+          ? 'base'
+          : null
+  const baseClaim = parseCoordinateTriangleLabeledMeasurement(nextStep, 'base')
+  const heightClaim = parseCoordinateTriangleLabeledMeasurement(nextStep, 'height')
+  const hasExplicitAreaClaim = /\barea\b/i.test(nextStep) || target === 'area'
+  const areaClaim = hasExplicitAreaClaim ? parseCoordinateTriangleAreaClaim(nextStep) : null
+  const plainClaim = parseLastPlainNumber(nextStep)
+  const reasonPrefix = coordinateTriangleReasonPrefix(metrics)
+
+  if (baseClaim !== null && heightClaim !== null) {
+    const baseMatches = isNearlyEqual(metrics.baseLength, baseClaim, 0.01)
+    const heightMatches = isNearlyEqual(metrics.altitudeLength, heightClaim, 0.01)
+    return {
+      verdict: baseMatches && heightMatches ? 'valid' : 'invalid',
+      reason: baseMatches && heightMatches
+        ? `${reasonPrefix} Both measurements match the coordinate triangle.`
+        : `${reasonPrefix} The student used base ${formatNumber(baseClaim, 4)} and height ${formatNumber(heightClaim, 4)}.`,
+      hintTarget: baseMatches && heightMatches
+        ? 'explain how the base and perpendicular altitude come from the coordinates'
+        : 'measure the base between the chosen vertices and drop a perpendicular altitude from the opposite vertex',
+    }
+  }
+
+  if (baseClaim !== null || (target === 'base' && plainClaim !== null)) {
+    const studentBase = baseClaim !== null ? baseClaim : plainClaim
+    if (studentBase === null) return null
+    const baseMatches = isNearlyEqual(metrics.baseLength, studentBase, 0.01)
+    return {
+      verdict: baseMatches ? 'valid' : 'invalid',
+      reason: baseMatches
+        ? `${reasonPrefix} The base length is ${formatNumber(metrics.baseLength, 4)}.`
+        : `${reasonPrefix} The base length is ${formatNumber(metrics.baseLength, 4)}, not ${formatNumber(studentBase, 4)}.`,
+      hintTarget: baseMatches
+        ? 'explain how the distance between the base vertices gives the base'
+        : 'measure the distance between the two chosen base vertices',
+    }
+  }
+
+  if (heightClaim !== null || (target === 'height' && plainClaim !== null)) {
+    const studentHeight = heightClaim !== null ? heightClaim : plainClaim
+    if (studentHeight === null) return null
+    const heightMatches = isNearlyEqual(metrics.altitudeLength, studentHeight, 0.01)
+    const usedSlantedSide = metrics.slantedSideLengths.some((length) => isNearlyEqual(length, studentHeight, 0.01))
+    return {
+      verdict: heightMatches ? 'valid' : 'invalid',
+      reason: heightMatches
+        ? `${reasonPrefix} The altitude is ${formatNumber(metrics.altitudeLength, 4)}.`
+        : `${reasonPrefix} The altitude is ${formatNumber(metrics.altitudeLength, 4)}, not ${formatNumber(studentHeight, 4)}.`,
+      hintTarget: heightMatches
+        ? 'explain why altitude must be perpendicular to the base'
+        : usedSlantedSide
+          ? 'use the perpendicular altitude, not a slanted side'
+          : 'drop a perpendicular from the opposite vertex to the chosen base',
+    }
+  }
+
+  if (areaClaim !== null) {
+    const areaMatches = isNearlyEqual(metrics.triangleArea, areaClaim, 0.01)
+    const rectangleArea = metrics.baseLength * metrics.altitudeLength
+    return {
+      verdict: areaMatches ? 'valid' : 'invalid',
+      reason: areaMatches
+        ? `${reasonPrefix} The area is ${formatNumber(metrics.baseLength, 4)} x ${formatNumber(
+            metrics.altitudeLength,
+            4
+          )} / 2 = ${formatNumber(metrics.triangleArea, 4)} square units.`
+        : `${reasonPrefix} The area is ${formatNumber(metrics.baseLength, 4)} x ${formatNumber(
+            metrics.altitudeLength,
+            4
+          )} / 2 = ${formatNumber(metrics.triangleArea, 4)} square units, not ${formatNumber(areaClaim, 4)}.`,
+      hintTarget: areaMatches
+        ? 'explain how base and altitude determine coordinate-triangle area'
+        : isNearlyEqual(rectangleArea, areaClaim, 0.01)
+          ? 'halve the base-times-altitude product for a triangle'
+          : 'use the perpendicular altitude to the chosen base before finding area',
+    }
+  }
+
+  return null
+}
+
 function parseSlopeValue(text: string): number | 'undefined' | null {
   const cleaned = text
     .replace(/[“”]/g, '"')
@@ -4177,6 +4418,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const coordinateDistanceStep = checkCoordinateDistanceStep(previousStep, nextStep)
   if (coordinateDistanceStep) {
     return coordinateDistanceStep
+  }
+
+  const coordinateTriangleStep = checkCoordinateTriangleStep(previousStep, nextStep)
+  if (coordinateTriangleStep) {
+    return coordinateTriangleStep
   }
 
   const angleRelationshipStep = checkAngleRelationshipStep(previousStep, nextStep)

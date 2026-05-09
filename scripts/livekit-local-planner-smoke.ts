@@ -326,6 +326,34 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks coordinate-triangle area attempts before classifying the mistake',
+    prompt: 'For triangle A(0, 0), B(6, 0), C(2, 4), I used base AB and got area 24. Is that right?',
+    expectedTools: ['math_check_step', 'geometry_figure', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(
+        input.previousStep,
+        'area of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB'
+      )
+      assert.equal(input.nextStep, '24')
+      const geometryInput = plans[1].input
+      assert.equal(geometryInput.figureType, 'triangle')
+      assert.equal(geometryInput.showAltitude, true)
+      assert.equal(geometryInput.showTriangleAreaModel, true)
+      assert.deepEqual(geometryInput.baseVertexLabels, ['A', 'B'])
+    },
+  },
+  {
+    name: 'routes coordinate-triangle area requests without treating vertices as an answer',
+    prompt: 'Find the area of triangle A(0, 0), B(6, 0), C(2, 4) using base AB.',
+    expectedTools: ['geometry_figure'],
+    inspect: (input) => {
+      assert.equal(input.figureType, 'triangle')
+      assert.equal(input.showAltitude, true)
+      assert.equal(input.showTriangleAreaModel, true)
+      assert.deepEqual(input.baseVertexLabels, ['A', 'B'])
+    },
+  },
+  {
     name: 'routes linear graphs to graph_function with parsed expression and domain',
     prompt: 'Can you graph y = 2x + 1 from x = -3 to 3?',
     expectedTools: ['graph_function'],

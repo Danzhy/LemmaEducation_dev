@@ -238,6 +238,27 @@ async function main() {
     { previousStep: 'area of triangle with base 10 and height 6', nextStep: '60' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-triangle-area-step-check' }
   )
+  const validCoordinateTriangleAreaStep = await tools.math_check_step.execute(
+    {
+      previousStep: 'area of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB',
+      nextStep: '12',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-coordinate-triangle-area-step-check' }
+  )
+  const invalidCoordinateTriangleAreaStep = await tools.math_check_step.execute(
+    {
+      previousStep: 'area of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB',
+      nextStep: '24',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-triangle-area-step-check' }
+  )
+  const invalidCoordinateTriangleHeightStep = await tools.math_check_step.execute(
+    {
+      previousStep: 'height to base AB of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4)',
+      nextStep: '4.472',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-triangle-height-step-check' }
+  )
   const validComplementaryAngleStep = await tools.math_check_step.execute(
     { previousStep: 'complementary angle to 35', nextStep: '55' },
     { ctx: {} as never, toolCallId: 'smoke-complementary-angle-step-check' }
@@ -881,6 +902,31 @@ async function main() {
     !JSON.stringify(invalidTriangleAreaStep).includes('halve')
   ) {
     throw new Error(`math_check_step did not reject a triangle area base-times-height mistake: ${JSON.stringify(invalidTriangleAreaStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validCoordinateTriangleAreaStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validCoordinateTriangleAreaStep).includes('coordinate-triangle area')
+  ) {
+    throw new Error(`math_check_step did not accept a coordinate-triangle area claim: ${JSON.stringify(validCoordinateTriangleAreaStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidCoordinateTriangleAreaStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidCoordinateTriangleAreaStep).includes('halve')
+  ) {
+    throw new Error(
+      `math_check_step did not reject a coordinate-triangle base-times-altitude mistake: ${JSON.stringify(invalidCoordinateTriangleAreaStep)}`
+    )
+  }
+
+  if (
+    !JSON.stringify(invalidCoordinateTriangleHeightStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidCoordinateTriangleHeightStep).includes('slanted side')
+  ) {
+    throw new Error(
+      `math_check_step did not reject a coordinate-triangle slanted-side altitude claim: ${JSON.stringify(invalidCoordinateTriangleHeightStep)}`
+    )
   }
 
   if (

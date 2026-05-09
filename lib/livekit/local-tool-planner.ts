@@ -1960,6 +1960,106 @@ function extractTriangleAreaAttempt(text: string): StudentStepPair | null {
   )
 }
 
+function formatLocalTriangleVerticesForStep(vertices: LocalTriangleVertex[]) {
+  return vertices
+    .map((vertex) => `${vertex.label}(${formatLocalNumber(vertex.x)}, ${formatLocalNumber(vertex.y)})`)
+    .join(', ')
+}
+
+function buildCoordinateTriangleStepPair(
+  vertices: LocalTriangleVertex[],
+  baseLabels: string[],
+  target: 'area' | 'height' | 'base',
+  answer: number
+) {
+  const verticesText = formatLocalTriangleVerticesForStep(vertices)
+  const baseName = baseLabels.join('')
+  const previousStep =
+    target === 'area'
+      ? `area of coordinate triangle with vertices ${verticesText} using base ${baseName}`
+      : target === 'height'
+        ? `height to base ${baseName} of coordinate triangle with vertices ${verticesText}`
+        : `base ${baseName} length of coordinate triangle with vertices ${verticesText}`
+
+  return buildStepPair(previousStep, String(answer))
+}
+
+function extractLocalCoordinateTriangleAreaAnswer(text: string) {
+  const gotAreaMatch = text.match(
+    new RegExp(`\\b(?:got|found|calculated|think|answer(?:\\s+is)?)\\s+(?:the\\s+)?area\\s*(?:is|=|as)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (gotAreaMatch) {
+    const answer = parseLocalPlainNumber(gotAreaMatch[1])
+    if (answer !== null) return answer
+  }
+
+  const beforeAreaMatch = text.match(
+    new RegExp(
+      `\\b(?:got|found|calculated|answer(?:\\s+is)?|think)\\s+(${LOCAL_NUMBER_PATTERN})\\s+(?:square\\s+\\w+\\s+)?(?:for\\s+)?(?:the\\s+)?area\\b`,
+      'i'
+    )
+  )
+  if (beforeAreaMatch) {
+    const answer = parseLocalPlainNumber(beforeAreaMatch[1])
+    if (answer !== null) return answer
+  }
+
+  const afterAreaMatch = text.match(
+    new RegExp(`\\barea\\b[^.?!]{0,80}?\\b(?:is|=|as|equals?|got)\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (afterAreaMatch) {
+    const answer = parseLocalPlainNumber(afterAreaMatch[1])
+    if (answer !== null) return answer
+  }
+
+  return null
+}
+
+function extractLocalCoordinateTriangleMeasurementAnswer(text: string, kind: 'base' | 'height') {
+  const labelPattern = kind === 'base' ? 'base(?:\\s+[A-Z]\\s*[A-Z])?' : '(?:height|altitude)'
+  const beforeMeasureMatch = text.match(
+    new RegExp(`\\b(?:got|found|calculated|answer(?:\\s+is)?|think)\\s+(${LOCAL_NUMBER_PATTERN})\\s+(?:for\\s+)?(?:the\\s+)?${labelPattern}\\b`, 'i')
+  )
+  if (beforeMeasureMatch) {
+    const answer = parseLocalPlainNumber(beforeMeasureMatch[1])
+    if (answer !== null) return answer
+  }
+
+  const afterMeasureMatch = text.match(
+    new RegExp(`\\b${labelPattern}\\b[^.?!]{0,80}?\\b(?:is|=|:|as|equals?)\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (afterMeasureMatch) {
+    const answer = parseLocalPlainNumber(afterMeasureMatch[1])
+    if (answer !== null) return answer
+  }
+
+  return null
+}
+
+function extractCoordinateTriangleAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const vertices = extractLocalTriangleVertices(normalized)
+  if (!vertices) return null
+
+  const baseLabels = extractLocalTriangleBaseLabels(normalized, vertices)
+  const areaAnswer = extractLocalCoordinateTriangleAreaAnswer(normalized)
+  if (areaAnswer !== null && /\barea\b/i.test(normalized)) {
+    return buildCoordinateTriangleStepPair(vertices, baseLabels, 'area', areaAnswer)
+  }
+
+  const heightAnswer = extractLocalCoordinateTriangleMeasurementAnswer(normalized, 'height')
+  if (heightAnswer !== null && /\b(height|altitude)\b/i.test(normalized)) {
+    return buildCoordinateTriangleStepPair(vertices, baseLabels, 'height', heightAnswer)
+  }
+
+  const baseAnswer = extractLocalCoordinateTriangleMeasurementAnswer(normalized, 'base')
+  if (baseAnswer !== null && /\bbase\b/i.test(normalized)) {
+    return buildCoordinateTriangleStepPair(vertices, baseLabels, 'base', baseAnswer)
+  }
+
+  return null
+}
+
 function buildLocalTriangleAreaModelInput(text: string) {
   const dimensions = extractLocalTriangleBaseHeight(text)
   if (!dimensions || dimensions.base > 30 || dimensions.height > 30) return null
@@ -2683,6 +2783,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const coordinateDistanceAttempt = extractCoordinateDistanceAttempt(normalized)
   if (coordinateDistanceAttempt) return coordinateDistanceAttempt
 
+  const coordinateTriangleAttempt = extractCoordinateTriangleAttempt(normalized)
+  if (coordinateTriangleAttempt) return coordinateTriangleAttempt
+
   const angleRelationshipAttempt = extractAngleRelationshipAttempt(normalized)
   if (angleRelationshipAttempt) return angleRelationshipAttempt
 
@@ -3091,6 +3194,13 @@ export function planLocalToolTurn(
             unitLabel: 'units',
             title: 'Missing-piece area',
           },
+        })
+      }
+      const coordinateTriangleAltitudeInput = buildLocalTriangleAltitudeInput(studentStepPair.previousStep)
+      if (coordinateTriangleAltitudeInput) {
+        plans.push({
+          toolName: 'geometry_figure',
+          input: coordinateTriangleAltitudeInput,
         })
       }
       const triangleAreaModelInput = buildLocalTriangleAreaModelInput(studentStepPair.previousStep)
@@ -3738,6 +3848,9 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     )
     const hasPlaceValueChart = plans.some((plan) => plan.toolName === 'place_value_chart')
     const hasCompositeAreaModel = plans.some((plan) => plan.toolName === 'composite_area_model')
+    const hasTriangleAltitudeModel = plans.some(
+      (plan) => plan.toolName === 'geometry_figure' && plan.input.showAltitude === true
+    )
     const hasTriangleAreaModel = plans.some(
       (plan) => plan.toolName === 'geometry_figure' && plan.input.showTriangleAreaModel === true
     )
@@ -3750,19 +3863,21 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
       ? ' I also highlighted the place-value chart so the target column is visible.'
       : hasCompositeAreaModel
         ? ' I also put the whole rectangle and missing piece on the board.'
-        : hasTriangleAreaModel
-          ? ' I also put the half-rectangle triangle model on the board.'
-          : hasAngleDiagram
-            ? ' I also put the angle relationship diagram on the board.'
-            : hasTableOfValues
-              ? ' I also put the value table on the board.'
-              : hasStatisticsSummary
-                ? ' I also put the data summary on the board.'
-                : hasProbabilityModel
-                  ? ' I also put the probability model on the board.'
-                  : hasRatioTable
-                    ? ' I also put the cross-product table on the board.'
-                    : ''
+        : hasTriangleAltitudeModel
+          ? ' I also drew the coordinate-triangle altitude on the board.'
+          : hasTriangleAreaModel
+            ? ' I also put the half-rectangle triangle model on the board.'
+            : hasAngleDiagram
+              ? ' I also put the angle relationship diagram on the board.'
+              : hasTableOfValues
+                ? ' I also put the value table on the board.'
+                : hasStatisticsSummary
+                  ? ' I also put the data summary on the board.'
+                  : hasProbabilityModel
+                    ? ' I also put the probability model on the board.'
+                    : hasRatioTable
+                      ? ' I also put the cross-product table on the board.'
+                      : ''
     if (checkedStep?.verdict === 'valid') {
       return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
     }

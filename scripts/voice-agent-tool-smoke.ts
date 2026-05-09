@@ -544,6 +544,36 @@ assert(
   'geometry_figure should draw an arbitrary triangle altitude to a chosen base.'
 )
 
+const validCoordinateTriangleAreaStep = mathCheckStep(
+  'area of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB',
+  '12'
+)
+assert(
+  validCoordinateTriangleAreaStep.verdict === 'valid' &&
+    validCoordinateTriangleAreaStep.hintTarget.includes('coordinate-triangle area'),
+  'math_check_step should validate coordinate-triangle area from base and altitude.'
+)
+
+const invalidCoordinateTriangleAreaStep = mathCheckStep(
+  'area of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB',
+  '24'
+)
+assert(
+  invalidCoordinateTriangleAreaStep.verdict === 'invalid' &&
+    invalidCoordinateTriangleAreaStep.hintTarget.includes('halve'),
+  'math_check_step should catch coordinate-triangle base-times-altitude area mistakes.'
+)
+
+const invalidCoordinateTriangleHeightStep = mathCheckStep(
+  'height to base AB of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4)',
+  '4.472'
+)
+assert(
+  invalidCoordinateTriangleHeightStep.verdict === 'invalid' &&
+    invalidCoordinateTriangleHeightStep.hintTarget.includes('slanted side'),
+  'math_check_step should catch coordinate-triangle altitude claims that use a slanted side.'
+)
+
 const validTriangleAreaStep = mathCheckStep('area of triangle with base 10 and height 6', '30')
 assert(
   validTriangleAreaStep.verdict === 'valid' &&
