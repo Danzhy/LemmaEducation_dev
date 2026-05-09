@@ -22,6 +22,119 @@ function extractNumbers(text: string) {
   return [...text.matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => Number(match[0]))
 }
 
+type LocalMeasurementType = 'length' | 'mass' | 'capacity' | 'time'
+
+type LocalUnitQuantity = {
+  value: number
+  unit: string
+  measurementType: LocalMeasurementType
+}
+
+const LOCAL_UNIT_ALIASES: Record<string, { unit: string; measurementType: LocalMeasurementType }> = {
+  mm: { unit: 'mm', measurementType: 'length' },
+  millimeter: { unit: 'mm', measurementType: 'length' },
+  millimeters: { unit: 'mm', measurementType: 'length' },
+  cm: { unit: 'cm', measurementType: 'length' },
+  centimeter: { unit: 'cm', measurementType: 'length' },
+  centimeters: { unit: 'cm', measurementType: 'length' },
+  m: { unit: 'm', measurementType: 'length' },
+  meter: { unit: 'm', measurementType: 'length' },
+  meters: { unit: 'm', measurementType: 'length' },
+  metre: { unit: 'm', measurementType: 'length' },
+  metres: { unit: 'm', measurementType: 'length' },
+  km: { unit: 'km', measurementType: 'length' },
+  kilometer: { unit: 'km', measurementType: 'length' },
+  kilometers: { unit: 'km', measurementType: 'length' },
+  kilometre: { unit: 'km', measurementType: 'length' },
+  kilometres: { unit: 'km', measurementType: 'length' },
+  g: { unit: 'g', measurementType: 'mass' },
+  gram: { unit: 'g', measurementType: 'mass' },
+  grams: { unit: 'g', measurementType: 'mass' },
+  kg: { unit: 'kg', measurementType: 'mass' },
+  kilogram: { unit: 'kg', measurementType: 'mass' },
+  kilograms: { unit: 'kg', measurementType: 'mass' },
+  ml: { unit: 'mL', measurementType: 'capacity' },
+  milliliter: { unit: 'mL', measurementType: 'capacity' },
+  milliliters: { unit: 'mL', measurementType: 'capacity' },
+  millilitre: { unit: 'mL', measurementType: 'capacity' },
+  millilitres: { unit: 'mL', measurementType: 'capacity' },
+  l: { unit: 'L', measurementType: 'capacity' },
+  liter: { unit: 'L', measurementType: 'capacity' },
+  liters: { unit: 'L', measurementType: 'capacity' },
+  litre: { unit: 'L', measurementType: 'capacity' },
+  litres: { unit: 'L', measurementType: 'capacity' },
+  s: { unit: 'seconds', measurementType: 'time' },
+  sec: { unit: 'seconds', measurementType: 'time' },
+  second: { unit: 'seconds', measurementType: 'time' },
+  seconds: { unit: 'seconds', measurementType: 'time' },
+  min: { unit: 'minutes', measurementType: 'time' },
+  minute: { unit: 'minutes', measurementType: 'time' },
+  minutes: { unit: 'minutes', measurementType: 'time' },
+  h: { unit: 'hours', measurementType: 'time' },
+  hr: { unit: 'hours', measurementType: 'time' },
+  hour: { unit: 'hours', measurementType: 'time' },
+  hours: { unit: 'hours', measurementType: 'time' },
+}
+
+function parseLocalNumberToken(token: string) {
+  const compact = token.replace(/\s+/g, '')
+  if (compact.includes('/')) {
+    const [numerator, denominator] = compact.split('/').map(Number)
+    if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) return null
+    return numerator / denominator
+  }
+
+  const value = Number(compact)
+  return Number.isFinite(value) ? value : null
+}
+
+function lookupLocalUnit(unitToken: string) {
+  return LOCAL_UNIT_ALIASES[unitToken.toLowerCase()] ?? null
+}
+
+function extractUnitQuantities(text: string): LocalUnitQuantity[] {
+  const quantities: LocalUnitQuantity[] = []
+  const matches = text.matchAll(
+    /(-?(?:\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*(?:\d+(?:\.\d+)?|\.\d+))?)\s*([a-zA-Z]+)/g
+  )
+
+  for (const match of matches) {
+    const value = parseLocalNumberToken(match[1])
+    const unit = lookupLocalUnit(match[2])
+    if (value === null || !unit) continue
+    quantities.push({
+      value,
+      unit: unit.unit,
+      measurementType: unit.measurementType,
+    })
+  }
+
+  return quantities
+}
+
+function hasKnownUnitQuantity(text: string) {
+  return extractUnitQuantities(text).length > 0
+}
+
+function extractUnitConversionRequest(text: string) {
+  const quantities = extractUnitQuantities(text)
+  if (quantities.length === 0) return null
+
+  const targetMatch = text.match(/\b(?:to|in|as)\s+([a-zA-Z]+)\b/i)
+  const targetUnit = targetMatch ? lookupLocalUnit(targetMatch[1]) : null
+  const source = quantities[0]
+  if (!targetUnit || targetUnit.measurementType !== source.measurementType || targetUnit.unit === source.unit) {
+    return null
+  }
+
+  return {
+    value: source.value,
+    fromUnit: source.unit,
+    toUnit: targetUnit.unit,
+    measurementType: source.measurementType,
+  }
+}
+
 function extractFractions(text: string) {
   return [...text.matchAll(/(-?\d+)\s*\/\s*(-?\d+)/g)].map((match) => ({
     numerator: Number(match[1]),
@@ -84,7 +197,7 @@ function hasMathToken(value: string) {
 }
 
 function hasMathStructure(value: string) {
-  return /[+\-*/=:%^()]|\/|\bof\b/i.test(value)
+  return /[+\-*/=:%^()]|\/|\bof\b/i.test(value) || hasKnownUnitQuantity(value)
 }
 
 function buildStepPair(previousStep: string, nextStep: string): StudentStepPair | null {
@@ -99,7 +212,12 @@ function buildStepPair(previousStep: string, nextStep: string): StudentStepPair 
 function splitSingleNumericEquality(candidate: string) {
   const parts = candidate.split('=')
   if (parts.length !== 2) return null
-  if (/[a-z]/i.test(parts[0]) || /[a-z]/i.test(parts[1])) return null
+  if (
+    (/[a-z]/i.test(parts[0]) || /[a-z]/i.test(parts[1])) &&
+    !(hasKnownUnitQuantity(parts[0]) && hasKnownUnitQuantity(parts[1]))
+  ) {
+    return null
+  }
   return buildStepPair(parts[0], parts[1])
 }
 
@@ -138,7 +256,7 @@ function inferLocalTopic(text: string) {
   if (/\bratio|rate|per one|unit rate|scale\b/.test(lower)) return 'ratios'
   if (/\bequation|variable|solve for x|\bx\b/.test(lower)) return 'equations'
   if (/\bnegative|positive|integer|signed|minus\b|-\d/.test(lower)) return 'integers'
-  if (/\barea|perimeter|angle|geometry|rectangle|triangle\b/.test(lower)) return 'geometry'
+  if (/\barea|perimeter|angle|geometry|rectangle|triangle|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?\b/.test(lower)) return 'geometry'
   if (/\bgraph|coordinate|slope|point|axis\b/.test(lower)) return 'graphing'
   if (/\bmean|median|mode|probability|chance|data\b/.test(lower)) return 'data'
   return text.slice(0, 120)
@@ -148,6 +266,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const lower = prompt.toLowerCase()
   const fractions = extractFractions(prompt)
   const numbers = extractNumbers(prompt)
+  const unitConversionRequest = extractUnitConversionRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
   const plans: LocalToolPlan[] = []
   const asksForFullSolution =
@@ -160,7 +279,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan|integer|negative|positive|signed)\b/.test(lower)
+    /\b(graph|plot|parabola|function|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?)\b/.test(lower)
   const asksForMistakeHelp =
     /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|check this|is this right|is that right|am i right|is my step right|correct)\b/.test(lower)
   const needsSafetyBoundary =
@@ -497,6 +616,17 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
+  if (unitConversionRequest && /\b(convert|conversion|to|in|as|measurement|unit)\b/.test(lower)) {
+    plans.push({
+      toolName: 'unit_conversion',
+      input: {
+        ...unitConversionRequest,
+        title: 'Unit conversion',
+      },
+    })
+    return plans
+  }
+
   if (/linear|equation|solve|x\s*=|[+-]?\d*x\s*[+-]\s*\d+\s*=/.test(lower) && /x/.test(lower) && /=/.test(prompt)) {
     const equation = prompt.match(/([+-]?\d*\s*x\s*(?:[+-]\s*\d+)?\s*=\s*-?\d+(?:\.\d+)?)/i)?.[1] ?? prompt
     plans.push({
@@ -760,6 +890,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'percent_bar') {
     return 'I drew a percent bar so the part and whole are visible. Use the shaded part to explain the percent before jumping to the answer.'
+  }
+
+  if (firstTool === 'unit_conversion') {
+    return 'I set up the unit conversion on the board. Use the conversion factor first, then check whether the measurement still means the same amount.'
   }
 
   if (firstTool === 'double_number_line' || firstTool === 'unit_rate') {

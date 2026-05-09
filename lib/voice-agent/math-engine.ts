@@ -119,6 +119,94 @@ function isNearlyEqual(a: number, b: number, tolerance = 1e-6) {
   return Math.abs(a - b) <= tolerance
 }
 
+const UNIT_FACTORS = {
+  length: {
+    mm: 0.001,
+    cm: 0.01,
+    m: 1,
+    km: 1000,
+  },
+  mass: {
+    g: 1,
+    kg: 1000,
+  },
+  capacity: {
+    mL: 0.001,
+    L: 1,
+  },
+  time: {
+    seconds: 1,
+    minutes: 60,
+    hours: 3600,
+  },
+} as const
+
+type MeasurementType = keyof typeof UNIT_FACTORS
+
+type ParsedUnitQuantity = {
+  value: number
+  unit: string
+  measurementType: MeasurementType
+  baseValue: number
+}
+
+type ComparableExpression =
+  | {
+      value: number
+      kind: 'ratio' | 'expression'
+    }
+  | {
+      value: number
+      kind: 'unit'
+      unitQuantity: ParsedUnitQuantity
+    }
+
+const UNIT_ALIASES: Record<string, { measurementType: MeasurementType; unit: string }> = {
+  mm: { measurementType: 'length', unit: 'mm' },
+  millimeter: { measurementType: 'length', unit: 'mm' },
+  millimeters: { measurementType: 'length', unit: 'mm' },
+  cm: { measurementType: 'length', unit: 'cm' },
+  centimeter: { measurementType: 'length', unit: 'cm' },
+  centimeters: { measurementType: 'length', unit: 'cm' },
+  m: { measurementType: 'length', unit: 'm' },
+  meter: { measurementType: 'length', unit: 'm' },
+  meters: { measurementType: 'length', unit: 'm' },
+  metre: { measurementType: 'length', unit: 'm' },
+  metres: { measurementType: 'length', unit: 'm' },
+  km: { measurementType: 'length', unit: 'km' },
+  kilometer: { measurementType: 'length', unit: 'km' },
+  kilometers: { measurementType: 'length', unit: 'km' },
+  kilometre: { measurementType: 'length', unit: 'km' },
+  kilometres: { measurementType: 'length', unit: 'km' },
+  g: { measurementType: 'mass', unit: 'g' },
+  gram: { measurementType: 'mass', unit: 'g' },
+  grams: { measurementType: 'mass', unit: 'g' },
+  kg: { measurementType: 'mass', unit: 'kg' },
+  kilogram: { measurementType: 'mass', unit: 'kg' },
+  kilograms: { measurementType: 'mass', unit: 'kg' },
+  ml: { measurementType: 'capacity', unit: 'mL' },
+  milliliter: { measurementType: 'capacity', unit: 'mL' },
+  milliliters: { measurementType: 'capacity', unit: 'mL' },
+  millilitre: { measurementType: 'capacity', unit: 'mL' },
+  millilitres: { measurementType: 'capacity', unit: 'mL' },
+  l: { measurementType: 'capacity', unit: 'L' },
+  liter: { measurementType: 'capacity', unit: 'L' },
+  liters: { measurementType: 'capacity', unit: 'L' },
+  litre: { measurementType: 'capacity', unit: 'L' },
+  litres: { measurementType: 'capacity', unit: 'L' },
+  s: { measurementType: 'time', unit: 'seconds' },
+  sec: { measurementType: 'time', unit: 'seconds' },
+  second: { measurementType: 'time', unit: 'seconds' },
+  seconds: { measurementType: 'time', unit: 'seconds' },
+  min: { measurementType: 'time', unit: 'minutes' },
+  minute: { measurementType: 'time', unit: 'minutes' },
+  minutes: { measurementType: 'time', unit: 'minutes' },
+  h: { measurementType: 'time', unit: 'hours' },
+  hr: { measurementType: 'time', unit: 'hours' },
+  hour: { measurementType: 'time', unit: 'hours' },
+  hours: { measurementType: 'time', unit: 'hours' },
+}
+
 function parseSimpleRatio(expression: string) {
   const match = expression.match(/^(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/)
   if (!match) {
@@ -138,7 +226,53 @@ function parseSimpleRatio(expression: string) {
   }
 }
 
-function evaluateComparableExpression(expression: string) {
+function parseUnitQuantity(expression: string): ParsedUnitQuantity | null {
+  const compact = expression.replace(/,/g, '').replace(/\s+/g, '')
+  const match = compact.match(/^(-?(?:\d+(?:\.\d+)?|\.\d+)(?:\/(?:\d+(?:\.\d+)?|\.\d+))?)([a-zA-Z]+)$/)
+  if (!match) {
+    return null
+  }
+
+  const unitAlias = UNIT_ALIASES[match[2].toLowerCase()]
+  if (!unitAlias) {
+    return null
+  }
+
+  const value = coerceFiniteNumber(safeEvaluate(match[1]))
+  const factors = UNIT_FACTORS[unitAlias.measurementType] as unknown as Record<string, number>
+  const factor = factors[unitAlias.unit]
+  if (!Number.isFinite(factor)) {
+    return null
+  }
+
+  return {
+    value,
+    unit: unitAlias.unit,
+    measurementType: unitAlias.measurementType,
+    baseValue: value * factor,
+  }
+}
+
+function hasKnownUnitQuantity(text: string) {
+  const matches = text.matchAll(
+    /-?(?:\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*(?:\d+(?:\.\d+)?|\.\d+))?\s*([a-zA-Z]+)/g
+  )
+  for (const match of matches) {
+    if (UNIT_ALIASES[match[1].toLowerCase()]) return true
+  }
+  return false
+}
+
+function evaluateComparableExpression(expression: string): ComparableExpression {
+  const unitQuantity = parseUnitQuantity(expression)
+  if (unitQuantity) {
+    return {
+      value: unitQuantity.baseValue,
+      kind: 'unit',
+      unitQuantity,
+    }
+  }
+
   const ratio = parseSimpleRatio(expression)
   if (ratio) {
     return {
@@ -153,9 +287,24 @@ function evaluateComparableExpression(expression: string) {
   }
 }
 
+function unitComparisonStatus(
+  left: ComparableExpression,
+  right: ComparableExpression
+): 'compatible' | 'missing_unit' | 'different_measurement' {
+  const leftIsUnit = left.kind === 'unit'
+  const rightIsUnit = right.kind === 'unit'
+
+  if (!leftIsUnit && !rightIsUnit) return 'compatible'
+  if (!leftIsUnit || !rightIsUnit) return 'missing_unit'
+  return left.unitQuantity.measurementType === right.unitQuantity.measurementType
+    ? 'compatible'
+    : 'different_measurement'
+}
+
 function detectStepFeatures(previousStep: string, nextStep: string) {
   const combined = `${previousStep} ${nextStep}`
   return {
+    hasUnitConversionWork: hasKnownUnitQuantity(combined),
     hasFractionWork: /\d+\s*\/\s*\d+/.test(combined),
     hasPercentWork: /%|\bpercent\b/i.test(combined),
     hasRatioWork: /-?\d+(?:\.\d+)?\s*:\s*-?\d+(?:\.\d+)?/.test(combined),
@@ -165,6 +314,9 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
 }
 
 function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures>) {
+  if (features.hasUnitConversionWork) {
+    return 'use the conversion factor and keep the measurement type the same'
+  }
   if (features.hasFractionWork) {
     return 'recheck the common denominator or fraction operation'
   }
@@ -1827,20 +1979,43 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
     try {
       const prevComparable = evaluateComparableExpression(prev)
       const nextComparable = evaluateComparableExpression(next)
+      const unitStatus = unitComparisonStatus(prevComparable, nextComparable)
+      if (unitStatus === 'missing_unit') {
+        return {
+          verdict: 'unclear',
+          reason: 'One line includes a unit and the other does not, so the conversion needs clearer units.',
+          hintTarget: expressionStepHintTarget(stepFeatures),
+        }
+      }
+      if (unitStatus === 'different_measurement') {
+        return {
+          verdict: 'invalid',
+          reason: 'Those units measure different kinds of quantities, so they cannot be equivalent.',
+          hintTarget: expressionStepHintTarget(stepFeatures),
+        }
+      }
+
       const prevValue = prevComparable.value
       const nextValue = nextComparable.value
       const valuesMatch = isNearlyEqual(prevValue, nextValue)
       const comparesRatios = prevComparable.kind === 'ratio' || nextComparable.kind === 'ratio'
+      const comparesUnits = prevComparable.kind === 'unit' || nextComparable.kind === 'unit'
 
       return {
         verdict: valuesMatch ? 'valid' : 'invalid',
         reason: valuesMatch
-          ? comparesRatios
+          ? comparesUnits
+            ? 'Both measurements are the same amount after converting units.'
+            : comparesRatios
             ? `Both ratios have the same quotient, ${formatNumber(prevValue, 4)}.`
             : `Both expressions have the same value, ${formatNumber(prevValue, 4)}.`
-          : `The value changed from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)}.`,
+          : comparesUnits
+            ? `The measurement changed after converting units, from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)} in base units.`
+            : `The value changed from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)}.`,
         hintTarget: valuesMatch
-          ? comparesRatios
+          ? comparesUnits
+            ? 'explain the conversion factor that kept the measurement equivalent'
+            : comparesRatios
             ? 'explain the scale factor that kept the ratio equivalent'
             : 'explain why the value stayed the same'
           : expressionStepHintTarget(stepFeatures),
@@ -1880,10 +2055,25 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const [nextLeft, nextRight] = next.split('=')
 
   try {
-    const prevLeftValue = evaluateComparableExpression(prevLeft).value
-    const prevRightValue = evaluateComparableExpression(prevRight).value
-    const nextLeftValue = evaluateComparableExpression(nextLeft).value
-    const nextRightValue = evaluateComparableExpression(nextRight).value
+    const prevLeftComparable = evaluateComparableExpression(prevLeft)
+    const prevRightComparable = evaluateComparableExpression(prevRight)
+    const nextLeftComparable = evaluateComparableExpression(nextLeft)
+    const nextRightComparable = evaluateComparableExpression(nextRight)
+    const prevUnitStatus = unitComparisonStatus(prevLeftComparable, prevRightComparable)
+    const nextUnitStatus = unitComparisonStatus(nextLeftComparable, nextRightComparable)
+
+    if (prevUnitStatus !== 'compatible' || nextUnitStatus !== 'compatible') {
+      return {
+        verdict: 'unclear',
+        reason: 'A unit equality needs comparable units on both sides before the step can be checked.',
+        hintTarget: expressionStepHintTarget(stepFeatures),
+      }
+    }
+
+    const prevLeftValue = prevLeftComparable.value
+    const prevRightValue = prevRightComparable.value
+    const nextLeftValue = nextLeftComparable.value
+    const nextRightValue = nextRightComparable.value
     const prevIsTrue = isNearlyEqual(prevLeftValue, prevRightValue)
     const nextIsTrue = isNearlyEqual(nextLeftValue, nextRightValue)
 
@@ -4997,28 +5187,6 @@ export function statisticsSummaryScene(input: {
     canvasActions: actions,
   }
 }
-
-const UNIT_FACTORS = {
-  length: {
-    mm: 0.001,
-    cm: 0.01,
-    m: 1,
-    km: 1000,
-  },
-  mass: {
-    g: 1,
-    kg: 1000,
-  },
-  capacity: {
-    mL: 0.001,
-    L: 1,
-  },
-  time: {
-    seconds: 1,
-    minutes: 60,
-    hours: 3600,
-  },
-} as const
 
 export function unitConversionScene(input: {
   value: number

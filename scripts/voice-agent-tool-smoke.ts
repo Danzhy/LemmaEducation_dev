@@ -238,6 +238,20 @@ assert(
   'math_check_step should catch signed-integer operation mistakes.'
 )
 
+const validUnitConversionStep = mathCheckStep('2.5 m', '250 cm')
+assert(
+  validUnitConversionStep.verdict === 'valid' &&
+    validUnitConversionStep.hintTarget.includes('conversion factor'),
+  'math_check_step should validate equivalent unit conversion steps.'
+)
+
+const invalidUnitConversionStep = mathCheckStep('3 kg', '300 g')
+assert(
+  invalidUnitConversionStep.verdict === 'invalid' &&
+    invalidUnitConversionStep.hintTarget.includes('conversion factor'),
+  'math_check_step should catch invalid unit conversion steps.'
+)
+
 const validNumericEqualityStep = mathCheckStep('3/4 = 6/8', '0.75 = 0.75')
 assert(
   validNumericEqualityStep.verdict === 'valid',

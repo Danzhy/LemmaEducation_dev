@@ -40,6 +40,7 @@ async function main() {
     'fraction_strip',
     'percent_bar',
     'ratio_table',
+    'unit_conversion',
     'geometry_figure',
   ]
 
@@ -80,6 +81,14 @@ async function main() {
   const invalidIntegerSignStep = await tools.math_check_step.execute(
     { previousStep: '-3 - 5', nextStep: '2' },
     { ctx: {} as never, toolCallId: 'smoke-integer-sign-step-check' }
+  )
+  const validUnitConversionStep = await tools.math_check_step.execute(
+    { previousStep: '2.5 m', nextStep: '250 cm' },
+    { ctx: {} as never, toolCallId: 'smoke-unit-conversion-step-check' }
+  )
+  const invalidUnitConversionStep = await tools.math_check_step.execute(
+    { previousStep: '3 kg', nextStep: '300 g' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-unit-conversion-step-check' }
   )
   const invalidNumericEqualityStep = await tools.math_check_step.execute(
     { previousStep: '3/4 = 6/8', nextStep: '3/4 = 7/8' },
@@ -272,6 +281,17 @@ async function main() {
     !JSON.stringify(invalidIntegerSignStep).includes('integer signs')
   ) {
     throw new Error(`math_check_step did not reject a signed-integer mistake: ${JSON.stringify(invalidIntegerSignStep)}`)
+  }
+
+  if (!JSON.stringify(validUnitConversionStep).includes('"verdict":"valid"')) {
+    throw new Error(`math_check_step did not accept an equivalent unit conversion: ${JSON.stringify(validUnitConversionStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidUnitConversionStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidUnitConversionStep).includes('conversion factor')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid unit conversion: ${JSON.stringify(invalidUnitConversionStep)}`)
   }
 
   if (!JSON.stringify(invalidNumericEqualityStep).includes('"verdict":"invalid"')) {

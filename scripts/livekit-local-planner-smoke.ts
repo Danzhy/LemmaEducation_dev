@@ -60,6 +60,17 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes measurement conversions to unit conversion board setup',
+    prompt: 'Convert 2.5 meters to centimeters.',
+    expectedTools: ['unit_conversion'],
+    inspect: (input) => {
+      assert.equal(input.value, 2.5)
+      assert.equal(input.fromUnit, 'm')
+      assert.equal(input.toUnit, 'cm')
+      assert.equal(input.measurementType, 'length')
+    },
+  },
+  {
     name: 'routes signed integer operations to integer operation scene',
     prompt: 'Can you show -3 + 5 on a number line?',
     expectedTools: ['integer_operation_scene'],
@@ -94,6 +105,15 @@ const cases: PlannerCase[] = [
     inspect: (input) => {
       assert.equal(input.previousStep, '0.4 + 0.08')
       assert.equal(input.nextStep, '0.12')
+    },
+  },
+  {
+    name: 'checks explicit unit conversion step before classifying the mistake',
+    prompt: 'I changed 2.5 m to 25 cm. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '2.5 m')
+      assert.equal(input.nextStep, '25 cm')
     },
   },
   {
@@ -250,6 +270,14 @@ assert.match(
     [{ verdict: 'valid', reason: 'Both equations keep the same solution, x = 4.', hintTarget: 'inverse operations' }]
   ),
   /stays equivalent/i
+)
+assert.match(
+  buildLocalAssistantReply(
+    'convert units',
+    [{ toolName: 'unit_conversion', input: {} }],
+    [{ summary: 'Prepared unit conversion: 2.5 m = 250 cm.' }]
+  ),
+  /unit conversion/
 )
 assert.match(
   buildLocalAssistantReply(
