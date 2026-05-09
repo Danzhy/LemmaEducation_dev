@@ -407,6 +407,7 @@ function hasMathStructure(value: string) {
     /\b(round|rounded|nearest|tenths?|hundredths?|thousandths?|ones?|tens?|hundreds?|thousands?)\b/i.test(value) ||
     /\b(area|perimeter|rectangle|rectangular|triangle|triangular|base|height|altitude)\b/i.test(value) ||
     /\b(angle|degrees?|complementary|complement|supplementary|supplement|linear\s+pair|straight\s+line)\b/i.test(value) ||
+    /\b(probability|chance|outcomes?|favorable|out\s+of)\b/i.test(value) ||
     /\b(intercept|root|zero|x-axis|y-axis)\b/i.test(value) ||
     hasKnownUnitQuantity(value)
   )
@@ -615,6 +616,79 @@ function buildLocalStatisticsSummaryInputFromStepPair(stepPair: StudentStepPair)
     values,
     title: 'Statistics summary',
   }
+}
+
+type LocalProbabilitySetup = {
+  favorable: number
+  total: number
+  useComplement: boolean
+}
+
+function extractLocalProbabilitySetup(text: string): LocalProbabilitySetup | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(probability|chance|outcomes?|favorable|likely|out\s+of)\b/i.test(normalized)) return null
+
+  const outOfMatch = normalized.match(
+    new RegExp(
+      `(${LOCAL_NUMBER_PATTERN})(?:\\s+(?:favorable|successful|desired|winning|possible|total|outcomes?|results?|ways?|items?|marbles?|cubes?|cards?|spins?|rolls?))*\\s+out\\s+of\\s+(${LOCAL_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  const favorableMatch = normalized.match(
+    new RegExp(`\\b(?:favorable|successful|desired|winning)\\s+(?:outcomes?|results?|ways?)?\\s*(?:is|are|=|:)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  const totalMatch = normalized.match(
+    new RegExp(`\\b(?:total|possible|all)\\s+(?:outcomes?|results?|ways?)?\\s*(?:is|are|=|:)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  const favorable = outOfMatch ? parseLocalPlainNumber(outOfMatch[1]) : favorableMatch ? parseLocalPlainNumber(favorableMatch[1]) : null
+  const total = outOfMatch ? parseLocalPlainNumber(outOfMatch[2]) : totalMatch ? parseLocalPlainNumber(totalMatch[1]) : null
+  if (favorable === null || total === null || total <= 0) return null
+
+  return {
+    favorable,
+    total,
+    useComplement: /\b(not|complement|opposite|doesn'?t|without)\b/i.test(normalized),
+  }
+}
+
+function probabilityModelInputFromSetup(setup: LocalProbabilitySetup) {
+  const favorableOutcomes = setup.useComplement ? setup.total - setup.favorable : setup.favorable
+  if (favorableOutcomes < 0 || favorableOutcomes > setup.total) return null
+
+  return {
+    favorableOutcomes,
+    totalOutcomes: setup.total,
+    title: setup.useComplement ? 'Complement probability model' : 'Probability model',
+    label: `${favorableOutcomes} out of ${setup.total}`,
+  }
+}
+
+function extractProbabilityAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const setup = extractLocalProbabilitySetup(normalized)
+  if (!setup) return null
+
+  const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
+  const answerPattern = String.raw`(?:${LOCAL_NUMBER_PATTERN}\s*/\s*${LOCAL_NUMBER_PATTERN}|${LOCAL_NUMBER_PATTERN}\s*(?:%|percent(?:age)?)|${LOCAL_NUMBER_PATTERN}(?:\s+out\s+of\s+${LOCAL_NUMBER_PATTERN})?)`
+  const answerMatch = normalized.match(
+    new RegExp(`\\b(?:and\\s+)?(?:got|gets|equals?|is|was|as|=)\\s+(${answerPattern})${stopBeforeQuestion}`, 'i')
+  )
+  if (!answerMatch) return null
+
+  const descriptor = setup.useComplement ? 'complement probability' : 'probability'
+  return buildStepPair(`${descriptor} of ${setup.favorable} favorable outcomes out of ${setup.total}`, answerMatch[1])
+}
+
+function extractProbabilityModelRequest(text: string) {
+  const setup = extractLocalProbabilitySetup(text)
+  if (!setup) return null
+  return probabilityModelInputFromSetup(setup)
+}
+
+function buildLocalProbabilityModelInputFromStepPair(stepPair: StudentStepPair) {
+  const setup = extractLocalProbabilitySetup(stepPair.previousStep)
+  if (!setup) return null
+  return probabilityModelInputFromSetup(setup)
 }
 
 function extractFunctionExpressionForInterceptAttempt(text: string) {
@@ -1502,6 +1576,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const statisticsAttempt = extractStatisticsAttempt(normalized)
   if (statisticsAttempt) return statisticsAttempt
 
+  const probabilityAttempt = extractProbabilityAttempt(normalized)
+  if (probabilityAttempt) return probabilityAttempt
+
   const tableOfValuesAttempt = extractTableOfValuesAttempt(normalized)
   if (tableOfValuesAttempt) return tableOfValuesAttempt
 
@@ -1575,6 +1652,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const coordinateDistanceRequest = extractCoordinateDistanceRequest(prompt)
   const tableOfValuesRequest = extractTableOfValuesRequest(prompt)
   const statisticsSummaryRequest = extractStatisticsSummaryRequest(prompt)
+  const probabilityModelRequest = extractProbabilityModelRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
   const plans: LocalToolPlan[] = []
   const asksForFullSolution =
@@ -1586,6 +1664,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     /\b(went from|changed from|increased from|decreased from|percent change)\b/.test(lower) ||
     /\b(percent error|actual value|accepted value|measured value|estimate)\b/.test(lower) ||
     /\b(mean|average|median|mode|range)\b.{0,120}\b(is|was|equals?|got)\b/.test(lower) ||
+    /\b(probability|chance)\b.{0,140}\b(is|was|equals?|got|as)\b/.test(lower) ||
     prompt.includes('=')
   const asksForCurriculumContext =
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
@@ -1812,6 +1891,13 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
           input: statisticsSummaryInput,
         })
       }
+      const probabilityModelInput = buildLocalProbabilityModelInputFromStepPair(studentStepPair)
+      if (probabilityModelInput) {
+        plans.push({
+          toolName: 'probability_model',
+          input: probabilityModelInput,
+        })
+      }
     }
     plans.push({
       toolName: 'mistake_pattern_classifier',
@@ -1876,6 +1962,14 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     plans.push({
       toolName: 'statistics_summary',
       input: statisticsSummaryRequest,
+    })
+    return plans
+  }
+
+  if (probabilityModelRequest) {
+    plans.push({
+      toolName: 'probability_model',
+      input: probabilityModelRequest,
     })
     return plans
   }
@@ -2297,6 +2391,7 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     const hasAngleDiagram = plans.some((plan) => plan.toolName === 'angle_diagram')
     const hasTableOfValues = plans.some((plan) => plan.toolName === 'table_of_values')
     const hasStatisticsSummary = plans.some((plan) => plan.toolName === 'statistics_summary')
+    const hasProbabilityModel = plans.some((plan) => plan.toolName === 'probability_model')
     const boardCue = hasPlaceValueChart
       ? ' I also highlighted the place-value chart so the target column is visible.'
       : hasCompositeAreaModel
@@ -2309,7 +2404,9 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
               ? ' I also put the value table on the board.'
               : hasStatisticsSummary
                 ? ' I also put the data summary on the board.'
-                : ''
+                : hasProbabilityModel
+                  ? ' I also put the probability model on the board.'
+                  : ''
     if (checkedStep?.verdict === 'valid') {
       return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
     }
@@ -2385,6 +2482,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'statistics_summary') {
     return 'I put the data summary on the board. Start by checking the ordered data, then tell me which statistic you need.'
+  }
+
+  if (firstTool === 'probability_model') {
+    return 'I put the probability model on the board. Start with favorable outcomes over total outcomes, then tell me what the denominator represents.'
   }
 
   if (firstTool === 'angle_diagram') {

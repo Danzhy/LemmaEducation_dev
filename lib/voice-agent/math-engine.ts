@@ -855,6 +855,163 @@ function checkStatisticsSummaryStep(previousStep: string, nextStep: string): Mat
   }
 }
 
+type ProbabilitySetup = {
+  favorable: number
+  total: number
+  useComplement: boolean
+}
+
+type ProbabilityAnswer = {
+  value: number
+  label: string
+  numerator?: number
+  denominator?: number
+}
+
+function extractProbabilitySetup(text: string): ProbabilitySetup | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(probability|chance|outcomes?|favorable|likely|out\s+of)\b/i.test(normalized)) return null
+
+  const outOfMatch = normalized.match(
+    new RegExp(
+      `(${PLAIN_NUMBER_PATTERN})(?:\\s+(?:favorable|successful|desired|winning|possible|total|outcomes?|results?|ways?|items?|marbles?|cubes?|cards?|spins?|rolls?))*\\s+out\\s+of\\s+(${PLAIN_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  const favorableMatch = normalized.match(
+    new RegExp(`\\b(?:favorable|successful|desired|winning)\\s+(?:outcomes?|results?|ways?)?\\s*(?:is|are|=|:)?\\s*(${PLAIN_NUMBER_PATTERN})`, 'i')
+  )
+  const totalMatch = normalized.match(
+    new RegExp(`\\b(?:total|possible|all)\\s+(?:outcomes?|results?|ways?)?\\s*(?:is|are|=|:)?\\s*(${PLAIN_NUMBER_PATTERN})`, 'i')
+  )
+
+  const favorable = outOfMatch ? parsePlainNumber(outOfMatch[1]) : favorableMatch ? parsePlainNumber(favorableMatch[1]) : null
+  const total = outOfMatch ? parsePlainNumber(outOfMatch[2]) : totalMatch ? parsePlainNumber(totalMatch[1]) : null
+  if (favorable === null || total === null) return null
+
+  return {
+    favorable,
+    total,
+    useComplement: /\b(not|complement|opposite|doesn'?t|without)\b/i.test(normalized),
+  }
+}
+
+function parseProbabilityAnswer(text: string): ProbabilityAnswer | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const outOfMatch = normalized.match(new RegExp(`(${PLAIN_NUMBER_PATTERN})\\s+out\\s+of\\s+(${PLAIN_NUMBER_PATTERN})`, 'i'))
+  if (outOfMatch) {
+    const numerator = parsePlainNumber(outOfMatch[1])
+    const denominator = parsePlainNumber(outOfMatch[2])
+    if (numerator !== null && denominator !== null && !isNearlyEqual(denominator, 0)) {
+      return {
+        value: numerator / denominator,
+        label: `${formatNumber(numerator, 4)}/${formatNumber(denominator, 4)}`,
+        numerator,
+        denominator,
+      }
+    }
+  }
+
+  const fractionMatch = normalized.match(new RegExp(`(${PLAIN_NUMBER_PATTERN})\\s*\\/\\s*(${PLAIN_NUMBER_PATTERN})`, 'i'))
+  if (fractionMatch) {
+    const numerator = parsePlainNumber(fractionMatch[1])
+    const denominator = parsePlainNumber(fractionMatch[2])
+    if (numerator !== null && denominator !== null && !isNearlyEqual(denominator, 0)) {
+      return {
+        value: numerator / denominator,
+        label: `${formatNumber(numerator, 4)}/${formatNumber(denominator, 4)}`,
+        numerator,
+        denominator,
+      }
+    }
+  }
+
+  const percentMatch = normalized.match(new RegExp(`(${PLAIN_NUMBER_PATTERN})\\s*(?:%|percent(?:age)?)`, 'i'))
+  if (percentMatch) {
+    const percent = parsePlainNumber(percentMatch[1])
+    if (percent !== null) {
+      return {
+        value: percent / 100,
+        label: formatPercent(percent),
+      }
+    }
+  }
+
+  const value = parseLastPlainNumber(normalized)
+  return value === null ? null : { value, label: formatNumber(value, 4) }
+}
+
+function formatProbabilityFraction(numerator: number, denominator: number) {
+  return `${formatNumber(numerator, 4)}/${formatNumber(denominator, 4)}`
+}
+
+function checkProbabilityModelStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const setup = extractProbabilitySetup(previousStep)
+  const studentAnswer = parseProbabilityAnswer(nextStep)
+  if (!setup || !studentAnswer) return null
+
+  if (setup.total <= 0) {
+    return {
+      verdict: 'unclear',
+      reason: 'A probability model needs a positive total number of possible outcomes.',
+      hintTarget: 'identify the total possible outcomes before writing the probability',
+    }
+  }
+
+  if (setup.favorable < 0 || setup.favorable > setup.total) {
+    return {
+      verdict: 'unclear',
+      reason: `The favorable outcomes should be between 0 and the total ${formatNumber(setup.total, 4)} outcomes.`,
+      hintTarget: 'check the favorable and total outcome counts',
+    }
+  }
+
+  const expectedFavorable = setup.useComplement ? setup.total - setup.favorable : setup.favorable
+  const expectedProbability = expectedFavorable / setup.total
+  const answerMatches = isNearlyEqual(expectedProbability, studentAnswer.value, 0.005)
+  const expectedFraction = formatProbabilityFraction(expectedFavorable, setup.total)
+  const baseReason = setup.useComplement
+    ? `For the complement, use total minus favorable outcomes: ${formatNumber(setup.total, 4)} - ${formatNumber(
+        setup.favorable,
+        4
+      )} = ${formatNumber(expectedFavorable, 4)}. The probability is ${expectedFraction}, or ${formatPercent(
+        expectedProbability * 100
+      )}.`
+    : `Probability uses favorable outcomes over total outcomes: ${formatNumber(setup.favorable, 4)} out of ${formatNumber(
+        setup.total,
+        4
+      )} is ${expectedFraction}, or ${formatPercent(expectedProbability * 100)}.`
+
+  if (answerMatches) {
+    return {
+      verdict: 'valid',
+      reason: baseReason,
+      hintTarget: setup.useComplement
+        ? 'explain why the complement uses the outcomes that are not favorable'
+        : 'explain favorable outcomes over total outcomes',
+    }
+  }
+
+  const denominatorMistake =
+    typeof studentAnswer.denominator === 'number' && !isNearlyEqual(studentAnswer.denominator, setup.total, 0.01)
+  const complementMistake =
+    setup.useComplement &&
+    typeof studentAnswer.numerator === 'number' &&
+    isNearlyEqual(studentAnswer.numerator, setup.favorable, 0.01) &&
+    typeof studentAnswer.denominator === 'number' &&
+    isNearlyEqual(studentAnswer.denominator, setup.total, 0.01)
+
+  return {
+    verdict: 'invalid',
+    reason: `${baseReason} The student answer is ${studentAnswer.label}.`,
+    hintTarget: complementMistake
+      ? 'subtract favorable outcomes from the total for the complement'
+      : denominatorMistake
+        ? 'use total outcomes as the denominator'
+        : 'put favorable outcomes over total outcomes',
+  }
+}
+
 function parseLastPlainNumber(text: string) {
   const numbers = extractPlainNumbers(text)
   return numbers.length > 0 ? numbers[numbers.length - 1] : null
@@ -1958,6 +2115,7 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasTableOfValuesWork:
       /\b(table|values?|rows?|ordered\s+pairs?)\b/i.test(combined) &&
       /\by\s*=/.test(combined),
+    hasProbabilityWork: Boolean(extractProbabilitySetup(combined)),
     hasGraphInterceptWork:
       /\b(intercept|root|zero|x-axis|y-axis)\b/i.test(combined) &&
       /\by\s*=/.test(combined),
@@ -2019,6 +2177,9 @@ function hasOrderOfOperationsFocus(features: ReturnType<typeof detectStepFeature
 function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures>) {
   if (features.hasTableOfValuesWork) {
     return 'substitute each x-value before filling the table row'
+  }
+  if (features.hasProbabilityWork) {
+    return 'put favorable outcomes over total outcomes'
   }
   if (features.hasGraphInterceptWork) {
     return 'use the axis condition for the requested intercept'
@@ -3802,6 +3963,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const statisticsSummaryStep = checkStatisticsSummaryStep(previousStep, nextStep)
   if (statisticsSummaryStep) {
     return statisticsSummaryStep
+  }
+
+  const probabilityModelStep = checkProbabilityModelStep(previousStep, nextStep)
+  if (probabilityModelStep) {
+    return probabilityModelStep
   }
 
   const coordinatePointStep = checkCoordinatePointStep(previousStep, nextStep)

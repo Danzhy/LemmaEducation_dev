@@ -51,6 +51,16 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes probability requests to a probability board model',
+    prompt: 'Show the probability of 3 favorable outcomes out of 8.',
+    expectedTools: ['probability_model'],
+    inspect: (input) => {
+      assert.equal(input.favorableOutcomes, 3)
+      assert.equal(input.totalOutcomes, 8)
+      assert.equal(input.title, 'Probability model')
+    },
+  },
+  {
     name: 'routes staged explanation to animation and sequence planning',
     prompt: 'Write while explaining how to simplify fractions step by step',
     expectedTools: ['board_animation_plan', 'tutor_teaching_sequence'],
@@ -345,6 +355,18 @@ const cases: PlannerCase[] = [
       assert.equal(input.nextStep, '5')
       assert.equal(plans[1].toolName, 'statistics_summary')
       assert.deepEqual(plans[1].input.values, [4, 7, 3, 7, 9])
+    },
+  },
+  {
+    name: 'checks probability claims before classifying the mistake',
+    prompt: 'The probability of 3 favorable outcomes out of 8 is 3/5. Is that right?',
+    expectedTools: ['math_check_step', 'probability_model', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'probability of 3 favorable outcomes out of 8')
+      assert.equal(input.nextStep, '3/5')
+      assert.equal(plans[1].toolName, 'probability_model')
+      assert.equal(plans[1].input.favorableOutcomes, 3)
+      assert.equal(plans[1].input.totalOutcomes, 8)
     },
   },
   {

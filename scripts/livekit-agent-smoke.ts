@@ -38,6 +38,7 @@ async function main() {
     'worked_example_fader',
     'graph_function',
     'statistics_summary',
+    'probability_model',
     'table_of_values',
     'coordinate_distance',
     'slope_triangle',
@@ -284,9 +285,21 @@ async function main() {
     { previousStep: 'range of 4, 7, 3, 7, 9', nextStep: '6' },
     { ctx: {} as never, toolCallId: 'smoke-range-step-check' }
   )
+  const validProbabilityStep = await tools.math_check_step.execute(
+    { previousStep: 'probability of 3 favorable outcomes out of 8', nextStep: '3/8' },
+    { ctx: {} as never, toolCallId: 'smoke-probability-step-check' }
+  )
+  const invalidComplementProbabilityStep = await tools.math_check_step.execute(
+    { previousStep: 'complement probability of 3 favorable outcomes out of 8', nextStep: '3/8' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-probability-complement-step-check' }
+  )
   const statisticsSummaryResult = await tools.statistics_summary.execute(
     { values: [4, 7, 3, 7, 9], title: 'Statistics summary' },
     { ctx: {} as never, toolCallId: 'smoke-statistics-summary' }
+  )
+  const probabilityModelResult = await tools.probability_model.execute(
+    { favorableOutcomes: 3, totalOutcomes: 8, title: 'Probability model' },
+    { ctx: {} as never, toolCallId: 'smoke-probability-model' }
   )
   const invalidNumericEqualityStep = await tools.math_check_step.execute(
     { previousStep: '3/4 = 6/8', nextStep: '3/4 = 7/8' },
@@ -831,8 +844,28 @@ async function main() {
     throw new Error(`math_check_step did not accept a valid range claim: ${JSON.stringify(validRangeStep)}`)
   }
 
+  if (
+    !JSON.stringify(validProbabilityStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validProbabilityStep).includes('favorable outcomes over total outcomes')
+  ) {
+    throw new Error(`math_check_step did not accept a valid probability claim: ${JSON.stringify(validProbabilityStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidComplementProbabilityStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidComplementProbabilityStep).includes('complement')
+  ) {
+    throw new Error(
+      `math_check_step did not reject a probability complement mistake: ${JSON.stringify(invalidComplementProbabilityStep)}`
+    )
+  }
+
   if (!JSON.stringify(statisticsSummaryResult).includes('mean 6') || !JSON.stringify(statisticsSummaryResult).includes('Median')) {
     throw new Error('statistics_summary did not return a data summary board model.')
+  }
+
+  if (!JSON.stringify(probabilityModelResult).includes('3/8') || !JSON.stringify(probabilityModelResult).includes('canvas')) {
+    throw new Error('probability_model did not return a probability board model.')
   }
 
   if (!JSON.stringify(invalidNumericEqualityStep).includes('"verdict":"invalid"')) {

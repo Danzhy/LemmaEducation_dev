@@ -662,6 +662,20 @@ assert(
   'math_check_step should validate range claims.'
 )
 
+const validProbabilityStep = mathCheckStep('probability of 3 favorable outcomes out of 8', '3/8')
+assert(
+  validProbabilityStep.verdict === 'valid' &&
+    validProbabilityStep.hintTarget.includes('favorable outcomes over total outcomes'),
+  'math_check_step should validate simple probability claims.'
+)
+
+const invalidComplementProbabilityStep = mathCheckStep('complement probability of 3 favorable outcomes out of 8', '3/8')
+assert(
+  invalidComplementProbabilityStep.verdict === 'invalid' &&
+    invalidComplementProbabilityStep.hintTarget.includes('complement'),
+  'math_check_step should catch probability complement mistakes.'
+)
+
 const validNumericEqualityStep = mathCheckStep('3/4 = 6/8', '0.75 = 0.75')
 assert(
   validNumericEqualityStep.verdict === 'valid',
