@@ -475,6 +475,14 @@ async function main() {
     { previousStep: 'line plot data: Monday 4, Tuesday 7, Wednesday 5; value for Tuesday', nextStep: '8' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-line-plot-value-step-check' }
   )
+  const validBarChartTotalStep = await tools.math_check_step.execute(
+    { previousStep: 'bar chart data: apples 4, bananas 7, grapes 5; total for apples and grapes', nextStep: '9' },
+    { ctx: {} as never, toolCallId: 'smoke-bar-chart-total-step-check' }
+  )
+  const invalidLinePlotComparisonStep = await tools.math_check_step.execute(
+    { previousStep: 'line plot data: Monday 4, Tuesday 7, Wednesday 5; how many more Tuesday than Monday', nextStep: '2' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-line-plot-comparison-step-check' }
+  )
   const validProbabilityStep = await tools.math_check_step.execute(
     { previousStep: 'probability of 3 favorable outcomes out of 8', nextStep: '3/8' },
     { ctx: {} as never, toolCallId: 'smoke-probability-step-check' }
@@ -1258,6 +1266,20 @@ async function main() {
     !JSON.stringify(invalidLinePlotValueStep).includes('plotted point')
   ) {
     throw new Error(`math_check_step did not reject a line-plot value mistake: ${JSON.stringify(invalidLinePlotValueStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validBarChartTotalStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validBarChartTotalStep).includes('adding the labeled chart values')
+  ) {
+    throw new Error(`math_check_step did not accept a bar-chart total claim: ${JSON.stringify(validBarChartTotalStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidLinePlotComparisonStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidLinePlotComparisonStep).includes('subtract')
+  ) {
+    throw new Error(`math_check_step did not reject a chart comparison mistake: ${JSON.stringify(invalidLinePlotComparisonStep)}`)
   }
 
   if (

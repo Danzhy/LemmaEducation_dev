@@ -964,7 +964,9 @@ function cleanDataDisplayLabel(label: string) {
 
 function parseLabeledDataItems(text: string): LabeledDataItem[] {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
-  const beforeClaim = normalized.split(/\b(?:value|amount|count|number)\s+(?:for|of|at)\b/i)[0]
+  const beforeClaim = normalized.split(
+    /\b(?:(?:value|amount|count|number)\s+(?:for|of|at)|how\s+many\s+(?:more|fewer|less)|difference\s+between|total\s+(?:for|of)?|sum\s+(?:for|of)?|altogether|in\s+all|combined)\b/i
+  )[0]
   const afterChartLabel =
     beforeClaim.match(
       /\b(?:bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|data|chart|values?)\s*(?:are|is|shows?|:)?\s*([\s\S]{0,320})/i
@@ -1023,6 +1025,99 @@ function findLabeledDataItem(items: LabeledDataItem[], targetLabel: string) {
   )
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function findMentionedDataItems(items: LabeledDataItem[], phrase: string) {
+  const normalized = cleanDataDisplayLabel(phrase)
+  return items.filter((item) => {
+    const pattern = new RegExp(`\\b${escapeRegExp(item.label).replace(/\s+/g, '\\s+')}\\b`, 'i')
+    return pattern.test(normalized)
+  })
+}
+
+function extractDataDisplayPair(items: LabeledDataItem[], firstPhrase: string, secondPhrase: string) {
+  const first =
+    findLabeledDataItem(items, cleanDataDisplayLabel(firstPhrase)) ??
+    findMentionedDataItems(items, firstPhrase)[0] ??
+    null
+  const second =
+    findLabeledDataItem(items, cleanDataDisplayLabel(secondPhrase)) ??
+    findMentionedDataItems(items, secondPhrase)[0] ??
+    null
+
+  return first && second && first.label !== second.label ? { first, second } : null
+}
+
+type DataDisplayComputation =
+  | {
+      kind: 'difference'
+      first: LabeledDataItem
+      second: LabeledDataItem
+    }
+  | {
+      kind: 'total'
+      items: LabeledDataItem[]
+    }
+
+function extractDataDisplayComputation(items: LabeledDataItem[], text: string): DataDisplayComputation | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const pairPatterns = [
+    /\b(?:how\s+many\s+)?(?:more|fewer|less)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:than|compared\s+to)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
+    /\bdifference\s+(?:between|of|for)?\s*([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:and|vs\.?|versus|to)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
+  ]
+
+  for (const pattern of pairPatterns) {
+    const match = normalized.match(pattern)
+    const pair = match ? extractDataDisplayPair(items, match[1], match[2]) : null
+    if (pair) {
+      return {
+        kind: 'difference',
+        ...pair,
+      }
+    }
+  }
+
+  const totalPatterns = [
+    /\b(?:total|sum|altogether|in\s+all|combined)\s*(?:for|of|from)?\s*([A-Za-z0-9' ,+-]{0,140}?)(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;]|$)/i,
+    /\b([A-Za-z0-9' ,+-]{1,140}?)\s+(?:total|sum|altogether|in\s+all|combined)\b/i,
+  ]
+
+  for (const pattern of totalPatterns) {
+    const match = normalized.match(pattern)
+    if (!match) continue
+    const scope = match[1] ?? ''
+    const mentioned = findMentionedDataItems(items, scope)
+    const useAllItems = mentioned.length === 0 && /\b(all|whole|entire|chart|values?|categories|everything)\b/i.test(scope)
+    const totalItems = useAllItems ? items : mentioned
+    if (totalItems.length >= 1) {
+      return {
+        kind: 'total',
+        items: totalItems,
+      }
+    }
+  }
+
+  if (/\b(total|sum|altogether|in\s+all|combined)\b/i.test(normalized) && items.length >= 2) {
+    return {
+      kind: 'total',
+      items,
+    }
+  }
+
+  return null
+}
+
+function formatDataDisplayLabels(items: LabeledDataItem[]) {
+  if (items.length === 1) return items[0].displayLabel
+  if (items.length === 2) return `${items[0].displayLabel} and ${items[1].displayLabel}`
+  return `${items
+    .slice(0, -1)
+    .map((item) => item.displayLabel)
+    .join(', ')}, and ${items[items.length - 1].displayLabel}`
+}
+
 function checkDataDisplayValueStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
   const combined = `${previousStep} ${nextStep}`
   if (!/\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|chart)\b/i.test(combined)) {
@@ -1032,6 +1127,38 @@ function checkDataDisplayValueStep(previousStep: string, nextStep: string): Math
   const items = parseLabeledDataItems(previousStep)
   if (items.length < 1) return null
 
+  const computation = extractDataDisplayComputation(items, combined)
+  const studentComputationValue = parseLastPlainNumber(nextStep)
+  const chartKind = /\bline\s+(?:plot|graph)\b/i.test(combined) ? 'line plot' : 'bar chart'
+
+  if (computation && studentComputationValue !== null) {
+    if (computation.kind === 'difference') {
+      const expectedDifference = Math.abs(computation.first.value - computation.second.value)
+      const differenceMatches = isNearlyEqual(expectedDifference, studentComputationValue, 0.01)
+      return {
+        verdict: differenceMatches ? 'valid' : 'invalid',
+        reason: differenceMatches
+          ? `In the ${chartKind}, ${computation.first.displayLabel} and ${computation.second.displayLabel} differ by ${formatNumber(expectedDifference, 4)}.`
+          : `In the ${chartKind}, ${computation.first.displayLabel} and ${computation.second.displayLabel} differ by ${formatNumber(expectedDifference, 4)}, not ${formatNumber(studentComputationValue, 4)}.`,
+        hintTarget: differenceMatches
+          ? 'explain how subtracting the two chart values gives the comparison'
+          : 'subtract the smaller chart value from the larger chart value',
+      }
+    }
+
+    const expectedTotal = computation.items.reduce((sum, item) => sum + item.value, 0)
+    const totalMatches = isNearlyEqual(expectedTotal, studentComputationValue, 0.01)
+    return {
+      verdict: totalMatches ? 'valid' : 'invalid',
+      reason: totalMatches
+        ? `In the ${chartKind}, ${formatDataDisplayLabels(computation.items)} total ${formatNumber(expectedTotal, 4)}.`
+        : `In the ${chartKind}, ${formatDataDisplayLabels(computation.items)} total ${formatNumber(expectedTotal, 4)}, not ${formatNumber(studentComputationValue, 4)}.`,
+      hintTarget: totalMatches
+        ? 'explain how adding the labeled chart values gives the total'
+        : 'add the labeled chart values instead of reading only one bar or point',
+    }
+  }
+
   const targetLabel = extractDataDisplayTargetLabel(previousStep) ?? extractDataDisplayTargetLabel(combined)
   if (!targetLabel) return null
 
@@ -1040,7 +1167,6 @@ function checkDataDisplayValueStep(previousStep: string, nextStep: string): Math
   if (!item || studentValue === null) return null
 
   const valueMatches = isNearlyEqual(item.value, studentValue, 0.01)
-  const chartKind = /\bline\s+(?:plot|graph)\b/i.test(combined) ? 'line plot' : 'bar chart'
 
   return {
     verdict: valueMatches ? 'valid' : 'invalid',

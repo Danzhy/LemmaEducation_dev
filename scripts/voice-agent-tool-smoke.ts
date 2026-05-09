@@ -797,6 +797,26 @@ assert(
   'math_check_step should catch line-plot value reading mistakes.'
 )
 
+const validBarChartTotalStep = mathCheckStep(
+  'bar chart data: apples 4, bananas 7, grapes 5; total for apples and grapes',
+  '9'
+)
+assert(
+  validBarChartTotalStep.verdict === 'valid' &&
+    validBarChartTotalStep.hintTarget.includes('adding the labeled chart values'),
+  'math_check_step should validate bar-chart total claims.'
+)
+
+const invalidLinePlotComparisonStep = mathCheckStep(
+  'line plot data: Monday 4, Tuesday 7, Wednesday 5; how many more Tuesday than Monday',
+  '2'
+)
+assert(
+  invalidLinePlotComparisonStep.verdict === 'invalid' &&
+    invalidLinePlotComparisonStep.hintTarget.includes('subtract'),
+  'math_check_step should catch chart comparison mistakes.'
+)
+
 const validProbabilityStep = mathCheckStep('probability of 3 favorable outcomes out of 8', '3/8')
 assert(
   validProbabilityStep.verdict === 'valid' &&

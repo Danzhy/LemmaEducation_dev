@@ -876,6 +876,32 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks data-display comparison claims before classifying the mistake',
+    prompt: 'The bar chart has apples 4, bananas 7, and grapes 5. How many more bananas than apples? I got 2. Is that right?',
+    expectedTools: ['math_check_step', 'data_display', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'bar chart data: apples 4, bananas 7, grapes 5; difference between bananas and apples')
+      assert.equal(input.nextStep, '2')
+      assert.equal(plans[1].toolName, 'data_display')
+      assert.deepEqual(plans[1].input.data, [
+        { label: 'Apples', value: 4 },
+        { label: 'Bananas', value: 7 },
+        { label: 'Grapes', value: 5 },
+      ])
+    },
+  },
+  {
+    name: 'checks data-display total claims before classifying the mistake',
+    prompt: 'The line plot has Monday 4, Tuesday 7, and Wednesday 5. The total for Monday and Wednesday is 10. Is that right?',
+    expectedTools: ['math_check_step', 'data_display', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'line plot data: monday 4, tuesday 7, wednesday 5; total for monday and wednesday')
+      assert.equal(input.nextStep, '10')
+      assert.equal(plans[1].toolName, 'data_display')
+      assert.equal(plans[1].input.displayType, 'line_plot')
+    },
+  },
+  {
     name: 'checks statistics claims before classifying the mistake',
     prompt: 'The mean of 4, 7, 3, 7, 9 is 5. Is that right?',
     expectedTools: ['math_check_step', 'statistics_summary', 'mistake_pattern_classifier'],

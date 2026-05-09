@@ -1268,7 +1268,9 @@ function formatLocalDataItems(items: LocalLabeledDataItem[]) {
 
 function parseLocalLabeledDataItems(text: string): LocalLabeledDataItem[] {
   const normalized = normalizeLocalPromptText(text)
-  const beforeClaim = normalized.split(/\b(?:value|amount|count|number)\s+(?:for|of|at)\b/i)[0]
+  const beforeClaim = normalized.split(
+    /\b(?:(?:value|amount|count|number)\s+(?:for|of|at)|how\s+many\s+(?:more|fewer|less)|difference\s+between|total\s+(?:for|of)?|sum\s+(?:for|of)?|altogether|in\s+all|combined)\b/i
+  )[0]
   const afterChartLabel =
     beforeClaim.match(
       /\b(?:bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|data|chart|values?)\s*(?:are|is|has|had|shows?|:)?\s*([\s\S]{0,320})/i
@@ -1302,6 +1304,87 @@ function parseLocalLabeledDataItems(text: string): LocalLabeledDataItem[] {
   return [...items.values()]
 }
 
+function escapeLocalRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function findLocalDataItem(items: LocalLabeledDataItem[], label: string) {
+  const cleaned = cleanLocalDataLabel(label)
+  return (
+    items.find((item) => item.label === cleaned) ??
+    items.find((item) => item.label.endsWith(` ${cleaned}`) || cleaned.endsWith(` ${item.label}`)) ??
+    null
+  )
+}
+
+function findMentionedLocalDataItems(items: LocalLabeledDataItem[], phrase: string) {
+  const normalized = cleanLocalDataLabel(phrase)
+  return items.filter((item) => {
+    const pattern = new RegExp(`\\b${escapeLocalRegExp(item.label).replace(/\s+/g, '\\s+')}\\b`, 'i')
+    return pattern.test(normalized)
+  })
+}
+
+function extractLocalDataPair(items: LocalLabeledDataItem[], firstPhrase: string, secondPhrase: string) {
+  const first = findLocalDataItem(items, firstPhrase) ?? findMentionedLocalDataItems(items, firstPhrase)[0] ?? null
+  const second = findLocalDataItem(items, secondPhrase) ?? findMentionedLocalDataItems(items, secondPhrase)[0] ?? null
+
+  return first && second && first.label !== second.label ? { first, second } : null
+}
+
+function extractLocalDataDisplayComputation(
+  text: string,
+  items: LocalLabeledDataItem[]
+): { canonical: string; endIndex: number } | null {
+  const normalized = normalizeLocalPromptText(text)
+  const pairPatterns = [
+    /\b(?:how\s+many\s+)?(?:more|fewer|less)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:than|compared\s+to)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
+    /\bdifference\s+(?:between|of|for)?\s*([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:and|vs\.?|versus|to)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
+  ]
+
+  for (const pattern of pairPatterns) {
+    const match = normalized.match(pattern)
+    const pair = match ? extractLocalDataPair(items, match[1], match[2]) : null
+    if (match && typeof match.index === 'number' && pair) {
+      return {
+        canonical: `difference between ${pair.first.label} and ${pair.second.label}`,
+        endIndex: match.index + match[0].length,
+      }
+    }
+  }
+
+  const totalPatterns = [
+    /\b(?:total|sum|altogether|in\s+all|combined)\s*(?:for|of|from)?\s*([A-Za-z0-9' ,+-]{0,140}?)(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;]|$)/i,
+    /\b([A-Za-z0-9' ,+-]{1,140}?)\s+(?:total|sum|altogether|in\s+all|combined)\b/i,
+  ]
+
+  for (const pattern of totalPatterns) {
+    const match = normalized.match(pattern)
+    if (!match || typeof match.index !== 'number') continue
+
+    const scope = match[1] ?? ''
+    const mentioned = findMentionedLocalDataItems(items, scope)
+    const useAllItems = mentioned.length === 0 && /\b(all|whole|entire|chart|values?|categories|everything)\b/i.test(scope)
+    const totalItems = useAllItems ? items : mentioned
+    if (totalItems.length >= 1) {
+      return {
+        canonical: `total for ${totalItems.map((item) => item.label).join(' and ')}`,
+        endIndex: match.index + match[0].length,
+      }
+    }
+  }
+
+  const totalMatch = normalized.match(/\b(total|sum|altogether|in\s+all|combined)\b/i)
+  if (totalMatch && typeof totalMatch.index === 'number' && items.length >= 2) {
+    return {
+      canonical: `total for ${items.map((item) => item.label).join(' and ')}`,
+      endIndex: totalMatch.index + totalMatch[0].length,
+    }
+  }
+
+  return null
+}
+
 function extractLocalDataDisplayTarget(text: string): { label: string; endIndex: number } | null {
   const normalized = normalizeLocalPromptText(text)
   const targetPatterns = [
@@ -1326,6 +1409,21 @@ function extractLocalDataDisplayAttempt(text: string): StudentStepPair | null {
   }
 
   const data = parseLocalLabeledDataItems(normalized).slice(0, 8)
+  const chartKind = /\bline\s+(?:plot|graph)\b/i.test(normalized) ? 'line plot' : 'bar chart'
+  const computation = extractLocalDataDisplayComputation(normalized, data)
+  if (data.length >= 1 && computation) {
+    const answerSegment = normalized.slice(computation.endIndex)
+    const answerMatch = answerSegment.match(
+      new RegExp(`(?:\\b(?:is|was|equals?|=|got|should\\s+be|i\\s+got)\\s*)?(${LOCAL_NUMBER_PATTERN})`, 'i')
+    )
+    if (answerMatch) {
+      return buildStepPair(
+        `${chartKind} data: ${formatLocalDataItems(data)}; ${computation.canonical}`,
+        answerMatch[1]
+      )
+    }
+  }
+
   const target = extractLocalDataDisplayTarget(normalized)
   if (data.length < 1 || !target) return null
 
@@ -1335,7 +1433,6 @@ function extractLocalDataDisplayAttempt(text: string): StudentStepPair | null {
   )
   if (!answerMatch) return null
 
-  const chartKind = /\bline\s+(?:plot|graph)\b/i.test(normalized) ? 'line plot' : 'bar chart'
   return buildStepPair(
     `${chartKind} data: ${formatLocalDataItems(data)}; value for ${target.label}`,
     answerMatch[1]
@@ -3083,6 +3180,7 @@ export function planLocalToolTurn(
     /\b(percent error|actual value|accepted value|measured value|estimate)\b/.test(lower) ||
     /\b(mean|average|median|mode|range)\b.{0,120}\b(is|was|equals?|got)\b/.test(lower) ||
     /\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display)\b.{0,180}\b(value|amount|count|number)\b.{0,80}\b(is|was|equals?|got)\b/.test(lower) ||
+    /\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display)\b.{0,220}\b(more|fewer|less|difference|total|sum|altogether|in\s+all|combined)\b.{0,80}\b(is|was|equals?|got)\b/.test(lower) ||
     /\b(probability|chance)\b.{0,140}\b(is|was|equals?|got|as)\b/.test(lower)
   const hasStudentAttempt = hasExplicitStudentAttempt || Boolean(studentStepPair)
   const asksForCurriculumContext =
