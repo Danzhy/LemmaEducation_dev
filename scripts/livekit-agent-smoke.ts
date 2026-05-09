@@ -350,6 +350,14 @@ async function main() {
     { previousStep: '3 notebooks cost 6 dollars; target 20 notebooks', nextStep: '$54' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-unit-rate-scaling-step-check' }
   )
+  const validRatioTableScalingStep = await tools.math_check_step.execute(
+    { previousStep: 'ratio table 3 red to 5 blue; target 12 red', nextStep: '20 blue' },
+    { ctx: {} as never, toolCallId: 'smoke-ratio-table-scaling-step-check' }
+  )
+  const invalidRatioTableScalingStep = await tools.math_check_step.execute(
+    { previousStep: 'ratio table 3 red to 5 blue; target 12 red', nextStep: '18 blue' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-ratio-table-scaling-step-check' }
+  )
   const invalidIntegerSignStep = await tools.math_check_step.execute(
     { previousStep: '-3 - 5', nextStep: '2' },
     { ctx: {} as never, toolCallId: 'smoke-integer-sign-step-check' }
@@ -1116,6 +1124,20 @@ async function main() {
     !JSON.stringify(invalidUnitRateScalingStep).includes('target quantity')
   ) {
     throw new Error(`math_check_step did not reject an invalid unit-rate scaling claim: ${JSON.stringify(invalidUnitRateScalingStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validRatioTableScalingStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validRatioTableScalingStep).includes('target scaling')
+  ) {
+    throw new Error(`math_check_step did not accept a valid ratio-table scaling claim: ${JSON.stringify(validRatioTableScalingStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidRatioTableScalingStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidRatioTableScalingStep).includes('target quantity')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid ratio-table scaling claim: ${JSON.stringify(invalidRatioTableScalingStep)}`)
   }
 
   if (

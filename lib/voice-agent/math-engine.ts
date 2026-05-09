@@ -1899,6 +1899,21 @@ function extractUnitRatePair(text: string): UnitRatePair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const labelPattern = String.raw`[A-Za-z$][A-Za-z$-]*`
 
+  const ratioTableMatch = normalized.match(
+    new RegExp(
+      String.raw`\b(?:ratio(?:\s+table)?\s*(?:has|shows|is|:)?\s*)?(?:for\s+every\s+)?(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\s+(?:to|for\s+every)\s+(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\b`,
+      'i'
+    )
+  )
+  if (ratioTableMatch && /\b(?:ratio|table|target|for\s+every)\b/i.test(normalized)) {
+    return buildUnitRatePair(
+      parsePlainNumber(ratioTableMatch[1]),
+      ratioTableMatch[2],
+      parsePlainNumber(ratioTableMatch[3]),
+      ratioTableMatch[4]
+    )
+  }
+
   const speedMatch = normalized.match(
     new RegExp(
       String.raw`\b(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\s+(?:in|over|for)\s+(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\b`,

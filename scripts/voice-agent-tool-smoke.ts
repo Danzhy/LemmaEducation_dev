@@ -467,6 +467,20 @@ assert(
   'math_check_step should catch unit-rate target scaling mistakes.'
 )
 
+const validRatioTableScalingStep = mathCheckStep('ratio table 3 red to 5 blue; target 12 red', '20 blue')
+assert(
+  validRatioTableScalingStep.verdict === 'valid' &&
+    validRatioTableScalingStep.hintTarget.includes('target scaling'),
+  'math_check_step should validate ratio-table target scaling.'
+)
+
+const invalidRatioTableScalingStep = mathCheckStep('ratio table 3 red to 5 blue; target 12 red', '18 blue')
+assert(
+  invalidRatioTableScalingStep.verdict === 'invalid' &&
+    invalidRatioTableScalingStep.hintTarget.includes('multiply by the target quantity'),
+  'math_check_step should catch ratio-table target scaling mistakes.'
+)
+
 const invalidIntegerSignStep = mathCheckStep('-3 - 5', '2')
 assert(
   invalidIntegerSignStep.verdict === 'invalid' &&

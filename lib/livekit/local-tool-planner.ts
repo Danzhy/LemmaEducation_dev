@@ -1633,6 +1633,41 @@ type LocalUnitRateRequest = {
 
 function extractLocalUnitRateRequest(text: string): LocalUnitRateRequest | null {
   const normalized = normalizeLocalPromptText(text)
+  const ratioTableMatch = normalized.match(
+    new RegExp(
+      String.raw`\b(?:ratio(?:\s+table)?\s*(?:has|shows|is|:)?\s*)?(?:for\s+every\s+)?(${LOCAL_NUMBER_PATTERN})\s+([A-Za-z][A-Za-z-]*)(?:s)?\s+(?:to|for\s+every)\s+(${LOCAL_NUMBER_PATTERN})\s+([A-Za-z][A-Za-z-]*)(?:s)?\b`,
+      'i'
+    )
+  )
+  if (ratioTableMatch && /\b(?:ratio|table|target|for\s+every)\b/i.test(normalized)) {
+    const firstValue = parseLocalPlainNumber(ratioTableMatch[1])
+    const secondValue = parseLocalPlainNumber(ratioTableMatch[3])
+    const firstLabel = normalizeLocalUnitLabel(ratioTableMatch[2])
+    const secondLabel = normalizeLocalUnitLabel(ratioTableMatch[4])
+    if (firstValue !== null && secondValue !== null && firstValue > 0 && secondValue > 0 && firstLabel && secondLabel) {
+      const afterIndex = (ratioTableMatch.index ?? 0) + ratioTableMatch[0].length
+      const firstLabelTarget = extractLocalRateTarget(normalized, afterIndex, firstLabel)
+      const secondLabelTarget = extractLocalRateTarget(normalized, afterIndex, secondLabel)
+      if (secondLabelTarget.target !== undefined && firstLabelTarget.target === undefined) {
+        return {
+          quantity: secondValue,
+          value: firstValue,
+          quantityLabel: secondLabel,
+          valueLabel: firstLabel,
+          ...secondLabelTarget,
+        }
+      }
+
+      return {
+        quantity: firstValue,
+        value: secondValue,
+        quantityLabel: firstLabel,
+        valueLabel: secondLabel,
+        ...firstLabelTarget,
+      }
+    }
+  }
+
   const speedMatch = normalized.match(
     new RegExp(
       String.raw`\b(${LOCAL_NUMBER_PATTERN})\s+([A-Za-z][A-Za-z-]*)(?:s)?\s+(?:in|over|for)\s+(${LOCAL_NUMBER_PATTERN})\s+([A-Za-z][A-Za-z-]*)(?:s)?\b`,

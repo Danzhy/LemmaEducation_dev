@@ -249,6 +249,24 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks ratio-table target scaling mistakes before classifying the error',
+    prompt: 'The ratio table has 3 red to 5 blue. I got 18 blue for 12 red. Is that right?',
+    expectedTools: ['math_check_step', 'unit_rate', 'double_number_line', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'unit rate for 3 red make 5 blue; target 12 red')
+      assert.equal(input.nextStep, '18 blue')
+      assert.equal(plans[1].input.quantity, 3)
+      assert.equal(plans[1].input.value, 5)
+      assert.equal(plans[1].input.quantityLabel, 'red')
+      assert.equal(plans[1].input.valueLabel, 'blue')
+      assert.deepEqual(plans[2].input.pairs, [
+        { top: 0, bottom: 0, label: 'start' },
+        { top: 3, bottom: 5, label: 'given' },
+        { top: 12, bottom: 20, label: 'target' },
+      ])
+    },
+  },
+  {
     name: 'continues after a speed unit-rate attempt with the original distance and time',
     prompt: 'I got 30 miles per hour. What is the unit rate for 150 miles in 3 hours?',
     expectedTools: ['answer_disclosure_gate', 'unit_rate', 'double_number_line'],
