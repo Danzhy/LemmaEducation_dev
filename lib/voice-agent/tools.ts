@@ -1802,7 +1802,7 @@ export function createVoiceAgentTools() {
     tool({
       name: 'geometry_figure',
       description:
-        'Create a clean geometry diagram scene that the tutor can refer to while explaining. For triangle area, pass baseUnits, heightUnits, and showTriangleAreaModel to draw the half-rectangle relationship.',
+        'Create a clean geometry diagram scene that the tutor can refer to while explaining. For triangle area, pass baseUnits, heightUnits, and showTriangleAreaModel to draw the half-rectangle relationship. For coordinate triangles, pass triangleVertices, showAltitude, and optional baseVertexLabels to draw the perpendicular height to a chosen base.',
       strict: true,
       parameters: {
         type: 'object',
@@ -1815,6 +1815,24 @@ export function createVoiceAgentTools() {
           heightUnits: { type: 'number' },
           unitLabel: { type: 'string' },
           showTriangleAreaModel: { type: 'boolean' },
+          showAltitude: { type: 'boolean' },
+          baseVertexLabels: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          triangleVertices: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                x: { type: 'number' },
+                y: { type: 'number' },
+                label: { type: 'string' },
+              },
+              required: ['x', 'y', 'label'],
+            },
+          },
           labels: {
             type: 'array',
             items: { type: 'string' },
@@ -1831,6 +1849,9 @@ export function createVoiceAgentTools() {
           heightUnits?: number
           unitLabel?: string
           showTriangleAreaModel?: boolean
+          showAltitude?: boolean
+          baseVertexLabels?: string[]
+          triangleVertices?: Array<{ x: number; y: number; label?: string }>
           labels?: string[]
         }
         return stringifyResult(
@@ -1842,6 +1863,9 @@ export function createVoiceAgentTools() {
             heightUnits: params.heightUnits,
             unitLabel: params.unitLabel,
             showTriangleAreaModel: params.showTriangleAreaModel,
+            showAltitude: params.showAltitude,
+            baseVertexLabels: params.baseVertexLabels,
+            triangleVertices: params.triangleVertices,
             labels: params.labels,
           })
         )

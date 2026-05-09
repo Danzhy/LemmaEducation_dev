@@ -52,6 +52,12 @@ type LocalCompositeMissingPiece = {
   missing: LocalCompositeAreaPiece
 }
 
+type LocalTriangleVertex = {
+  label: string
+  x: number
+  y: number
+}
+
 type LocalFraction = {
   numerator: number
   denominator: number
@@ -1832,6 +1838,93 @@ function extractLocalTriangleBaseHeight(text: string) {
   return { base, height, endIndex: Math.max(baseEnd, heightEnd) }
 }
 
+function normalizeLocalTriangleVertexLabel(label: string | undefined, fallback: string) {
+  const cleaned = (label || fallback).trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 8)
+  return cleaned || fallback
+}
+
+function extractLocalTriangleVertices(text: string): LocalTriangleVertex[] | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(triangle|vertices?|points?|coordinate|diagram|board)\b/i.test(normalized)) return null
+
+  const labeledPattern = new RegExp(
+    `\\b([A-Z])\\s*(?:=|:)?\\s*\\(\\s*(${LOCAL_NUMBER_PATTERN})\\s*,\\s*(${LOCAL_NUMBER_PATTERN})\\s*\\)`,
+    'gi'
+  )
+  const vertices: LocalTriangleVertex[] = []
+  const seenLabels = new Set<string>()
+  for (const match of normalized.matchAll(labeledPattern)) {
+    const label = normalizeLocalTriangleVertexLabel(match[1], String.fromCharCode(65 + vertices.length))
+    const x = parseLocalPlainNumber(match[2])
+    const y = parseLocalPlainNumber(match[3])
+    if (x === null || y === null || Math.abs(x) > 1000 || Math.abs(y) > 1000) continue
+    if (seenLabels.has(label.toLowerCase())) continue
+    seenLabels.add(label.toLowerCase())
+    vertices.push({ label, x, y })
+    if (vertices.length >= 3) return vertices
+  }
+
+  const unlabeledPattern = new RegExp(
+    `\\(\\s*(${LOCAL_NUMBER_PATTERN})\\s*,\\s*(${LOCAL_NUMBER_PATTERN})\\s*\\)`,
+    'g'
+  )
+  const unlabeledMatches = [...normalized.matchAll(unlabeledPattern)]
+  if (vertices.length === 0 && unlabeledMatches.length >= 3 && /\b(vertices?|points?|coordinates?)\b/i.test(normalized)) {
+    return unlabeledMatches.slice(0, 3).map((match, index) => ({
+      label: String.fromCharCode(65 + index),
+      x: parseLocalPlainNumber(match[1]) ?? 0,
+      y: parseLocalPlainNumber(match[2]) ?? 0,
+    }))
+  }
+
+  return vertices.length >= 3 ? vertices : null
+}
+
+function extractLocalTriangleBaseLabels(text: string, vertices: LocalTriangleVertex[]) {
+  const vertexLabels = new Set(vertices.map((vertex) => vertex.label.toLowerCase()))
+  const basePatterns = [
+    /\bbase\s*(?:is|=|:|as|to|onto|along)?\s*([A-Z])\s*([A-Z])\b/i,
+    /\b(?:to|onto|on)\s+(?:the\s+)?(?:base|side|segment)?\s*([A-Z])\s*([A-Z])\b/i,
+    /\bbetween\s+([A-Z])\s*(?:and|&)\s*([A-Z])\b/i,
+  ]
+
+  for (const pattern of basePatterns) {
+    const match = text.match(pattern)
+    if (!match) continue
+    const first = match[1]
+    const second = match[2]
+    if (
+      first.toLowerCase() !== second.toLowerCase() &&
+      vertexLabels.has(first.toLowerCase()) &&
+      vertexLabels.has(second.toLowerCase())
+    ) {
+      return [first, second]
+    }
+  }
+
+  return [vertices[0].label, vertices[1].label]
+}
+
+function buildLocalTriangleAltitudeInput(prompt: string, boardDescription = '') {
+  const combined = `${boardDescription} ${prompt}`.trim()
+  const lowerPrompt = prompt.toLowerCase()
+  if (!/\b(triangle|triangular|vertices?|points?|diagram|board)\b/i.test(combined)) return null
+  if (!/\b(altitude|height|perpendicular|base|area)\b/.test(lowerPrompt)) return null
+
+  const vertices = extractLocalTriangleVertices(combined)
+  if (!vertices) return null
+
+  return {
+    figureType: 'triangle',
+    labels: vertices.map((vertex) => vertex.label),
+    triangleVertices: vertices,
+    showAltitude: true,
+    showTriangleAreaModel: /\b(area|height|altitude|perpendicular)\b/.test(lowerPrompt),
+    baseVertexLabels: extractLocalTriangleBaseLabels(`${prompt} ${boardDescription}`, vertices),
+    unitLabel: 'units',
+  }
+}
+
 function extractTriangleAreaAnswer(text: string, dimensionEndIndex: number) {
   const beforeAreaMatch = text.match(
     new RegExp(`\\b(?:got|found|calculated|answer(?:\\s+is)?|think)\\s+(${LOCAL_NUMBER_PATTERN})\\s+(?:square\\s+\\w+\\s+)?(?:for\\s+)?(?:the\\s+)?area\\b`, 'i')
@@ -2737,6 +2830,7 @@ export function planLocalToolTurn(
   const studentStepPair = extractStudentStepPair(prompt)
   const tapeDiagramInput = buildLocalTapeDiagramInput(prompt)
   const numberLineRequest = extractLocalNumberLineRequest(prompt)
+  const triangleAltitudeInput = buildLocalTriangleAltitudeInput(prompt, liveBoardDescription)
   const plans: LocalToolPlan[] = []
   const asksForFullSolution = isLocalAnswerDisclosureRequest(prompt)
   const hasExplicitStudentAttempt =
@@ -3377,6 +3471,14 @@ export function planLocalToolTurn(
     return plans
   }
 
+  if (triangleAltitudeInput) {
+    plans.push({
+      toolName: 'geometry_figure',
+      input: triangleAltitudeInput,
+    })
+    return plans
+  }
+
   const missingPieceArea = extractLocalCompositeMissingPiece(prompt)
   const missingPieceBoardInput = missingPieceArea ? buildCompositeMissingPieceBoardInput(missingPieceArea) : null
   if (missingPieceBoardInput) {
@@ -3771,6 +3873,16 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'angle_diagram') {
     return 'I put the angle relationship on the board. Use the total first, then tell me what angle is still missing.'
+  }
+
+  if (firstTool === 'geometry_figure') {
+    if (plans[0]?.input?.showAltitude === true) {
+      return 'I drew the triangle altitude to the chosen base. Check the right angle first, then tell me which length is the height.'
+    }
+    if (plans[0]?.input?.showTriangleAreaModel === true) {
+      return 'I put the triangle area model on the board. Find the related rectangle first, then halve it for the triangle.'
+    }
+    return 'I put the geometry diagram on the board. Name the useful base, height, or angle before calculating.'
   }
 
   if (firstTool === 'double_number_line' || firstTool === 'unit_rate') {

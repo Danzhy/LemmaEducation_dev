@@ -524,6 +524,26 @@ assert(
   'geometry_figure should draw a triangle area model with base, height, and half-rectangle reasoning.'
 )
 
+const triangleAltitudeModel = geometryFigure({
+  figureType: 'triangle',
+  triangleVertices: [
+    { label: 'A', x: 0, y: 0 },
+    { label: 'B', x: 6, y: 0 },
+    { label: 'C', x: 2, y: 4 },
+  ],
+  baseVertexLabels: ['A', 'B'],
+  unitLabel: 'units',
+  showAltitude: true,
+})
+assert(
+  triangleAltitudeModel.summary.includes('base AB') &&
+    triangleAltitudeModel.summary.includes('altitude from C') &&
+    triangleAltitudeModel.summary.includes('area 12 square units') &&
+    JSON.stringify(triangleAltitudeModel).includes('right angle') &&
+    JSON.stringify(triangleAltitudeModel).includes('Area = 6 x 4 / 2 = 12'),
+  'geometry_figure should draw an arbitrary triangle altitude to a chosen base.'
+)
+
 const validTriangleAreaStep = mathCheckStep('area of triangle with base 10 and height 6', '30')
 assert(
   validTriangleAreaStep.verdict === 'valid' &&

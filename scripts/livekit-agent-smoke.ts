@@ -364,6 +364,20 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-triangle-area-model' }
   )
+  const triangleAltitudeModelResult = await tools.geometry_figure.execute(
+    {
+      figureType: 'triangle',
+      triangleVertices: [
+        { label: 'A', x: 0, y: 0 },
+        { label: 'B', x: 6, y: 0 },
+        { label: 'C', x: 2, y: 4 },
+      ],
+      baseVertexLabels: ['A', 'B'],
+      unitLabel: 'units',
+      showAltitude: true,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-triangle-altitude-model' }
+  )
   const supplementaryAngleDiagramResult = await tools.angle_diagram.execute(
     {
       degrees: 110,
@@ -1019,6 +1033,16 @@ async function main() {
     !JSON.stringify(triangleAreaModelResult).includes('area 30 square cm')
   ) {
     throw new Error('geometry_figure did not return a triangle area half-rectangle model.')
+  }
+
+  if (
+    !JSON.stringify(triangleAltitudeModelResult).includes('base AB') ||
+    !JSON.stringify(triangleAltitudeModelResult).includes('altitude from C') ||
+    !JSON.stringify(triangleAltitudeModelResult).includes('area 12 square units') ||
+    !JSON.stringify(triangleAltitudeModelResult).includes('right angle') ||
+    !JSON.stringify(triangleAltitudeModelResult).includes('Area = 6 x 4 / 2 = 12')
+  ) {
+    throw new Error('geometry_figure did not return an arbitrary triangle altitude model.')
   }
 
   if (

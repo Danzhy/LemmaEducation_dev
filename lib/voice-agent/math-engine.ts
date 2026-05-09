@@ -5333,6 +5333,9 @@ export function geometryFigure(input: {
   heightUnits?: number
   unitLabel?: string
   showTriangleAreaModel?: boolean
+  triangleVertices?: Array<{ x: number; y: number; label?: string }>
+  showAltitude?: boolean
+  baseVertexLabels?: string[]
 }): GeometryFigureResult {
   const labels = input.labels ?? []
   const actions: TutorCanvasAction[] = [
@@ -5380,6 +5383,18 @@ export function geometryFigure(input: {
       summary: 'Rectangle diagram prepared with labeled corners.',
       canvasActions: actions,
     }
+  }
+
+  if (input.figureType === 'triangle' && input.triangleVertices?.length && input.showAltitude) {
+    const coordinateTriangle = buildCoordinateTriangleFigure({
+      vertices: input.triangleVertices,
+      labels,
+      unitLabel: input.unitLabel,
+      showAltitude: input.showAltitude,
+      baseVertexLabels: input.baseVertexLabels,
+    })
+
+    if (coordinateTriangle) return coordinateTriangle
   }
 
   if (input.figureType === 'triangle' && input.showTriangleAreaModel) {
@@ -5494,6 +5509,272 @@ export function geometryFigure(input: {
   return {
     figureType: 'triangle',
     summary: 'Triangle diagram prepared with labeled vertices.',
+    canvasActions: actions,
+  }
+}
+
+type CoordinateTriangleVertex = {
+  x: number
+  y: number
+  label: string
+}
+
+function normalizeCoordinateTriangleLabel(label: string | undefined, fallback: string) {
+  const cleaned = (label || fallback).trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 8)
+  return cleaned || fallback
+}
+
+function sanitizeCoordinateTriangleVertices(
+  vertices: Array<{ x: number; y: number; label?: string }>,
+  fallbackLabels: string[]
+) {
+  if (!Array.isArray(vertices) || vertices.length < 3) return null
+
+  const seenLabels = new Set<string>()
+  const cleaned: CoordinateTriangleVertex[] = []
+
+  for (const [index, vertex] of vertices.slice(0, 3).entries()) {
+    const x = typeof vertex.x === 'number' ? vertex.x : Number(vertex.x)
+    const y = typeof vertex.y === 'number' ? vertex.y : Number(vertex.y)
+    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > 1000 || Math.abs(y) > 1000) {
+      return null
+    }
+
+    let label = normalizeCoordinateTriangleLabel(vertex.label, fallbackLabels[index] ?? String.fromCharCode(65 + index))
+    const baseLabel = label
+    let suffix = 2
+    while (seenLabels.has(label.toLowerCase())) {
+      label = `${baseLabel}${suffix}`
+      suffix += 1
+    }
+    seenLabels.add(label.toLowerCase())
+    cleaned.push({ x, y, label })
+  }
+
+  const doubledArea =
+    (cleaned[1].x - cleaned[0].x) * (cleaned[2].y - cleaned[0].y) -
+    (cleaned[1].y - cleaned[0].y) * (cleaned[2].x - cleaned[0].x)
+  if (Math.abs(doubledArea) < 1e-6) return null
+
+  return cleaned
+}
+
+function chooseCoordinateTriangleBase(vertices: CoordinateTriangleVertex[], baseVertexLabels?: string[]) {
+  const normalizedLabels = (baseVertexLabels ?? [])
+    .map((label) => label.trim().toLowerCase())
+    .filter(Boolean)
+
+  if (normalizedLabels.length >= 2) {
+    const first = vertices.find((vertex) => vertex.label.toLowerCase() === normalizedLabels[0])
+    const second = vertices.find((vertex) => vertex.label.toLowerCase() === normalizedLabels[1])
+    const apex = vertices.find(
+      (vertex) => vertex.label.toLowerCase() !== normalizedLabels[0] && vertex.label.toLowerCase() !== normalizedLabels[1]
+    )
+    if (first && second && apex) return { baseStart: first, baseEnd: second, apex }
+  }
+
+  return {
+    baseStart: vertices[0],
+    baseEnd: vertices[1],
+    apex: vertices[2],
+  }
+}
+
+function distanceBetweenCoordinatePoints(
+  first: { x: number; y: number },
+  second: { x: number; y: number }
+) {
+  return Math.hypot(second.x - first.x, second.y - first.y)
+}
+
+function projectCoordinatePointOntoLine(
+  pointToProject: { x: number; y: number },
+  lineStart: { x: number; y: number },
+  lineEnd: { x: number; y: number }
+) {
+  const dx = lineEnd.x - lineStart.x
+  const dy = lineEnd.y - lineStart.y
+  const lengthSquared = dx * dx + dy * dy
+  if (lengthSquared <= 1e-9) return null
+
+  const t = ((pointToProject.x - lineStart.x) * dx + (pointToProject.y - lineStart.y) * dy) / lengthSquared
+  return {
+    x: lineStart.x + t * dx,
+    y: lineStart.y + t * dy,
+    t,
+  }
+}
+
+function buildCoordinateTriangleProjector(points: Array<{ x: number; y: number }>) {
+  const minX = Math.min(...points.map((point) => point.x))
+  const maxX = Math.max(...points.map((point) => point.x))
+  const minY = Math.min(...points.map((point) => point.y))
+  const maxY = Math.max(...points.map((point) => point.y))
+  const xPad = Math.max((maxX - minX) * 0.18, 1)
+  const yPad = Math.max((maxY - minY) * 0.18, 1)
+  const frame = {
+    x: GRAPH_FRAME.x + 24,
+    y: GRAPH_FRAME.y + 28,
+    width: GRAPH_FRAME.width - 48,
+    height: GRAPH_FRAME.height - 56,
+  }
+
+  return (pointToProject: { x: number; y: number }) => ({
+    x: mapToRange(pointToProject.x, minX - xPad, maxX + xPad, frame.x, frame.x + frame.width),
+    y: mapToRange(pointToProject.y, minY - yPad, maxY + yPad, frame.y + frame.height, frame.y),
+  })
+}
+
+function unitCanvasVector(start: { x: number; y: number }, end: { x: number; y: number }) {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const length = Math.hypot(dx, dy)
+  if (length <= 1e-9) return { x: 1, y: 0 }
+  return { x: dx / length, y: dy / length }
+}
+
+function coordinateVertexLabel(vertex: CoordinateTriangleVertex) {
+  return `${vertex.label} (${formatNumber(vertex.x)}, ${formatNumber(vertex.y)})`
+}
+
+function buildCoordinateTriangleFigure(input: {
+  vertices: Array<{ x: number; y: number; label?: string }>
+  labels: string[]
+  unitLabel?: string
+  showAltitude?: boolean
+  baseVertexLabels?: string[]
+}): GeometryFigureResult | null {
+  const vertices = sanitizeCoordinateTriangleVertices(input.vertices, input.labels)
+  if (!vertices) return null
+
+  const { baseStart, baseEnd, apex } = chooseCoordinateTriangleBase(vertices, input.baseVertexLabels)
+  const foot = projectCoordinatePointOntoLine(apex, baseStart, baseEnd)
+  if (!foot) return null
+
+  const baseLength = distanceBetweenCoordinatePoints(baseStart, baseEnd)
+  const altitudeLength = distanceBetweenCoordinatePoints(apex, foot)
+  const triangleArea = (baseLength * altitudeLength) / 2
+  const unitLabel = input.unitLabel?.trim() || 'unit'
+  const baseName = `${baseStart.label}${baseEnd.label}`
+  const footLabel = 'H'
+  const project = buildCoordinateTriangleProjector([...vertices, foot])
+  const canvasVertices = new Map(vertices.map((vertex) => [vertex.label, project(vertex)]))
+  const baseStartCanvas = canvasVertices.get(baseStart.label)!
+  const baseEndCanvas = canvasVertices.get(baseEnd.label)!
+  const apexCanvas = canvasVertices.get(apex.label)!
+  const footCanvas = project(foot)
+  const altitudePhrase = `altitude ${apex.label}${footLabel}`
+
+  const actions: TutorCanvasAction[] = [
+    clearToolLayer(),
+    ...buildSceneChrome('Triangle altitude'),
+  ]
+
+  if (foot.t < -0.02 || foot.t > 1.02) {
+    const nearestBasePoint = foot.t < 0 ? baseStartCanvas : baseEndCanvas
+    actions.push(
+      lineSegment(nearestBasePoint, footCanvas, {
+        color: 'grey',
+        dash: 'dashed',
+        size: 's',
+        label: 'base line extension',
+      })
+    )
+  }
+
+  actions.push(
+    lineSegment(baseStartCanvas, baseEndCanvas, {
+      color: 'orange',
+      size: 'm',
+      label: `base ${baseName} = ${formatNumber(baseLength, 3)}`,
+    }),
+    lineSegment(baseEndCanvas, apexCanvas, { color: 'blue', size: 'm' }),
+    lineSegment(apexCanvas, baseStartCanvas, { color: 'blue', size: 'm' }),
+    lineSegment(apexCanvas, footCanvas, {
+      color: 'green',
+      dash: 'dashed',
+      size: 'm',
+      label: `${altitudePhrase} = ${formatNumber(altitudeLength, 3)}`,
+    }),
+    ...vertices.map((vertex) =>
+      point(project(vertex).x, project(vertex).y, {
+        label: coordinateVertexLabel(vertex),
+        color: vertex.label === apex.label ? 'green' : 'blue',
+        labelWidth: 110,
+      })
+    ),
+    point(footCanvas.x, footCanvas.y, {
+      label: `${footLabel} (foot)`,
+      color: 'green',
+      labelPosition: 'bottom',
+      labelWidth: 80,
+    })
+  )
+
+  if (input.showAltitude) {
+    const baseVector = unitCanvasVector(footCanvas, baseEndCanvas)
+    const altitudeVector = unitCanvasVector(footCanvas, apexCanvas)
+    const markerSize = 16
+    actions.push(
+      polyline(
+        [
+          footCanvas,
+          {
+            x: footCanvas.x + baseVector.x * markerSize,
+            y: footCanvas.y + baseVector.y * markerSize,
+          },
+          {
+            x: footCanvas.x + baseVector.x * markerSize + altitudeVector.x * markerSize,
+            y: footCanvas.y + baseVector.y * markerSize + altitudeVector.y * markerSize,
+          },
+          {
+            x: footCanvas.x + altitudeVector.x * markerSize,
+            y: footCanvas.y + altitudeVector.y * markerSize,
+          },
+        ],
+        { color: 'grey', size: 's', label: 'right angle' }
+      )
+    )
+  }
+
+  actions.push(
+    rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+      color: 'light-green',
+      fill: 'semi',
+      opacity: 0.12,
+      dash: 'solid',
+      size: 's',
+    }),
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Base and altitude', {
+      width: NOTE_FRAME.width - 32,
+      color: 'green',
+    }),
+    ...noteParagraph(
+      NOTE_FRAME.x + 16,
+      NOTE_FRAME.y + 52,
+      [
+        `Use ${baseName} as the base.`,
+        `${apex.label}${footLabel} is perpendicular to ${baseName}.`,
+        `Area = ${formatNumber(baseLength, 3)} x ${formatNumber(altitudeLength, 3)} / 2 = ${formatNumber(
+          triangleArea,
+          3
+        )} ${formatSquareUnitLabel(unitLabel)}.`,
+      ],
+      {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+        lineHeight: 32,
+      }
+    ),
+    focusRegion(TOOL_SCENE.x - 80, TOOL_SCENE.y - 70, TOOL_SCENE.width + 160, TOOL_SCENE.height + 140)
+  )
+
+  return {
+    figureType: 'triangle',
+    summary: `Prepared a triangle altitude model using base ${baseName}, altitude from ${apex.label}, and area ${formatNumber(
+      triangleArea,
+      3
+    )} ${formatSquareUnitLabel(unitLabel)}.`,
     canvasActions: actions,
   }
 }

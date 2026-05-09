@@ -18,6 +18,7 @@ import {
 type PlannerCase = {
   name: string
   prompt: string
+  context?: { boardDescription?: string }
   expectedTools: string[]
   inspect?: (firstInput: Record<string, unknown>, plans: ReturnType<typeof planLocalToolTurn>) => void
 }
@@ -302,6 +303,26 @@ const cases: PlannerCase[] = [
       assert.match(String(input.boardDescription), /triangle/)
       assert.equal(plans[1].input.figureType, 'triangle')
       assert.equal(plans[1].input.showTriangleAreaModel, true)
+    },
+  },
+  {
+    name: 'routes board-state coordinate triangles to an altitude model',
+    prompt: 'Use the triangle on the board and draw the altitude to base AB.',
+    context: {
+      boardDescription: 'The board shows triangle vertices A(0, 0), B(6, 0), and C(2, 4).',
+    },
+    expectedTools: ['board_state_summarizer', 'geometry_figure'],
+    inspect: (input, plans) => {
+      assert.match(String(input.boardDescription), /A\(0, 0\)/)
+      const geometryInput = plans[1].input
+      assert.equal(geometryInput.figureType, 'triangle')
+      assert.equal(geometryInput.showAltitude, true)
+      assert.deepEqual(geometryInput.baseVertexLabels, ['A', 'B'])
+      assert.deepEqual(geometryInput.triangleVertices, [
+        { label: 'A', x: 0, y: 0 },
+        { label: 'B', x: 6, y: 0 },
+        { label: 'C', x: 2, y: 4 },
+      ])
     },
   },
   {
@@ -1072,7 +1093,7 @@ const cases: PlannerCase[] = [
 ]
 
 for (const testCase of cases) {
-  const plans = planLocalToolTurn(testCase.prompt, '6')
+  const plans = planLocalToolTurn(testCase.prompt, '6', testCase.context)
   assert.deepEqual(
     plans.map((plan) => plan.toolName),
     testCase.expectedTools,
@@ -1323,6 +1344,14 @@ assert.match(
     [{ summary: 'Prepared a complementary angle relationship diagram.' }]
   ),
   /angle relationship/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'draw triangle altitude',
+    [{ toolName: 'geometry_figure', input: { showAltitude: true } }],
+    [{ summary: 'Prepared a triangle altitude model using base AB.' }]
+  ),
+  /triangle altitude/
 )
 assert.match(
   buildLocalAssistantReply(
