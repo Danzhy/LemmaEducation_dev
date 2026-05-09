@@ -891,6 +891,25 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks combined data-display comparison claims before classifying the mistake',
+    prompt:
+      'The bar chart has apples 14, bananas 7, and grapes 5. How many more apples than bananas and grapes together? I got 3. Is that right?',
+    expectedTools: ['math_check_step', 'data_display', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(
+        input.previousStep,
+        'bar chart data: apples 14, bananas 7, grapes 5; how many more apples than bananas and grapes together'
+      )
+      assert.equal(input.nextStep, '3')
+      assert.equal(plans[1].toolName, 'data_display')
+      assert.deepEqual(plans[1].input.data, [
+        { label: 'Apples', value: 14 },
+        { label: 'Bananas', value: 7 },
+        { label: 'Grapes', value: 5 },
+      ])
+    },
+  },
+  {
     name: 'checks data-display total claims before classifying the mistake',
     prompt: 'The line plot has Monday 4, Tuesday 7, and Wednesday 5. The total for Monday and Wednesday is 10. Is that right?',
     expectedTools: ['math_check_step', 'data_display', 'mistake_pattern_classifier'],

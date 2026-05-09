@@ -1332,6 +1332,18 @@ function extractLocalDataPair(items: LocalLabeledDataItem[], firstPhrase: string
   return first && second && first.label !== second.label ? { first, second } : null
 }
 
+function extractLocalDataItemAndGroup(
+  items: LocalLabeledDataItem[],
+  firstPhrase: string,
+  groupPhrase: string
+) {
+  const first = findLocalDataItem(items, firstPhrase) ?? findMentionedLocalDataItems(items, firstPhrase)[0] ?? null
+  if (!first) return null
+
+  const groupItems = findMentionedLocalDataItems(items, groupPhrase).filter((item) => item.label !== first.label)
+  return groupItems.length >= 2 ? { first, items: groupItems } : null
+}
+
 function extractLocalDataDisplayComputation(
   text: string,
   items: LocalLabeledDataItem[]
@@ -1364,6 +1376,37 @@ function extractLocalDataDisplayComputation(
           endIndex: match.index + match[0].length,
         }
       }
+    }
+  }
+
+  const combinedComparisonPattern =
+    /\b(?:how\s+many\s+)?(more|fewer|less)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:than|compared\s+to)\s+(?:the\s+)?(?:total\s+(?:of|for)\s+)?([A-Za-z0-9' ,+&-]{1,140}?)(?:\s+together)?(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i
+  const combinedComparisonMatch = normalized.match(combinedComparisonPattern)
+  const combinedComparison = combinedComparisonMatch
+    ? extractLocalDataItemAndGroup(items, combinedComparisonMatch[2], combinedComparisonMatch[3])
+    : null
+  if (combinedComparisonMatch && typeof combinedComparisonMatch.index === 'number' && combinedComparison) {
+    const operation = combinedComparisonMatch[1].toLowerCase() === 'more' ? 'more' : 'fewer'
+    return {
+      canonical: `how many ${operation} ${combinedComparison.first.label} than ${combinedComparison.items
+        .map((item) => item.label)
+        .join(' and ')} together`,
+      endIndex: combinedComparisonMatch.index + combinedComparisonMatch[0].length,
+    }
+  }
+
+  const combinedDifferencePattern =
+    /\bdifference\s+(?:between|of|for)?\s*([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:and|vs\.?|versus|to)\s+(?:the\s+)?(?:total\s+(?:of|for)\s+)?([A-Za-z0-9' ,+&-]{1,140}?)(?:\s+together)?(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i
+  const combinedDifferenceMatch = normalized.match(combinedDifferencePattern)
+  const combinedDifference = combinedDifferenceMatch
+    ? extractLocalDataItemAndGroup(items, combinedDifferenceMatch[1], combinedDifferenceMatch[2])
+    : null
+  if (combinedDifferenceMatch && typeof combinedDifferenceMatch.index === 'number' && combinedDifference) {
+    return {
+      canonical: `difference between ${combinedDifference.first.label} and ${combinedDifference.items
+        .map((item) => item.label)
+        .join(' and ')} together`,
+      endIndex: combinedDifferenceMatch.index + combinedDifferenceMatch[0].length,
     }
   }
 

@@ -483,6 +483,22 @@ async function main() {
     { previousStep: 'line plot data: Monday 4, Tuesday 7, Wednesday 5; how many more Tuesday than Monday', nextStep: '2' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-line-plot-comparison-step-check' }
   )
+  const validCombinedChartComparisonStep = await tools.math_check_step.execute(
+    {
+      previousStep:
+        'bar chart data: apples 14, bananas 7, grapes 5; how many more apples than bananas and grapes together',
+      nextStep: '2',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-combined-chart-comparison-step-check' }
+  )
+  const invalidCombinedChartComparisonStep = await tools.math_check_step.execute(
+    {
+      previousStep:
+        'line plot data: apples 10, bananas 7, grapes 5; how many fewer apples than bananas and grapes together',
+      nextStep: '3',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-combined-chart-comparison-step-check' }
+  )
   const validLineGraphIncreaseStep = await tools.math_check_step.execute(
     { previousStep: 'line graph data: Monday 4, Tuesday 7, Wednesday 5; increase from Monday to Tuesday', nextStep: '3' },
     { ctx: {} as never, toolCallId: 'smoke-line-graph-increase-step-check' }
@@ -1288,6 +1304,24 @@ async function main() {
     !JSON.stringify(invalidLinePlotComparisonStep).includes('subtract')
   ) {
     throw new Error(`math_check_step did not reject a chart comparison mistake: ${JSON.stringify(invalidLinePlotComparisonStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validCombinedChartComparisonStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validCombinedChartComparisonStep).includes('combined total')
+  ) {
+    throw new Error(
+      `math_check_step did not accept a combined chart comparison: ${JSON.stringify(validCombinedChartComparisonStep)}`
+    )
+  }
+
+  if (
+    !JSON.stringify(invalidCombinedChartComparisonStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidCombinedChartComparisonStep).includes('comparison group')
+  ) {
+    throw new Error(
+      `math_check_step did not reject a combined chart comparison mistake: ${JSON.stringify(invalidCombinedChartComparisonStep)}`
+    )
   }
 
   if (

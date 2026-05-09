@@ -1050,6 +1050,17 @@ function extractDataDisplayPair(items: LabeledDataItem[], firstPhrase: string, s
   return first && second && first.label !== second.label ? { first, second } : null
 }
 
+function extractDataDisplayItemAndGroup(items: LabeledDataItem[], firstPhrase: string, groupPhrase: string) {
+  const first =
+    findLabeledDataItem(items, cleanDataDisplayLabel(firstPhrase)) ??
+    findMentionedDataItems(items, firstPhrase)[0] ??
+    null
+  if (!first) return null
+
+  const groupItems = findMentionedDataItems(items, groupPhrase).filter((item) => item.label !== first.label)
+  return groupItems.length >= 2 ? { first, items: groupItems } : null
+}
+
 type DataDisplayComputation =
   | {
       kind: 'difference'
@@ -1064,6 +1075,12 @@ type DataDisplayComputation =
     }
   | {
       kind: 'total'
+      items: LabeledDataItem[]
+    }
+  | {
+      kind: 'comparison_to_total'
+      operation: 'more' | 'fewer' | 'difference'
+      first: LabeledDataItem
       items: LabeledDataItem[]
     }
 
@@ -1097,6 +1114,34 @@ function extractDataDisplayComputation(items: LabeledDataItem[], text: string): 
           ...pair,
         }
       }
+    }
+  }
+
+  const combinedComparisonPattern =
+    /\b(?:how\s+many\s+)?(more|fewer|less)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:than|compared\s+to)\s+(?:the\s+)?(?:total\s+(?:of|for)\s+)?([A-Za-z0-9' ,+&-]{1,140}?)(?:\s+together)?(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i
+  const combinedComparisonMatch = normalized.match(combinedComparisonPattern)
+  const combinedComparison = combinedComparisonMatch
+    ? extractDataDisplayItemAndGroup(items, combinedComparisonMatch[2], combinedComparisonMatch[3])
+    : null
+  if (combinedComparison) {
+    return {
+      kind: 'comparison_to_total',
+      operation: combinedComparisonMatch?.[1].toLowerCase() === 'more' ? 'more' : 'fewer',
+      ...combinedComparison,
+    }
+  }
+
+  const combinedDifferencePattern =
+    /\bdifference\s+(?:between|of|for)?\s*([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:and|vs\.?|versus|to)\s+(?:the\s+)?(?:total\s+(?:of|for)\s+)?([A-Za-z0-9' ,+&-]{1,140}?)(?:\s+together)?(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i
+  const combinedDifferenceMatch = normalized.match(combinedDifferencePattern)
+  const combinedDifference = combinedDifferenceMatch
+    ? extractDataDisplayItemAndGroup(items, combinedDifferenceMatch[1], combinedDifferenceMatch[2])
+    : null
+  if (combinedDifference) {
+    return {
+      kind: 'comparison_to_total',
+      operation: 'difference',
+      ...combinedDifference,
     }
   }
 
@@ -1205,6 +1250,52 @@ function checkDataDisplayValueStep(previousStep: string, nextStep: string): Math
           : computation.direction === 'increase'
             ? 'subtract the starting value from the ending value for an increase'
             : 'subtract the ending value from the starting value for a decrease',
+      }
+    }
+
+    if (computation.kind === 'comparison_to_total') {
+      const comparisonTotal = computation.items.reduce((sum, item) => sum + item.value, 0)
+      const signedDifference =
+        computation.operation === 'more'
+          ? computation.first.value - comparisonTotal
+          : computation.operation === 'fewer'
+            ? comparisonTotal - computation.first.value
+            : Math.abs(computation.first.value - comparisonTotal)
+      const expectedDifference = Math.abs(signedDifference)
+      const comparisonMatches =
+        signedDifference >= 0 && isNearlyEqual(expectedDifference, studentComputationValue, 0.01)
+      const comparisonVerb =
+        computation.operation === 'more'
+          ? 'more than'
+          : computation.operation === 'fewer'
+            ? 'fewer than'
+            : 'different from'
+      const groupLabels = formatDataDisplayLabels(computation.items)
+      return {
+        verdict: comparisonMatches ? 'valid' : 'invalid',
+        reason: comparisonMatches
+          ? `In the ${chartKind}, ${computation.first.displayLabel} is ${formatNumber(
+              computation.first.value,
+              4
+            )} and ${groupLabels} total ${formatNumber(comparisonTotal, 4)}, so ${computation.first.displayLabel} is ${formatNumber(
+              expectedDifference,
+              4
+            )} ${comparisonVerb} that combined total.`
+          : signedDifference < 0
+            ? `In the ${chartKind}, ${computation.first.displayLabel} is ${formatNumber(
+                computation.first.value,
+                4
+              )} and ${groupLabels} total ${formatNumber(comparisonTotal, 4)}, so it is not ${comparisonVerb} that combined total.`
+            : `In the ${chartKind}, ${computation.first.displayLabel} is ${formatNumber(
+                computation.first.value,
+                4
+              )} and ${groupLabels} total ${formatNumber(comparisonTotal, 4)}, so the comparison is ${formatNumber(
+                expectedDifference,
+                4
+              )}, not ${formatNumber(studentComputationValue, 4)}.`,
+        hintTarget: comparisonMatches
+          ? 'explain how the single chart value compares with the combined total'
+          : 'add the comparison group first, then compare that total to the single category',
       }
     }
 

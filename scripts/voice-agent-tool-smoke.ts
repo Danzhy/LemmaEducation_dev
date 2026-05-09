@@ -817,6 +817,26 @@ assert(
   'math_check_step should catch chart comparison mistakes.'
 )
 
+const validCombinedChartComparisonStep = mathCheckStep(
+  'bar chart data: apples 14, bananas 7, grapes 5; how many more apples than bananas and grapes together',
+  '2'
+)
+assert(
+  validCombinedChartComparisonStep.verdict === 'valid' &&
+    validCombinedChartComparisonStep.hintTarget.includes('combined total'),
+  'math_check_step should validate chart comparisons against combined totals.'
+)
+
+const invalidCombinedChartComparisonStep = mathCheckStep(
+  'line plot data: apples 10, bananas 7, grapes 5; how many fewer apples than bananas and grapes together',
+  '3'
+)
+assert(
+  invalidCombinedChartComparisonStep.verdict === 'invalid' &&
+    invalidCombinedChartComparisonStep.hintTarget.includes('comparison group'),
+  'math_check_step should catch combined chart comparison mistakes.'
+)
+
 const validLineGraphIncreaseStep = mathCheckStep(
   'line graph data: Monday 4, Tuesday 7, Wednesday 5; increase from Monday to Tuesday',
   '3'
