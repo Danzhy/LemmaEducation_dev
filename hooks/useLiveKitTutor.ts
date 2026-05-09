@@ -100,11 +100,20 @@ async function sendLiveKitText(room: Room | null, topic: string, payload: LiveKi
   await room.localParticipant.sendText(JSON.stringify(payload), { topic })
 }
 
-async function callServerLiveKitTool(sessionId: string | null, toolName: string, input: unknown) {
-  const response = await fetch(sessionId ? '/api/livekit/tool' : '/api/livekit/tool-preview', {
+async function callServerLiveKitTool(
+  sessionId: string | null,
+  toolName: string,
+  input: unknown,
+  options: { preview?: boolean } = {}
+) {
+  if (!sessionId) {
+    throw new Error('Start a tutor session before using lab tools.')
+  }
+
+  const response = await fetch(options.preview ? '/api/livekit/tool-preview' : '/api/livekit/tool', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(sessionId ? { sessionId, toolName, input } : { toolName, input }),
+    body: JSON.stringify({ sessionId, toolName, input }),
   })
   const body = (await response.json().catch(() => ({}))) as {
     ok?: boolean
@@ -488,14 +497,15 @@ export function useLiveKitTutor({
 
   const startLocalTypedLabSession = useCallback(
     async (options?: TutorConnectOptions) => {
+      const startedSessionId = await startServerTutorSession(options)
       gradeLevelRef.current = options?.gradeLevel || gradeLevelRef.current
-      sessionIdRef.current = null
+      sessionIdRef.current = startedSessionId
       localToolModeRef.current = true
       connectedRef.current = true
       pausedRef.current = false
       mutedRef.current = true
 
-      setCurrentSessionId(null)
+      setCurrentSessionId(startedSessionId)
       setSupportsLiveMic(false)
       setConnectionMode('typed')
       setIsMuted(true)
@@ -522,8 +532,10 @@ export function useLiveKitTutor({
           reason: 'LiveKit room not configured locally. Deterministic preview tools are active.',
         },
       })
+      startUsageTicker()
+      return startedSessionId
     },
-    [appendToolEvent, registerLocalActivity]
+    [appendToolEvent, registerLocalActivity, startUsageTicker]
   )
 
   const runLocalToolTurn = useCallback(
@@ -546,7 +558,9 @@ export function useLiveKitTutor({
             metadata: { callId, source: 'local-typed-lab' },
           })
 
-          const result = await callServerLiveKitTool(sessionIdRef.current, plan.toolName, input)
+          const result = await callServerLiveKitTool(sessionIdRef.current, plan.toolName, input, {
+            preview: true,
+          })
           outputs.push(result.output)
           appendToolEvent({
             type: 'tool_completed',
@@ -785,7 +799,7 @@ export function useLiveKitTutor({
               ? (status as { workerCommand: string }).workerCommand
               : 'npm run dev:livekit-agent'
           if (audioMode === 'silent') {
-            await startLocalTypedLabSession(options)
+            startedSessionId = await startLocalTypedLabSession(options)
             return
           }
           throw new Error(

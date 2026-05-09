@@ -85,7 +85,7 @@ This runs smoke checks, registry/schema checks, and curriculum coverage checks f
 
 ## LiveKit Tutor Lab
 
-The hidden `/tutor-livekit-lab` route keeps the same tutor workspace while testing a LiveKit room plus a separate LiveKit agent worker. The browser receives a short-lived room token from `/api/livekit/session`; the worker joins through explicit agent dispatch and runs the same deterministic grade 3-7 math tools server-side before sending structured board actions back to the client. The worker also enforces per-session tool and canvas-action budgets. If LiveKit is not configured locally, **Start without mic** opens a signed-in typed preview mode through `/api/livekit/tool-preview` so deterministic board tools can still be tested without minting a room token.
+The hidden `/tutor-livekit-lab` route keeps the same tutor workspace while testing a LiveKit room plus a separate LiveKit agent worker. The browser receives a short-lived room token from `/api/livekit/session`; the worker joins through explicit agent dispatch and runs the same deterministic grade 3-7 math tools server-side before sending structured board actions back to the client. The worker also enforces per-session tool and canvas-action budgets. If LiveKit is not configured locally, **Start without mic** opens a signed-in typed preview mode that still starts a quota-tracked tutor session and uses the server-owned deterministic board tools without minting a room token.
 
 Required local variables:
 

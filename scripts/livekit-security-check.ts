@@ -54,8 +54,16 @@ function main() {
   assertIncludes('app/api/livekit/tool/route.ts', 'MAX_TOOL_INPUT_BYTES')
   assertIncludes('app/api/livekit/tool-preview/route.ts', 'getSessionUserId()')
   assertIncludes('app/api/livekit/tool-preview/route.ts', 'takeTutorApiRateLimit')
+  assertIncludes('app/api/livekit/tool-preview/route.ts', 'getQuotaSnapshot')
+  assertIncludes('app/api/livekit/tool-preview/route.ts', 'sessionId and toolName are required')
+  assertIncludes('app/api/livekit/tool-preview/route.ts', 'SESSION_REQUIRED')
+  assertIncludes('app/api/livekit/tool-preview/route.ts', 'QUOTA_EXCEEDED')
   assertIncludes('app/api/livekit/tool-preview/route.ts', 'LIVEKIT_TUTOR_TOOL_NAMES')
   assertIncludes('app/api/livekit/tool-preview/route.ts', 'MAX_TOOL_INPUT_BYTES')
+  assertIncludes('hooks/useLiveKitTutor.ts', 'const startedSessionId = await startServerTutorSession(options)')
+  assertIncludes('hooks/useLiveKitTutor.ts', 'startedSessionId = await startLocalTypedLabSession(options)')
+  assertIncludes('hooks/useLiveKitTutor.ts', 'callServerLiveKitTool(sessionIdRef.current, plan.toolName, input, {')
+  assertIncludes('hooks/useLiveKitTutor.ts', 'preview: true')
   assertIncludes('lib/livekit/tool-runner.ts', 'assertAllowedToolInputProperties')
   assertIncludes('lib/livekit/tool-runner.ts', 'assertAllowedSchemaProperties')
   assertIncludes('lib/livekit/tool-runner.ts', 'schema.additionalProperties === false')
@@ -170,7 +178,7 @@ function main() {
       {
         ok: true,
         checkedClientFiles: clientFiles.length,
-        checkedServerGuards: 37,
+        checkedServerGuards: 45,
         checkedStudentVisibleLiveKitMessages: 6,
       },
       null,
