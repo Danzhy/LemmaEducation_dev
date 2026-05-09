@@ -342,6 +342,14 @@ assert(
   'math_check_step should catch digit-value mistakes.'
 )
 
+const unclearRepeatedDigitValueStep = mathCheckStep('value of 2 in 2,020', '20')
+assert(
+  unclearRepeatedDigitValueStep.verdict === 'unclear' &&
+    unclearRepeatedDigitValueStep.reason.includes('more than one 2') &&
+    unclearRepeatedDigitValueStep.hintTarget.includes('naming its place'),
+  'math_check_step should ask for clarification when a digit appears more than once.'
+)
+
 const invalidDecimalStep = mathCheckStep('0.4 + 0.08', '0.12')
 assert(
   invalidDecimalStep.verdict === 'invalid' &&

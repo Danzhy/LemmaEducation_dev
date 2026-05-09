@@ -204,6 +204,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'clarifies repeated digit-value attempts without drawing a misleading chart',
+    prompt: 'I think the value of the 2 in 2,020 is 20. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'value of 2 in 2,020')
+      assert.equal(input.nextStep, '20')
+    },
+  },
+  {
     name: 'checks natural two-step equation balance attempts before classifying the mistake',
     prompt: 'I subtracted 3 from 2x + 3 = 11 and got 2x = 14. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
@@ -438,6 +447,20 @@ assert.match(
     [{ verdict: 'valid', reason: 'Both equations keep the same solution, x = 4.', hintTarget: 'inverse operations' }]
   ),
   /place-value chart/i
+)
+assert.match(
+  buildLocalAssistantReply(
+    'which 2',
+    [{ toolName: 'math_check_step', input: {} }],
+    [
+      {
+        verdict: 'unclear',
+        reason: 'There is more than one 2 in 2,020.',
+        hintTarget: 'say which 2 you mean by naming its place',
+      },
+    ]
+  ),
+  /one clarification.*which 2/i
 )
 assert.match(
   buildLocalAssistantReply(

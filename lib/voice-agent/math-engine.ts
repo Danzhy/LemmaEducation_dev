@@ -743,7 +743,7 @@ function digitAtPlace(numberText: string, exponent: number) {
   return index < split.fractionalDigits.length ? Number(split.fractionalDigits[index]) : 0
 }
 
-function singleDigitPlaceValue(numberText: string, targetDigit: number) {
+function digitPlaceValueMatches(numberText: string, targetDigit: number) {
   const split = splitPlaceValueNumber(numberText)
   if (!split) return null
 
@@ -763,6 +763,12 @@ function singleDigitPlaceValue(numberText: string, targetDigit: number) {
     }
   }
 
+  return matches
+}
+
+function singleDigitPlaceValue(numberText: string, targetDigit: number) {
+  const matches = digitPlaceValueMatches(numberText, targetDigit)
+  if (!matches) return null
   if (matches.length !== 1) return null
   return matches[0]
 }
@@ -866,9 +872,31 @@ function checkPlaceValueDigitStep(previousStep: string, nextStep: string): MathS
     }
   }
 
-  const placeValue = singleDigitPlaceValue(prompt.numberText, prompt.targetDigit)
+  const placeValueMatches = digitPlaceValueMatches(prompt.numberText, prompt.targetDigit)
+  if (!placeValueMatches) return null
+
+  if (placeValueMatches.length > 1) {
+    const placeLabels = placeValueMatches.map((match) => placeValueLabel(match.exponent))
+    return {
+      verdict: 'unclear',
+      reason: `There is more than one ${prompt.targetDigit} in ${prompt.numberText}: one in the ${placeLabels.join(
+        ' place and one in the '
+      )} place.`,
+      hintTarget: `say which ${prompt.targetDigit} you mean by naming its place`,
+    }
+  }
+
+  if (placeValueMatches.length === 0) {
+    return {
+      verdict: 'unclear',
+      reason: `I do not see a ${prompt.targetDigit} in ${prompt.numberText}.`,
+      hintTarget: 'check the digit in the number first',
+    }
+  }
+
+  const placeValue = placeValueMatches[0]
   const studentValue = parsePlaceValueNumericAnswer(nextStep)
-  if (!placeValue || studentValue === null) return null
+  if (studentValue === null) return null
 
   const label = placeValueLabel(placeValue.exponent)
   const matches = isNearlyEqual(placeValue.value, studentValue, Math.abs(placeValue.value) < 1 ? 1e-9 : 1e-6)

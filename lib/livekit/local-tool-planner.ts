@@ -1435,6 +1435,13 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     if (checkedStep?.verdict === 'invalid') {
       return `I checked that step first, and something changed. ${checkedStep.reason}${boardCue} What should we check about ${checkedStep.hintTarget}?`
     }
+    if (checkedStep?.verdict === 'unclear') {
+      const reason = checkedStep.reason ? ` ${checkedStep.reason}` : ''
+      const question = checkedStep.hintTarget
+        ? ` Can you ${checkedStep.hintTarget}?`
+        : ' Can you rewrite the previous line and the next line separately?'
+      return `I tried to check that step first, but I need one clarification.${reason}${question}`
+    }
     return 'I tried to check that step first, but the notation needs to be clearer. Can you rewrite the previous line and the next line separately?'
   }
 

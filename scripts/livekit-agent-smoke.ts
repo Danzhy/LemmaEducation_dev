@@ -137,6 +137,10 @@ async function main() {
     { previousStep: 'value of 7 in 4,732', nextStep: '70' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-place-value-value-step-check' }
   )
+  const unclearRepeatedDigitValueStep = await tools.math_check_step.execute(
+    { previousStep: 'value of 2 in 2,020', nextStep: '20' },
+    { ctx: {} as never, toolCallId: 'smoke-repeated-place-value-value-step-check' }
+  )
   const highlightedPlaceValueChart = await tools.place_value_chart.execute(
     {
       columns: ['thousands', 'hundreds', 'tens', 'ones'],
@@ -472,6 +476,14 @@ async function main() {
     !JSON.stringify(invalidPlaceValueValueStep).includes("digit's place")
   ) {
     throw new Error(`math_check_step did not reject a digit-value mistake: ${JSON.stringify(invalidPlaceValueValueStep)}`)
+  }
+
+  if (
+    !JSON.stringify(unclearRepeatedDigitValueStep).includes('"verdict":"unclear"') ||
+    !JSON.stringify(unclearRepeatedDigitValueStep).includes('more than one 2') ||
+    !JSON.stringify(unclearRepeatedDigitValueStep).includes('naming its place')
+  ) {
+    throw new Error(`math_check_step did not clarify repeated digit-value prompts: ${JSON.stringify(unclearRepeatedDigitValueStep)}`)
   }
 
   if (
