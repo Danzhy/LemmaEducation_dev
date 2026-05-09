@@ -1672,6 +1672,8 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
     /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
+  const asksForResponsePlanning =
+    /\b(what should (?:we|i|you) do next|how should (?:we|i|you) start|choose the next move|plan the next move|best next step|how should you help|what is the next tutoring move)\b/.test(lower)
   const asksForMistakeHelp =
     /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|check this|is this right|is that right|am i right|is my step right|correct)\b/.test(lower)
   const needsSafetyBoundary =
@@ -1762,6 +1764,23 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     if (!hasSpecificMathAction) {
       return plans
     }
+  }
+
+  if (asksForResponsePlanning) {
+    plans.push({
+      toolName: 'tutor_response_planner',
+      input: {
+        topic: inferLocalTopic(prompt),
+        gradeLevel,
+        studentRequest: prompt.slice(0, 500),
+        studentWork: hasStudentAttempt ? prompt.slice(0, 500) : '',
+        recentToolName: '',
+        recentToolResult: '',
+        hasStudentAttempt,
+        attemptCount: hasStudentAttempt ? 1 : 0,
+      },
+    })
+    return plans
   }
 
   if (/\b(another way|different way|represent|representation|turn.*into|as a table|as an equation|as a graph|with a visual|show visually)\b/.test(lower)) {
@@ -2447,6 +2466,17 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     return check?.question
       ? `Let me check one thing before we move on: ${check.question}`
       : 'Let me ask one quick check question before we move on.'
+  }
+
+  if (firstTool === 'tutor_response_planner') {
+    const planned = outputs.find(
+      (output): output is { sayFirst?: string; askNext?: string; recommendedMove?: string } =>
+        Boolean(output && typeof output === 'object' && 'recommendedMove' in output)
+    )
+    if (planned?.sayFirst && planned.askNext) {
+      return `${planned.sayFirst} ${planned.askNext}`
+    }
+    return 'I planned the next tutor move. I will ask one question, then wait for your thinking.'
   }
 
   if (firstTool === 'exit_ticket_builder') {

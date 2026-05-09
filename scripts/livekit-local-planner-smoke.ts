@@ -23,6 +23,16 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes explicit next-move planning to tutor response planner',
+    prompt: 'I got 1/2 + 1/3 = 2/5. What should we do next?',
+    expectedTools: ['tutor_response_planner'],
+    inspect: (input) => {
+      assert.equal(input.topic, 'fractions')
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.attemptCount, 1)
+    },
+  },
+  {
     name: 'routes linear graphs to graph_function with parsed expression and domain',
     prompt: 'Can you graph y = 2x + 1 from x = -3 to 3?',
     expectedTools: ['graph_function'],
@@ -793,6 +803,14 @@ assert.match(
     [{ question: 'What is the whole?' }]
   ),
   /What is the whole/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'what should we do next',
+    [{ toolName: 'tutor_response_planner', input: {} }],
+    [{ recommendedMove: 'check_question', sayFirst: 'Let us check one part before moving on.', askNext: 'What changed?' }]
+  ),
+  /What changed/
 )
 assert.match(
   buildLocalAssistantReply(

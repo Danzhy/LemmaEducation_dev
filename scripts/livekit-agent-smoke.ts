@@ -26,6 +26,7 @@ async function main() {
     'session_mastery_snapshot',
     'exit_ticket_builder',
     'tutor_turn_audit',
+    'tutor_response_planner',
     'student_check_question',
     'answer_disclosure_gate',
     'mistake_pattern_classifier',
@@ -454,6 +455,19 @@ async function main() {
       toolUsed: 'fraction_operation',
     },
     { ctx: {} as never, toolCallId: 'smoke-tutor-turn-audit' }
+  )
+  const responsePlanner = await tools.tutor_response_planner.execute(
+    {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      studentRequest: 'I got 1/2 + 1/3 = 2/5. What should we do next?',
+      studentWork: '1/2 + 1/3 = 2/5',
+      recentToolName: '',
+      recentToolResult: '',
+      hasStudentAttempt: true,
+      attemptCount: 1,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-tutor-response-planner' }
   )
   const checkQuestion = await tools.student_check_question.execute(
     {
@@ -943,6 +957,13 @@ async function main() {
 
   if (!JSON.stringify(turnAudit).includes('answer_dumping')) {
     throw new Error('tutor_turn_audit did not flag answer dumping.')
+  }
+
+  if (
+    !JSON.stringify(responsePlanner).includes('"recommendedMove":"check_question"') ||
+    !JSON.stringify(responsePlanner).includes('math_check_step')
+  ) {
+    throw new Error(`tutor_response_planner did not choose a checked next move: ${JSON.stringify(responsePlanner)}`)
   }
 
   if (!JSON.stringify(checkQuestion).includes('expectedEvidence')) {

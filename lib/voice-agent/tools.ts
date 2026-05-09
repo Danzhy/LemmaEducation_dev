@@ -63,6 +63,7 @@ import {
   writeOnCanvas,
   boardAnimationPlan,
   tutorTeachingSequence,
+  tutorResponsePlanner,
   tutorTurnAudit,
 } from '@/lib/voice-agent/math-engine'
 
@@ -280,6 +281,60 @@ export function createVoiceAgentTools() {
             topic: params.topic,
             studentGoal: params.studentGoal,
             studentWork: params.studentWork,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'tutor_response_planner',
+      description:
+        'Choose exactly one next tutoring move for a grade 3 to 7 turn: clarify, hint, check question, board action, worked example, targeted practice, or answer gate. Use this when deciding how to respond before calling several specialized tools.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          studentRequest: { type: 'string' },
+          studentWork: { type: 'string' },
+          recentToolName: { type: 'string' },
+          recentToolResult: { type: 'string' },
+          hasStudentAttempt: { type: 'boolean' },
+          attemptCount: { type: 'number' },
+        },
+        required: [
+          'topic',
+          'gradeLevel',
+          'studentRequest',
+          'studentWork',
+          'recentToolName',
+          'recentToolResult',
+          'hasStudentAttempt',
+          'attemptCount',
+        ],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          gradeLevel?: string
+          studentRequest: string
+          studentWork?: string
+          recentToolName?: string
+          recentToolResult?: string
+          hasStudentAttempt?: boolean
+          attemptCount?: number
+        }
+        return stringifyResult(
+          tutorResponsePlanner({
+            topic: params.topic,
+            gradeLevel: params.gradeLevel,
+            studentRequest: params.studentRequest,
+            studentWork: params.studentWork,
+            recentToolName: params.recentToolName,
+            recentToolResult: params.recentToolResult,
+            hasStudentAttempt: params.hasStudentAttempt,
+            attemptCount: params.attemptCount,
           })
         )
       },

@@ -60,6 +60,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'statistics_summary',
   'student_check_question',
   'table_of_values',
+  'tutor_response_planner',
   'tutor_teaching_sequence',
   'tutor_turn_audit',
   'unit_conversion',

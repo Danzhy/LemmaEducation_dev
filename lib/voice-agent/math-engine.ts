@@ -16,6 +16,7 @@ import type {
   MathAnswerCheckResult,
   MathStepCheckResult,
   NextStepCoachResult,
+  TutorResponsePlannerResult,
   AdaptiveReviewPlanResult,
   SessionMasterySnapshotResult,
   TutorTurnAuditResult,
@@ -8740,6 +8741,259 @@ export function nextStepCoach(input: {
     avoid: [
       'Do not start with a formula unless the student already named the relationship.',
       'Do not fill the board with every step at once.',
+    ],
+  }
+}
+
+function hasStudentAttemptSignal(input: {
+  studentRequest: string
+  studentWork?: string
+  hasStudentAttempt?: boolean
+  attemptCount?: number
+}) {
+  const request = input.studentRequest.toLowerCase()
+  return (
+    Boolean(input.hasStudentAttempt) ||
+    Math.max(0, Math.floor(input.attemptCount ?? 0)) > 0 ||
+    Boolean(input.studentWork?.trim()) ||
+    /\b(i tried|i got|i found|my answer|i think|check this|i changed|rewrote|i added|i subtracted|i multiplied|i divided|i solved)\b/.test(request) ||
+    /[=<>]/.test(input.studentRequest)
+  )
+}
+
+function inferTutorResponseSituation(input: {
+  studentRequest: string
+  studentWork?: string
+  recentToolResult?: string
+  hasStudentAttempt?: boolean
+  attemptCount?: number
+}): TutorResponsePlannerResult['situation'] {
+  const request = input.studentRequest.toLowerCase()
+  const hasAttempt = hasStudentAttemptSignal(input)
+
+  if (input.recentToolResult?.trim()) return 'after_tool'
+  if (/\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(request)) {
+    return 'asks_for_answer'
+  }
+  if (/\b(practice|quiz|drill|another problem|new problem|test me)\b/.test(request)) return 'needs_practice'
+  if (/\b(check|correct|right|wrong|mistake|is this right|is my step right)\b/.test(request) && hasAttempt) {
+    return 'checking_work'
+  }
+  if (hasAttempt && /\b(what should|next step|do next|where next|what now)\b/.test(request)) {
+    return 'checking_work'
+  }
+  if (/\b(draw|show|visual|model|diagram|graph|plot|number line|bar|tape|board)\b/.test(request)) {
+    return 'needs_visual'
+  }
+  if (/\b(stuck|confused|lost|help|don't know|do not know|not sure|hint)\b/.test(request)) {
+    return hasAttempt ? 'student_stuck' : 'missing_work'
+  }
+  if (!hasAttempt && /\b(start|begin|set up|what should|how do)\b/.test(request)) return 'missing_work'
+  return 'new_problem'
+}
+
+function wantsWorkedExample(request: string) {
+  return /\b(worked example|example like this|show an example|walk me through one|i do we do you do)\b/.test(request.toLowerCase())
+}
+
+function chooseResponsePlannerMove(input: {
+  situation: TutorResponsePlannerResult['situation']
+  studentRequest: string
+}): TutorResponsePlannerResult['recommendedMove'] {
+  if (input.situation === 'asks_for_answer') return 'answer_gate'
+  if (wantsWorkedExample(input.studentRequest)) return 'worked_example'
+  if (input.situation === 'needs_practice') return 'targeted_practice'
+  if (input.situation === 'needs_visual') return 'board_action'
+  if (input.situation === 'checking_work' || input.situation === 'after_tool') return 'check_question'
+  if (input.situation === 'student_stuck') return 'hint'
+  return 'clarify'
+}
+
+function choosePlannerPrimaryTool(input: {
+  topic: CurriculumTopic
+  move: TutorResponsePlannerResult['recommendedMove']
+  studentRequest: string
+  studentWork?: string
+  recentToolName?: string
+}) {
+  const guide = CURRICULUM_GUIDE[input.topic]
+  const combined = `${input.studentRequest} ${input.studentWork ?? ''}`.toLowerCase()
+  if (input.move === 'answer_gate') return 'answer_disclosure_gate'
+  if (input.move === 'worked_example') return 'worked_example_fader'
+  if (input.move === 'targeted_practice') return 'practice_set_generator'
+  if (input.move === 'board_action') return guide.tools[0]
+  if (input.move === 'check_question') {
+    if (input.recentToolName?.trim()) return 'student_check_question'
+    if (/[=<>]/.test(combined) || /\b(step|changed|rewrote|from .* to )\b/.test(combined)) return 'math_check_step'
+    return 'student_check_question'
+  }
+  if (input.move === 'hint') return 'hint_ladder'
+  if (/\bword problem|story problem|set up|known|unknown\b/.test(combined)) return 'problem_understanding_map'
+  return 'socratic_move_planner'
+}
+
+function buildPlannerToolSequence(input: {
+  topic: CurriculumTopic
+  move: TutorResponsePlannerResult['recommendedMove']
+  primaryTool: string
+  recentToolName?: string
+}) {
+  const guide = CURRICULUM_GUIDE[input.topic]
+  if (input.move === 'answer_gate') return ['answer_disclosure_gate']
+  if (input.move === 'worked_example') return ['worked_example_fader', 'student_check_question']
+  if (input.move === 'targeted_practice') return ['practice_set_generator', 'student_check_question']
+  if (input.move === 'board_action') return [input.primaryTool, 'student_check_question']
+  if (input.move === 'check_question') {
+    return input.primaryTool === 'math_check_step'
+      ? ['math_check_step', 'student_check_question']
+      : [input.recentToolName?.trim() || 'student_check_question', 'student_check_question']
+  }
+  if (input.move === 'hint') return ['hint_ladder', guide.tools[0], 'student_check_question']
+  return [input.primaryTool]
+}
+
+function answerPolicyForPlan(input: {
+  move: TutorResponsePlannerResult['recommendedMove']
+  hasAttempt: boolean
+  attemptCount?: number
+}): TutorResponsePlannerResult['answerPolicy'] {
+  if (input.move === 'answer_gate' && (input.hasAttempt || Math.max(0, Math.floor(input.attemptCount ?? 0)) >= 2)) {
+    return 'solution_after_attempt'
+  }
+  if (input.hasAttempt) return 'next_step_only'
+  return 'hint_first'
+}
+
+export function tutorResponsePlanner(input: {
+  topic: string
+  gradeLevel?: string
+  studentRequest: string
+  studentWork?: string
+  recentToolName?: string
+  recentToolResult?: string
+  hasStudentAttempt?: boolean
+  attemptCount?: number
+}): TutorResponsePlannerResult {
+  const topic = resolveCurriculumTopic(input.topic || input.studentRequest || input.studentWork || '')
+  const guide = CURRICULUM_GUIDE[topic]
+  const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
+  const studentRequest = input.studentRequest.trim() || 'student needs help'
+  const situation = inferTutorResponseSituation({
+    studentRequest,
+    studentWork: input.studentWork,
+    recentToolResult: input.recentToolResult,
+    hasStudentAttempt: input.hasStudentAttempt,
+    attemptCount: input.attemptCount,
+  })
+  const recommendedMove = chooseResponsePlannerMove({
+    situation,
+    studentRequest,
+  })
+  const recommendedTool = choosePlannerPrimaryTool({
+    topic,
+    move: recommendedMove,
+    studentRequest,
+    studentWork: input.studentWork,
+    recentToolName: input.recentToolName,
+  })
+  const hasAttempt = hasStudentAttemptSignal({
+    studentRequest,
+    studentWork: input.studentWork,
+    hasStudentAttempt: input.hasStudentAttempt,
+    attemptCount: input.attemptCount,
+  })
+  const answerPolicy = answerPolicyForPlan({
+    move: recommendedMove,
+    hasAttempt,
+    attemptCount: input.attemptCount,
+  })
+  const toolSequence = buildPlannerToolSequence({
+    topic,
+    move: recommendedMove,
+    primaryTool: recommendedTool,
+    recentToolName: input.recentToolName,
+  })
+
+  const moveCopy: Record<
+    TutorResponsePlannerResult['recommendedMove'],
+    Pick<TutorResponsePlannerResult, 'sayFirst' | 'askNext' | 'waitFor' | 'boardMove'>
+  > = {
+    clarify: {
+      sayFirst: 'Let us get the problem clear before we calculate.',
+      askNext: 'What do we know, what are we trying to find, and what have you tried so far?',
+      waitFor: 'The student names a known quantity, an unknown, or a first attempt.',
+      boardMove: 'Write knowns, unknown, and first step as three short prompts.',
+    },
+    hint: {
+      sayFirst: 'Let us shrink this to one decision.',
+      askNext: guide.nextMove,
+      waitFor: 'A partial student idea or a specific step they want checked.',
+      boardMove: `Use ${guide.tools[0].replace(/_/g, ' ')} only if the idea needs to be visible.`,
+    },
+    check_question: {
+      sayFirst: 'Let us check one part before moving on.',
+      askNext:
+        recommendedTool === 'math_check_step'
+          ? 'What changed from the previous line to this line?'
+          : 'Can you explain why that step matches the idea on the board?',
+      waitFor: 'The student explains one operation, comparison, or relationship.',
+      boardMove: 'Put the current step beside the relevant model or checked result.',
+    },
+    board_action: {
+      sayFirst: 'I will make the structure visible, then you make the next move.',
+      askNext: 'What part of the model matches the numbers in the problem?',
+      waitFor: 'The student connects a label, point, bar, or quantity to the original problem.',
+      boardMove: `Call ${recommendedTool.replace(/_/g, ' ')} and leave space for the student's next step.`,
+    },
+    worked_example: {
+      sayFirst: 'I will model the setup only, then fade the next step back to you.',
+      askNext: 'What part should you fill in when I leave one step blank?',
+      waitFor: 'The student supplies the hidden step or explains what stays the same.',
+      boardMove: 'Use an I-do, we-do, you-do setup with the final answer hidden at first.',
+    },
+    targeted_practice: {
+      sayFirst: 'I will give one quick practice item at a time.',
+      askNext: 'Try the first step out loud before I check the answer.',
+      waitFor: 'A student attempt on the first practice item.',
+      boardMove: 'Show only the current practice prompt, not the full answer key.',
+    },
+    answer_gate: {
+      sayFirst:
+        answerPolicy === 'solution_after_attempt'
+          ? 'I can show a concise solution because you have already tried, but I will still name the reasoning.'
+          : 'I will start with a hint or one next step so you still do the thinking.',
+      askNext:
+        answerPolicy === 'solution_after_attempt'
+          ? 'Which step should I explain first?'
+          : 'What is one step you can try before I reveal more?',
+      waitFor:
+        answerPolicy === 'solution_after_attempt'
+          ? 'The student chooses a step to discuss or asks for the concise solution.'
+          : 'A student attempt before any full solution.',
+      boardMove: 'Use answer_disclosure_gate before writing any final answer.',
+    },
+  }
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel,
+    situation,
+    recommendedMove,
+    recommendedTool,
+    toolSequence: [...new Set(toolSequence)],
+    ...moveCopy[recommendedMove],
+    answerPolicy,
+    auditChecklist: [
+      'One student-facing question only.',
+      'No full solution unless the answer gate allows it.',
+      'Use a deterministic math or board tool before correcting with certainty.',
+      'Keep the spoken turn short enough for interruption.',
+    ],
+    avoid: [
+      'Do not stack multiple explanations before the student responds.',
+      'Do not reveal answer keys for practice or exit checks.',
+      'Do not quote private learner or curriculum context in the student-facing turn.',
     ],
   }
 }

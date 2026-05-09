@@ -247,6 +247,38 @@ export type NextStepCoachResult = {
   avoid: string[]
 }
 
+export type TutorResponsePlannerResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  situation:
+    | 'new_problem'
+    | 'missing_work'
+    | 'student_stuck'
+    | 'checking_work'
+    | 'needs_visual'
+    | 'needs_practice'
+    | 'asks_for_answer'
+    | 'after_tool'
+  recommendedMove:
+    | 'clarify'
+    | 'hint'
+    | 'check_question'
+    | 'board_action'
+    | 'worked_example'
+    | 'targeted_practice'
+    | 'answer_gate'
+  recommendedTool: string
+  toolSequence: string[]
+  sayFirst: string
+  askNext: string
+  waitFor: string
+  boardMove: string
+  answerPolicy: 'hint_first' | 'next_step_only' | 'solution_after_attempt'
+  auditChecklist: string[]
+  avoid: string[]
+}
+
 export type StudentCheckQuestionResult = {
   topic: string
   label: string

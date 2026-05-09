@@ -50,6 +50,7 @@ import {
   statisticsSummaryScene,
   studentCheckQuestion,
   tableOfValues,
+  tutorResponsePlanner,
   tutorTeachingSequence,
   tutorTurnAudit,
   unitRate,
@@ -798,6 +799,22 @@ assert(
   'tutor_teaching_sequence should plan a diagnostic tutor turn with board stages.'
 )
 
+const responsePlan = tutorResponsePlanner({
+  topic: 'fractions',
+  gradeLevel: 'Grade 5',
+  studentRequest: 'I got 1/2 + 1/3 = 2/5. What should we do next?',
+  studentWork: '1/2 + 1/3 = 2/5',
+  hasStudentAttempt: true,
+  attemptCount: 1,
+})
+assert(
+  responsePlan.recommendedMove === 'check_question' &&
+    responsePlan.recommendedTool === 'math_check_step' &&
+    responsePlan.toolSequence.includes('student_check_question') &&
+    responsePlan.auditChecklist.some((item) => item.includes('One student-facing question')),
+  'tutor_response_planner should choose one checked next move before adding more explanation.'
+)
+
 const coachedMove = nextStepCoach({
   topic: 'fractions',
   gradeLevel: 'Grade 5',
@@ -933,4 +950,4 @@ assert(
   'common_denominator should convert 1/2 and 1/3 to sixths.'
 )
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 23} checks).`)
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 24} checks).`)
