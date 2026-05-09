@@ -2666,6 +2666,25 @@ function buildSceneChrome(title: string) {
   ]
 }
 
+function withSemanticSceneArtifactIds(toolName: string, actions: TutorCanvasAction[]) {
+  const artifactGroupId = `tool:${toolName}`
+  let drawingIndex = 0
+
+  return actions.map((action) => {
+    if (action.type === 'clear_tool_layer' || action.type === 'focus_region') {
+      return action
+    }
+
+    const artifactId = `${artifactGroupId}:scene:${drawingIndex}`
+    drawingIndex += 1
+    return {
+      ...action,
+      artifactId,
+      artifactGroupId,
+    }
+  })
+}
+
 function buildTickActions(input: {
   origin: { x: number; y: number }
   xDomain: [number, number]
@@ -5551,7 +5570,7 @@ export function fractionStripScene(input: {
 
   return {
     summary: 'Prepared a fraction strip on the canvas.',
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('fraction_strip', actions),
   }
 }
 
@@ -5883,7 +5902,7 @@ export function angleDiagramScene(input: {
               1
             )} degrees`
       }. The board reveal is ordered total, student try, check, correction prompt.`,
-      canvasActions: actions,
+      canvasActions: withSemanticSceneArtifactIds('angle_diagram', actions),
     }
   }
 
@@ -5998,7 +6017,7 @@ export function angleDiagramScene(input: {
               1
             )} degrees`
       }. The board reveal is ordered total, student try, check, correction prompt.`,
-      canvasActions: actions,
+      canvasActions: withSemanticSceneArtifactIds('angle_diagram', actions),
     }
   }
 
@@ -6062,7 +6081,7 @@ export function angleDiagramScene(input: {
 
   return {
     summary: 'Prepared an angle diagram on the canvas.',
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('angle_diagram', actions),
   }
 }
 
@@ -6239,7 +6258,7 @@ export function barModelScene(input: {
 
   return {
     summary: 'Prepared a bar model on the canvas.',
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('bar_model', actions),
   }
 }
 
@@ -7273,7 +7292,7 @@ export function fractionCompareScene(input: {
 
   return {
     summary: `Prepared a fraction comparison for ${leftNumerator}/${leftDenominator} ${comparison} ${rightNumerator}/${rightDenominator}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('fraction_compare', actions),
   }
 }
 
