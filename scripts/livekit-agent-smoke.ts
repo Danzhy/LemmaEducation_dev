@@ -27,6 +27,7 @@ async function main() {
     'exit_ticket_builder',
     'tutor_turn_audit',
     'tutor_response_planner',
+    'board_state_summarizer',
     'short_spoken_turn_formatter',
     'voice_interruption_recovery_plan',
     'student_check_question',
@@ -507,6 +508,17 @@ async function main() {
       attemptCount: 1,
     },
     { ctx: {} as never, toolCallId: 'smoke-tutor-response-planner' }
+  )
+  const boardSummary = await tools.board_state_summarizer.execute(
+    {
+      boardDescription: 'The board shows a triangle with base 8 cm and height 5 cm.',
+      studentRequest: 'How do I find the area from this diagram?',
+      gradeLevel: 'Grade 6',
+      studentWork: '',
+      recentToolName: '',
+      recentToolResult: '',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-board-state-summarizer' }
   )
   const shortSpokenTurn = await tools.short_spoken_turn_formatter.execute(
     {
@@ -1053,6 +1065,14 @@ async function main() {
     !JSON.stringify(responsePlanner).includes('"oneQuestionOnly":true')
   ) {
     throw new Error(`tutor_response_planner did not choose a checked next move: ${JSON.stringify(responsePlanner)}`)
+  }
+
+  if (
+    !JSON.stringify(boardSummary).includes('"topic":"geometry_measurement"') ||
+    !JSON.stringify(boardSummary).includes('"recommendedTool":"geometry_figure"') ||
+    !JSON.stringify(boardSummary).includes('Do not invent')
+  ) {
+    throw new Error(`board_state_summarizer did not ground visible diagram evidence: ${JSON.stringify(boardSummary)}`)
   }
 
   if (

@@ -6,6 +6,7 @@ import {
   arrayModelScene,
   barModelScene,
   boardAnimationPlan,
+  boardStateSummarizer,
   commonDenominator,
   compositeAreaModelScene,
   coordinateDistanceScene,
@@ -862,6 +863,23 @@ assert(
     responsePlan.voicePolicy.waitsAfterQuestion &&
     responsePlan.auditChecklist.some((item) => item.includes('One student-facing question')),
   'tutor_response_planner should choose one checked next move before adding more explanation.'
+)
+
+const boardSummary = boardStateSummarizer({
+  boardDescription: 'The board shows a triangle with base 8 cm and height 5 cm. The student points to the diagram.',
+  studentRequest: 'How do I find the area from this diagram?',
+  gradeLevel: 'Grade 6',
+  studentWork: '',
+  recentToolName: '',
+  recentToolResult: '',
+})
+assert(
+  boardSummary.topic === 'geometry_measurement' &&
+    boardSummary.visibleObjects.includes('triangle') &&
+    boardSummary.recommendedTool === 'geometry_figure' &&
+    boardSummary.askNext.includes('base') &&
+    boardSummary.avoid.some((item) => item.includes('Do not invent')),
+  'board_state_summarizer should convert visible diagram evidence into one grounded next tutor move.'
 )
 
 const shortSpokenTurn = shortSpokenTurnFormatter({

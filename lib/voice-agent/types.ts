@@ -288,6 +288,32 @@ export type TutorResponsePlannerResult = {
   avoid: string[]
 }
 
+export type BoardStateSummaryResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  confidence: 'low' | 'medium' | 'high'
+  visibleObjects: string[]
+  mathSignals: string[]
+  likelyGoal:
+    | 'identify_missing_information'
+    | 'check_visible_step'
+    | 'read_graph'
+    | 'connect_diagram_to_numbers'
+    | 'setup_word_problem'
+    | 'unclear'
+  usableEvidence: string[]
+  missingInformation: string[]
+  recommendedTool: string
+  recommendedTutorMove:
+    | 'ask_clarifying_question'
+    | 'check_visible_step'
+    | 'connect_diagram_to_numbers'
+    | 'draw_supporting_model'
+  askNext: string
+  avoid: string[]
+}
+
 export type TutorVoicePolicyCheck = {
   wordCount: number
   sentenceCount: number

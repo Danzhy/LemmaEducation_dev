@@ -61,6 +61,16 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes visible diagram references through board-state summary before drawing',
+    prompt: 'On the board I drew a triangle with base 8 cm and height 5 cm. How do I find the area from this diagram?',
+    expectedTools: ['board_state_summarizer', 'geometry_figure'],
+    inspect: (input, plans) => {
+      assert.match(String(input.boardDescription), /triangle/)
+      assert.equal(plans[1].input.figureType, 'triangle')
+      assert.equal(plans[1].input.showTriangleAreaModel, true)
+    },
+  },
+  {
     name: 'routes linear graphs to graph_function with parsed expression and domain',
     prompt: 'Can you graph y = 2x + 1 from x = -3 to 3?',
     expectedTools: ['graph_function'],
@@ -798,6 +808,14 @@ assert.match(
     [{ decision: 'hint_only', sayThis: 'I will start with a hint.' }]
   ),
   /start with a hint/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'on the board',
+    [{ toolName: 'board_state_summarizer', input: {} }],
+    [{ recommendedTool: 'geometry_figure', askNext: 'How do the base and height connect?' }]
+  ),
+  /visible board state/i
 )
 assert.match(
   buildLocalAssistantReply(

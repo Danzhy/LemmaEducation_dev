@@ -63,6 +63,7 @@ import {
   workedExampleFader,
   writeOnCanvas,
   boardAnimationPlan,
+  boardStateSummarizer,
   tutorTeachingSequence,
   tutorResponsePlanner,
   tutorTurnAudit,
@@ -337,6 +338,56 @@ export function createVoiceAgentTools() {
             recentToolResult: params.recentToolResult,
             hasStudentAttempt: params.hasStudentAttempt,
             attemptCount: params.attemptCount,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'board_state_summarizer',
+      description:
+        'Summarize visible board or canvas evidence before solving. Use this when the student refers to this diagram, the board, a drawing, or visible work and you need to identify the topic, missing labels, and the next deterministic tool without inventing unseen details.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          boardDescription: {
+            type: 'string',
+            description:
+              'A compact description of the visible board, diagram, canvas actions, labels, or student-written work.',
+          },
+          studentRequest: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          studentWork: { type: 'string' },
+          recentToolName: { type: 'string' },
+          recentToolResult: { type: 'string' },
+        },
+        required: [
+          'boardDescription',
+          'studentRequest',
+          'gradeLevel',
+          'studentWork',
+          'recentToolName',
+          'recentToolResult',
+        ],
+      },
+      async execute(input) {
+        const params = input as {
+          boardDescription: string
+          studentRequest?: string
+          gradeLevel?: string
+          studentWork?: string
+          recentToolName?: string
+          recentToolResult?: string
+        }
+        return stringifyResult(
+          boardStateSummarizer({
+            boardDescription: params.boardDescription,
+            studentRequest: params.studentRequest,
+            gradeLevel: params.gradeLevel,
+            studentWork: params.studentWork,
+            recentToolName: params.recentToolName,
+            recentToolResult: params.recentToolResult,
           })
         )
       },

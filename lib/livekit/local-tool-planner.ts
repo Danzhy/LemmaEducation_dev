@@ -2232,6 +2232,15 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
     /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|tape|bar\s+model|part[- ]?whole|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
+  const referencesVisibleBoard =
+    /\b(this diagram|the diagram|my diagram|this drawing|my drawing|on the board|the board|whiteboard|canvas|visible work|what i drew|the picture|this figure|the figure)\b/.test(
+      lower
+    )
+  const asksForBoardStateHelp =
+    referencesVisibleBoard &&
+    /\b(what should|what do|how do|find|missing|next|check|right|wrong|see|use|from this|using this|what can)\b/.test(
+      lower
+    )
   const asksForResponsePlanning =
     /\b(what should (?:we|i|you) do next|how should (?:we|i|you) start|choose the next move|plan the next move|best next step|how should you help|what is the next tutoring move)\b/.test(lower)
   const asksForMistakeHelp =
@@ -2324,6 +2333,20 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     if (!hasSpecificMathAction) {
       return plans
     }
+  }
+
+  if (asksForBoardStateHelp) {
+    plans.push({
+      toolName: 'board_state_summarizer',
+      input: {
+        boardDescription: prompt.slice(0, 800),
+        studentRequest: prompt.slice(0, 300),
+        gradeLevel,
+        studentWork: hasStudentAttempt ? prompt.slice(0, 500) : '',
+        recentToolName: '',
+        recentToolResult: '',
+      },
+    })
   }
 
   if (asksForResponsePlanning) {
@@ -2866,6 +2889,10 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
+  if (plans.some((plan) => plan.toolName === 'board_state_summarizer')) {
+    return plans
+  }
+
   plans.push({
     toolName: 'socratic_move_planner',
     input: {
@@ -2996,6 +3023,17 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'board_animation_plan') {
     return 'I set up a staged board reveal. I will show one useful mark at a time, then pause so you can make the next move.'
+  }
+
+  if (firstTool === 'board_state_summarizer') {
+    const summary = outputs.find(
+      (output): output is { askNext?: string; recommendedTool?: string; confidence?: string } =>
+        Boolean(output && typeof output === 'object' && 'recommendedTool' in output)
+    )
+    if (summary?.askNext) {
+      return `I read the visible board state first. ${summary.askNext}`
+    }
+    return 'I read the visible board state first. What label or number should we confirm before solving?'
   }
 
   if (firstTool === 'learner_context') {

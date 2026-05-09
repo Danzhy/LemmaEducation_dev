@@ -7,6 +7,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'array_model',
   'bar_model',
   'board_animation_plan',
+  'board_state_summarizer',
   'canvas_action',
   'common_denominator',
   'composite_area_model',

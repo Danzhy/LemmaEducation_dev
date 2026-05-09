@@ -17,6 +17,7 @@ import type {
   MathStepCheckResult,
   NextStepCoachResult,
   TutorResponsePlannerResult,
+  BoardStateSummaryResult,
   AdaptiveReviewPlanResult,
   SessionMasterySnapshotResult,
   ShortSpokenTurnFormatterResult,
@@ -9338,6 +9339,278 @@ export function voiceInterruptionRecoveryPlan(input: {
       intent === 'pause'
         ? 'Stop and listen until the student explicitly continues.'
         : 'Say only the recovery chunk, then wait for the student before continuing the remaining chunks.',
+  }
+}
+
+function inferBoardSummaryTopic(text: string): CurriculumTopic {
+  const lower = text.toLowerCase()
+  if (/\b(angle|triangle|rectangle|perimeter|area|base|height|radius|diameter|polygon|cm|meter|unit square)\b/.test(lower)) {
+    return 'geometry_measurement'
+  }
+  if (/\b(graph|coordinate|ordered pair|x-axis|y-axis|slope|intercept|vertex|quadrant|point)\b/.test(lower)) {
+    return 'coordinate_graphing'
+  }
+  if (/\b(fraction|denominator|numerator|half|third|fourth|fifth|sixth|eighth|\d+\s*\/\s*\d+)\b/.test(lower)) {
+    return 'fractions'
+  }
+  if (/\b(percent|decimal|hundredth|tenth|discount|tax|tip)\b/.test(lower)) {
+    return 'decimals_percents'
+  }
+  if (/\b(ratio|rate|unit rate|per one|tape|double number line|scale factor)\b/.test(lower)) {
+    return 'ratios_rates'
+  }
+  if (/\b(equation|expression|variable|solve|x\s*=|balance|like terms|distribute)\b|[=<>]/.test(lower)) {
+    return 'expressions_equations'
+  }
+  if (/\b(mean|median|mode|range|data|probability|outcome|chance|bar chart|line plot)\b/.test(lower)) {
+    return 'data_probability'
+  }
+  if (/\b(array|groups|multiply|divide|quotient|product|remainder)\b/.test(lower)) {
+    return 'multiplication_division'
+  }
+  if (/\b(place value|digit|round|ones|tens|hundreds|thousands)\b/.test(lower)) {
+    return 'place_value'
+  }
+  return 'fractions'
+}
+
+function uniqueBoardItems(items: string[], limit = 8) {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const item of items) {
+    const normalized = item.trim().replace(/\s+/g, ' ')
+    if (!normalized || seen.has(normalized.toLowerCase())) continue
+    seen.add(normalized.toLowerCase())
+    result.push(normalized)
+    if (result.length >= limit) break
+  }
+  return result
+}
+
+function collectVisibleBoardObjects(text: string) {
+  const lower = text.toLowerCase()
+  const objects: string[] = []
+  const checks: Array<[RegExp, string]> = [
+    [/\btriangle|triangular\b/, 'triangle'],
+    [/\brectangle|rectangular\b/, 'rectangle'],
+    [/\bangle|degrees?|supplementary|complementary\b/, 'angle relationship'],
+    [/\bgraph|coordinate plane|axes|x-axis|y-axis\b/, 'coordinate graph'],
+    [/\bpoint|ordered pair|\(-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?\)/, 'plotted point'],
+    [/\btable|row|column|values?\b/, 'table'],
+    [/\bnumber line\b/, 'number line'],
+    [/\bfraction bar|strip|parts?|whole\b/, 'fraction model'],
+    [/\btape|bar model\b/, 'tape diagram'],
+    [/\bpercent bar|hundred grid|decimal grid\b/, 'percent or decimal model'],
+    [/\bequation|balance scale|=|<|>\b/, 'equation or comparison'],
+    [/\barray|equal groups\b/, 'array model'],
+    [/\bdata|bar chart|line plot|probability|outcomes?\b/, 'data or probability display'],
+  ]
+
+  for (const [pattern, label] of checks) {
+    if (pattern.test(lower)) objects.push(label)
+  }
+
+  return uniqueBoardItems(objects)
+}
+
+function collectBoardMathSignals(text: string) {
+  const signals: string[] = []
+  const numbers = extractPlainNumbers(text)
+    .slice(0, 8)
+    .map((value) => formatNumber(value, 4))
+  if (numbers.length > 0) signals.push(`numbers: ${numbers.join(', ')}`)
+
+  const fractions = [...text.matchAll(/-?\d+\s*\/\s*\d+/g)].map((match) => match[0].replace(/\s+/g, ''))
+  if (fractions.length > 0) signals.push(`fractions: ${uniqueBoardItems(fractions, 5).join(', ')}`)
+
+  const coordinates = [...text.matchAll(/\(-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?\)/g)].map((match) => match[0])
+  if (coordinates.length > 0) signals.push(`coordinates: ${uniqueBoardItems(coordinates, 5).join(', ')}`)
+
+  const unitMentions = [...text.matchAll(new RegExp(`${PLAIN_NUMBER_PATTERN}\\s*(?:cm|mm|m|km|in|ft|units?|degrees?|deg|%|dollars?)`, 'gi'))]
+    .map((match) => match[0].trim())
+  if (unitMentions.length > 0) signals.push(`labels with units: ${uniqueBoardItems(unitMentions, 5).join(', ')}`)
+
+  const equationLine = text
+    .split(/[.;\n]/)
+    .map((part) => part.trim())
+    .find((part) => /[=<>]/.test(part) && part.length <= 90)
+  if (equationLine) signals.push(`visible relation: ${equationLine}`)
+
+  return uniqueBoardItems(signals, 7)
+}
+
+function inferBoardLikelyGoal(input: {
+  combined: string
+  topic: CurriculumTopic
+  visibleObjects: string[]
+}): BoardStateSummaryResult['likelyGoal'] {
+  const lower = input.combined.toLowerCase()
+  if (/\b(missing|unknown|not labeled|need to know|what information|what else)\b/.test(lower)) {
+    return 'identify_missing_information'
+  }
+  if (/\b(check|right|wrong|mistake|step|changed|equivalent)\b/.test(lower) && /[=<>]/.test(input.combined)) {
+    return 'check_visible_step'
+  }
+  if (input.topic === 'coordinate_graphing') return 'read_graph'
+  if (input.visibleObjects.length > 0) return 'connect_diagram_to_numbers'
+  if (/\b(word problem|story|recipe|cost|how many|how much)\b/.test(lower)) return 'setup_word_problem'
+  return 'unclear'
+}
+
+function chooseBoardSummaryTool(input: {
+  topic: CurriculumTopic
+  combined: string
+  visibleObjects: string[]
+  likelyGoal: BoardStateSummaryResult['likelyGoal']
+}) {
+  const lower = input.combined.toLowerCase()
+  if (input.likelyGoal === 'check_visible_step') return 'math_check_step'
+  if (/\b(angle|degrees?|supplementary|complementary)\b/.test(lower)) return 'angle_diagram'
+  if (/\btriangle|base|height|altitude\b/.test(lower)) return 'geometry_figure'
+  if (/\barea|perimeter|rectangle|unit square\b/.test(lower)) return 'area_perimeter_model'
+  if (/\bslope|rise|run\b/.test(lower)) return 'slope_triangle'
+  if (/\bintercept|vertex|axis of symmetry\b/.test(lower)) return 'annotate_graph_features'
+  if (/\bgraph|coordinate|ordered pair|point\b/.test(lower)) return 'plot_points_on_plane'
+  if (/\btable|row|column|values?\b/.test(lower)) return 'table_of_values'
+  if (/\bfraction|denominator|numerator|\d+\s*\/\s*\d+\b/.test(lower)) return 'fraction_strip'
+  if (/\bpercent|discount|tax|tip|hundred grid\b/.test(lower)) return 'percent_bar'
+  if (/\bratio|rate|tape|bar model\b/.test(lower)) return 'bar_model'
+  if (/\bequation|balance|variable|solve|x\s*=|[=<>]/.test(lower)) return 'equation_balance'
+  if (/\bprobability|outcomes?|chance\b/.test(lower)) return 'probability_model'
+  if (/\bmean|median|mode|range|data\b/.test(lower)) return 'statistics_summary'
+  return CURRICULUM_GUIDE[input.topic].tools[0]
+}
+
+function boardSummaryMissingInformation(input: {
+  combined: string
+  topic: CurriculumTopic
+  visibleObjects: string[]
+  mathSignals: string[]
+}) {
+  const lower = input.combined.toLowerCase()
+  const missing: string[] = []
+  if (input.visibleObjects.length === 0) {
+    missing.push('a compact description of the visible board objects')
+  }
+  if (!/\b(find|asking|question|unknown|missing|solve|area|perimeter|slope|probability|mean|median|mode|range)\b/.test(lower)) {
+    missing.push('what the student is trying to find')
+  }
+  if (input.topic === 'geometry_measurement') {
+    if (/\btriangle|base|height|area\b/.test(lower) && !/\bbase\b/.test(lower)) missing.push('which side is the base')
+    if (/\btriangle|base|height|area\b/.test(lower) && !/\bheight|altitude\b/.test(lower)) {
+      missing.push('the perpendicular height')
+    }
+    if (/\brectangle|perimeter|area\b/.test(lower) && extractPlainNumbers(input.combined).length < 2) {
+      missing.push('two labeled side lengths')
+    }
+  }
+  if (input.topic === 'coordinate_graphing' && !/\(-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?\)|y\s*=|x\s*=/.test(lower)) {
+    missing.push('the equation or plotted point coordinates')
+  }
+  if (input.topic === 'fractions' && !/\d+\s*\/\s*\d+/.test(lower)) {
+    missing.push('the fraction values or shaded parts')
+  }
+  if (input.topic === 'expressions_equations' && !/[=<>]/.test(input.combined)) {
+    missing.push('the visible equation or comparison')
+  }
+  if (input.mathSignals.length === 0) {
+    missing.push('number labels from the board')
+  }
+  return uniqueBoardItems(missing, 5)
+}
+
+function buildBoardSummaryQuestion(input: {
+  topic: CurriculumTopic
+  likelyGoal: BoardStateSummaryResult['likelyGoal']
+  missingInformation: string[]
+  recommendedTool: string
+}) {
+  if (input.missingInformation.length > 0) {
+    if (input.missingInformation.includes('which side is the base') || input.missingInformation.includes('the perpendicular height')) {
+      return 'Which side is the base, and what height is drawn perpendicular to it?'
+    }
+    if (input.missingInformation.includes('the equation or plotted point coordinates')) {
+      return 'What equation or plotted points are visible on the graph?'
+    }
+    if (input.missingInformation.includes('what the student is trying to find')) {
+      return 'What is the board asking us to find?'
+    }
+    return 'What label or number should we add before checking the math?'
+  }
+
+  if (input.likelyGoal === 'check_visible_step') return 'What changed from the previous visible line to this line?'
+  if (input.likelyGoal === 'read_graph') return 'Which point, intercept, or change on the graph are we trying to read?'
+  if (input.recommendedTool === 'geometry_figure') return 'How do the base and height on the diagram connect to the area formula?'
+  return CURRICULUM_GUIDE[input.topic].nextMove
+}
+
+export function boardStateSummarizer(input: {
+  boardDescription: string
+  studentRequest?: string
+  gradeLevel?: string
+  studentWork?: string
+  recentToolName?: string
+  recentToolResult?: string
+}): BoardStateSummaryResult {
+  const boardDescription = input.boardDescription.trim()
+  const studentRequest = input.studentRequest?.trim() ?? ''
+  const studentWork = input.studentWork?.trim() ?? ''
+  const recentToolResult = input.recentToolResult?.trim() ?? ''
+  const combined = [boardDescription, studentRequest, studentWork, recentToolResult].filter(Boolean).join(' ')
+  const topic = inferBoardSummaryTopic(combined)
+  const guide = CURRICULUM_GUIDE[topic]
+  const visibleObjects = collectVisibleBoardObjects(combined)
+  const mathSignals = collectBoardMathSignals(combined)
+  const likelyGoal = inferBoardLikelyGoal({ combined, topic, visibleObjects })
+  const recommendedTool = chooseBoardSummaryTool({ topic, combined, visibleObjects, likelyGoal })
+  const missingInformation = boardSummaryMissingInformation({ combined, topic, visibleObjects, mathSignals })
+  const confidence: BoardStateSummaryResult['confidence'] =
+    visibleObjects.length > 0 && mathSignals.length > 0 && missingInformation.length <= 1
+      ? 'high'
+      : visibleObjects.length > 0 || mathSignals.length > 0
+        ? 'medium'
+        : 'low'
+  const recommendedTutorMove: BoardStateSummaryResult['recommendedTutorMove'] =
+    confidence === 'low' || missingInformation.length > 1
+      ? 'ask_clarifying_question'
+      : likelyGoal === 'check_visible_step'
+        ? 'check_visible_step'
+        : likelyGoal === 'connect_diagram_to_numbers' || likelyGoal === 'read_graph'
+          ? 'connect_diagram_to_numbers'
+          : 'draw_supporting_model'
+  const usableEvidence = uniqueBoardItems(
+    [
+      ...visibleObjects.map((item) => `Visible ${item}`),
+      ...mathSignals,
+      input.recentToolName?.trim() ? `Recent tool: ${input.recentToolName.trim()}` : '',
+    ],
+    8
+  )
+  const askNext = buildBoardSummaryQuestion({
+    topic,
+    likelyGoal,
+    missingInformation,
+    recommendedTool,
+  })
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel: input.gradeLevel?.trim() || 'grades 3 to 7',
+    confidence,
+    visibleObjects,
+    mathSignals,
+    likelyGoal,
+    usableEvidence,
+    missingInformation,
+    recommendedTool,
+    recommendedTutorMove,
+    askNext,
+    avoid: [
+      'Do not invent labels, lengths, coordinates, or shaded regions that are not visible.',
+      'Do not give a final answer from a diagram until the relevant labels are confirmed.',
+      'Use the recommended deterministic tool before correcting the student with certainty.',
+    ],
   }
 }
 

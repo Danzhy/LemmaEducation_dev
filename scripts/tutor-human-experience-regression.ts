@@ -87,6 +87,21 @@ const CASES: TutorExperienceCase[] = [
     expectedSubstrings: ['plannedSpokenTurn', 'voicePolicy', 'oneQuestionOnly'],
   },
   {
+    id: 'board-state-visible-diagram-summary',
+    title: 'Summarize visible board evidence before solving from a diagram',
+    gradeBand: 'grades 5-7',
+    toolName: 'board_state_summarizer',
+    input: {
+      boardDescription: 'The board shows a triangle with base 8 cm and height 5 cm.',
+      studentRequest: 'How do I find the area from this diagram?',
+      gradeLevel: 'Grade 6',
+      studentWork: '',
+      recentToolName: '',
+      recentToolResult: '',
+    },
+    expectedSubstrings: ['geometry_measurement', 'geometry_figure', 'Do not invent'],
+  },
+  {
     id: 'short-spoken-turn-formatter',
     title: 'Trim long tutor drafts into interruptible voice chunks',
     gradeBand: 'grades 3-7',

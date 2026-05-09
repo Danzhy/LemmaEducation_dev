@@ -23,6 +23,7 @@ const REQUIRED_TOOL_NAMES = [
   'exit_ticket_builder',
   'tutor_turn_audit',
   'tutor_response_planner',
+  'board_state_summarizer',
   'short_spoken_turn_formatter',
   'voice_interruption_recovery_plan',
   'student_check_question',
