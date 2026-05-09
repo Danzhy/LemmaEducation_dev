@@ -75,7 +75,11 @@ function safeEvaluate(expression: string, scope?: Record<string, number>) {
 }
 
 function normalizeExpression(expression: string) {
-  return expression.replace(/\s+/g, '').replace(/×/g, '*').replace(/÷/g, '/')
+  return expression
+    .replace(/\bof\b/gi, '*')
+    .replace(/\s+/g, '')
+    .replace(/×/g, '*')
+    .replace(/÷/g, '/')
 }
 
 function normalizeGraphExpression(expression: string) {
@@ -113,6 +117,70 @@ function roundPoint(value: number, digits = 3) {
 
 function isNearlyEqual(a: number, b: number, tolerance = 1e-6) {
   return Math.abs(a - b) <= tolerance
+}
+
+function parseSimpleRatio(expression: string) {
+  const match = expression.match(/^(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/)
+  if (!match) {
+    return null
+  }
+
+  const antecedent = Number(match[1])
+  const consequent = Number(match[2])
+  if (!Number.isFinite(antecedent) || !Number.isFinite(consequent) || isNearlyEqual(consequent, 0)) {
+    return null
+  }
+
+  return {
+    antecedent,
+    consequent,
+    value: antecedent / consequent,
+  }
+}
+
+function evaluateComparableExpression(expression: string) {
+  const ratio = parseSimpleRatio(expression)
+  if (ratio) {
+    return {
+      value: ratio.value,
+      kind: 'ratio' as const,
+    }
+  }
+
+  return {
+    value: coerceFiniteNumber(safeEvaluate(expression)),
+    kind: 'expression' as const,
+  }
+}
+
+function detectStepFeatures(previousStep: string, nextStep: string) {
+  const combined = `${previousStep} ${nextStep}`
+  return {
+    hasFractionWork: /\d+\s*\/\s*\d+/.test(combined),
+    hasPercentWork: /%|\bpercent\b/i.test(combined),
+    hasRatioWork: /-?\d+(?:\.\d+)?\s*:\s*-?\d+(?:\.\d+)?/.test(combined),
+    hasDecimalWork: /\d+\.\d+/.test(combined),
+    hasIntegerSignWork: /(^|[=+\-*/(]\s*)-\d/.test(combined),
+  }
+}
+
+function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures>) {
+  if (features.hasFractionWork) {
+    return 'recheck the common denominator or fraction operation'
+  }
+  if (features.hasPercentWork) {
+    return 'convert the percent to an equivalent decimal or fraction first'
+  }
+  if (features.hasRatioWork) {
+    return 'scale both parts of the ratio by the same factor'
+  }
+  if (features.hasDecimalWork) {
+    return 'line up decimal place values before combining'
+  }
+  if (features.hasIntegerSignWork) {
+    return 'recheck the integer signs and direction of the operation'
+  }
+  return 'compare the value before and after the step'
 }
 
 function formatNumber(value: number, digits = 2) {
@@ -1741,6 +1809,7 @@ export function mathCheckAnswer(input: {
 export function mathCheckStep(previousStep: string, nextStep: string): MathStepCheckResult {
   const prev = normalizeExpression(previousStep)
   const next = normalizeExpression(nextStep)
+  const stepFeatures = detectStepFeatures(previousStep, nextStep)
 
   if (!prev || !next) {
     throw new Error('Both the previous step and next step are required.')
@@ -1756,21 +1825,25 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
 
   if (!prev.includes('=') && !next.includes('=')) {
     try {
-      const prevValue = coerceFiniteNumber(safeEvaluate(prev))
-      const nextValue = coerceFiniteNumber(safeEvaluate(next))
+      const prevComparable = evaluateComparableExpression(prev)
+      const nextComparable = evaluateComparableExpression(next)
+      const prevValue = prevComparable.value
+      const nextValue = nextComparable.value
       const valuesMatch = isNearlyEqual(prevValue, nextValue)
-      const hasFractionWork = /\d+\/\d+/.test(prev) || /\d+\/\d+/.test(next)
+      const comparesRatios = prevComparable.kind === 'ratio' || nextComparable.kind === 'ratio'
 
       return {
         verdict: valuesMatch ? 'valid' : 'invalid',
         reason: valuesMatch
-          ? `Both expressions have the same value, ${formatNumber(prevValue, 4)}.`
+          ? comparesRatios
+            ? `Both ratios have the same quotient, ${formatNumber(prevValue, 4)}.`
+            : `Both expressions have the same value, ${formatNumber(prevValue, 4)}.`
           : `The value changed from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)}.`,
         hintTarget: valuesMatch
-          ? 'explain why the value stayed the same'
-          : hasFractionWork
-            ? 'recheck the common denominator or fraction operation'
-            : 'compare the value before and after the step',
+          ? comparesRatios
+            ? 'explain the scale factor that kept the ratio equivalent'
+            : 'explain why the value stayed the same'
+          : expressionStepHintTarget(stepFeatures),
       }
     } catch {
       try {
@@ -1805,6 +1878,33 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
 
   const [prevLeft, prevRight] = prev.split('=')
   const [nextLeft, nextRight] = next.split('=')
+
+  try {
+    const prevLeftValue = evaluateComparableExpression(prevLeft).value
+    const prevRightValue = evaluateComparableExpression(prevRight).value
+    const nextLeftValue = evaluateComparableExpression(nextLeft).value
+    const nextRightValue = evaluateComparableExpression(nextRight).value
+    const prevIsTrue = isNearlyEqual(prevLeftValue, prevRightValue)
+    const nextIsTrue = isNearlyEqual(nextLeftValue, nextRightValue)
+
+    if (prevIsTrue && nextIsTrue) {
+      return {
+        verdict: 'valid',
+        reason: 'Both equality statements are true.',
+        hintTarget: 'explain why the two sides stayed equal',
+      }
+    }
+
+    return {
+      verdict: 'invalid',
+      reason: prevIsTrue
+        ? `The previous equality is true, but the next one compares ${formatNumber(nextLeftValue, 4)} and ${formatNumber(nextRightValue, 4)}.`
+        : 'The previous equality is not true, so this step should be rewritten before moving on.',
+      hintTarget: expressionStepHintTarget(stepFeatures),
+    }
+  } catch {
+    // Variable equations need algebraic equivalence checks below.
+  }
 
   try {
     const prevDelta = simplify(`(${prevLeft})-(${prevRight})`).toString()

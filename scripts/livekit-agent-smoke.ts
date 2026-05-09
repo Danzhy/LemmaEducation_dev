@@ -61,6 +61,30 @@ async function main() {
     { previousStep: '2x + 3 = 11', nextStep: '2x = 8' },
     { ctx: {} as never, toolCallId: 'smoke-linear-step-check' }
   )
+  const validPercentStep = await tools.math_check_step.execute(
+    { previousStep: '25% of 80', nextStep: '20' },
+    { ctx: {} as never, toolCallId: 'smoke-percent-step-check' }
+  )
+  const invalidDecimalStep = await tools.math_check_step.execute(
+    { previousStep: '0.4 + 0.08', nextStep: '0.12' },
+    { ctx: {} as never, toolCallId: 'smoke-decimal-step-check' }
+  )
+  const validRatioStep = await tools.math_check_step.execute(
+    { previousStep: '3:12', nextStep: '1:4' },
+    { ctx: {} as never, toolCallId: 'smoke-ratio-step-check' }
+  )
+  const invalidRatioStep = await tools.math_check_step.execute(
+    { previousStep: '3:12', nextStep: '1:3' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-ratio-step-check' }
+  )
+  const invalidIntegerSignStep = await tools.math_check_step.execute(
+    { previousStep: '-3 - 5', nextStep: '2' },
+    { ctx: {} as never, toolCallId: 'smoke-integer-sign-step-check' }
+  )
+  const invalidNumericEqualityStep = await tools.math_check_step.execute(
+    { previousStep: '3/4 = 6/8', nextStep: '3/4 = 7/8' },
+    { ctx: {} as never, toolCallId: 'smoke-numeric-equality-step-check' }
+  )
   const graphResult = await tools.graph_function.execute(
     { expression: '2*x + 1' },
     { ctx: {} as never, toolCallId: 'smoke-graph' }
@@ -219,6 +243,39 @@ async function main() {
 
   if (!JSON.stringify(validLinearStep).includes('"verdict":"valid"')) {
     throw new Error(`math_check_step did not accept a balanced linear step: ${JSON.stringify(validLinearStep)}`)
+  }
+
+  if (!JSON.stringify(validPercentStep).includes('"verdict":"valid"')) {
+    throw new Error(`math_check_step did not accept percent-of wording: ${JSON.stringify(validPercentStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidDecimalStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidDecimalStep).includes('decimal place values')
+  ) {
+    throw new Error(`math_check_step did not reject a decimal place-value mistake: ${JSON.stringify(invalidDecimalStep)}`)
+  }
+
+  if (!JSON.stringify(validRatioStep).includes('"verdict":"valid"')) {
+    throw new Error(`math_check_step did not accept equivalent ratio simplification: ${JSON.stringify(validRatioStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidRatioStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidRatioStep).includes('ratio')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid ratio simplification: ${JSON.stringify(invalidRatioStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidIntegerSignStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidIntegerSignStep).includes('integer signs')
+  ) {
+    throw new Error(`math_check_step did not reject a signed-integer mistake: ${JSON.stringify(invalidIntegerSignStep)}`)
+  }
+
+  if (!JSON.stringify(invalidNumericEqualityStep).includes('"verdict":"invalid"')) {
+    throw new Error(`math_check_step did not reject a false numeric equality: ${JSON.stringify(invalidNumericEqualityStep)}`)
   }
 
   if (canvasActions.length === 0 || !JSON.stringify(graphResult).includes('canvas')) {

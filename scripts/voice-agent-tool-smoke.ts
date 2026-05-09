@@ -211,6 +211,45 @@ assert(
 const validArithmeticStep = mathCheckStep('3 + 4 * 2', '11')
 assert(validArithmeticStep.verdict === 'valid', 'math_check_step should validate equivalent arithmetic steps.')
 
+const validPercentStep = mathCheckStep('25% of 80', '20')
+assert(validPercentStep.verdict === 'valid', 'math_check_step should validate percent-of wording.')
+
+const invalidDecimalStep = mathCheckStep('0.4 + 0.08', '0.12')
+assert(
+  invalidDecimalStep.verdict === 'invalid' &&
+    invalidDecimalStep.hintTarget.includes('decimal place values'),
+  'math_check_step should catch decimal place-value mistakes.'
+)
+
+const validRatioStep = mathCheckStep('3:12', '1:4')
+assert(validRatioStep.verdict === 'valid', 'math_check_step should validate equivalent ratio simplification.')
+
+const invalidRatioStep = mathCheckStep('3:12', '1:3')
+assert(
+  invalidRatioStep.verdict === 'invalid' &&
+    invalidRatioStep.hintTarget.includes('ratio'),
+  'math_check_step should catch ratio simplification mistakes.'
+)
+
+const invalidIntegerSignStep = mathCheckStep('-3 - 5', '2')
+assert(
+  invalidIntegerSignStep.verdict === 'invalid' &&
+    invalidIntegerSignStep.hintTarget.includes('integer signs'),
+  'math_check_step should catch signed-integer operation mistakes.'
+)
+
+const validNumericEqualityStep = mathCheckStep('3/4 = 6/8', '0.75 = 0.75')
+assert(
+  validNumericEqualityStep.verdict === 'valid',
+  'math_check_step should validate true non-variable equality statements.'
+)
+
+const invalidNumericEqualityStep = mathCheckStep('3/4 = 6/8', '3/4 = 7/8')
+assert(
+  invalidNumericEqualityStep.verdict === 'invalid',
+  'math_check_step should reject false non-variable equality statements.'
+)
+
 const validLinearStep = mathCheckStep('2x + 3 = 11', '2x = 8')
 assert(
   validLinearStep.verdict === 'valid',
