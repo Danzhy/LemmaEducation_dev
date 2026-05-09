@@ -382,6 +382,7 @@ function hasMathStructure(value: string) {
   return (
     /[+\-*/=:%^()]|\/|\bof\b/i.test(value) ||
     /\b(round|rounded|nearest|tenths?|hundredths?|thousandths?|ones?|tens?|hundreds?|thousands?)\b/i.test(value) ||
+    /\b(area|perimeter|rectangle|rectangular)\b/i.test(value) ||
     hasKnownUnitQuantity(value)
   )
 }
@@ -468,6 +469,72 @@ function extractSlopeAttempt(text: string): StudentStepPair | null {
   return buildStepPair(
     `slope from (${points[0].x}, ${points[0].y}) to (${points[1].x}, ${points[1].y})`,
     answer
+  )
+}
+
+function extractLocalRectangleDimensions(text: string) {
+  const byMatch = text.match(new RegExp(`(${LOCAL_NUMBER_PATTERN})\\s*(?:by|x|×)\\s*(${LOCAL_NUMBER_PATTERN})`, 'i'))
+  if (byMatch) {
+    const width = parseLocalPlainNumber(byMatch[1])
+    const height = parseLocalPlainNumber(byMatch[2])
+    if (width !== null && height !== null && width > 0 && height > 0) {
+      return { width, height }
+    }
+  }
+
+  const widthMatch = text.match(new RegExp(`\\b(?:width|wide)\\s*(?:is|=|:)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i'))
+  const heightMatch = text.match(new RegExp(`\\b(?:length|height|tall)\\s*(?:is|=|:)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i'))
+  if (widthMatch && heightMatch) {
+    const width = parseLocalPlainNumber(widthMatch[1])
+    const height = parseLocalPlainNumber(heightMatch[1])
+    if (width !== null && height !== null && width > 0 && height > 0) {
+      return { width, height }
+    }
+  }
+
+  return null
+}
+
+function extractRectangleMeasurementAnswer(text: string, kind: 'area' | 'perimeter') {
+  const kindPattern = kind === 'area' ? 'area' : 'perimeter'
+  const nearKindMatch =
+    text.match(new RegExp(`\\b${kindPattern}\\b\\s*(?:is|was|equals?|=|:|as)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')) ??
+    text.match(new RegExp(`\\b(?:got|found|calculated|answer(?:\\s+is)?|think)\\s+(${LOCAL_NUMBER_PATTERN})\\s+(?:for\\s+)?(?:the\\s+)?${kindPattern}\\b`, 'i'))
+  if (nearKindMatch) {
+    const answer = parseLocalPlainNumber(nearKindMatch[1])
+    if (answer !== null) return answer
+  }
+
+  const byMatch = text.match(new RegExp(`(${LOCAL_NUMBER_PATTERN})\\s*(?:by|x|×)\\s*(${LOCAL_NUMBER_PATTERN})`, 'i'))
+  const afterDimensions = byMatch ? text.slice((byMatch.index ?? 0) + byMatch[0].length) : text
+  const afterDimensionsMatch = afterDimensions.match(
+    new RegExp(`\\b(?:as|is|was|equals?|=|got|answer(?:\\s+is)?)\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (afterDimensionsMatch) {
+    const answer = parseLocalPlainNumber(afterDimensionsMatch[1])
+    if (answer !== null) return answer
+  }
+
+  return null
+}
+
+function extractRectangleMeasurementAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const hasArea = /\barea\b/i.test(normalized)
+  const hasPerimeter = /\bperimeter\b/i.test(normalized)
+  if (hasArea === hasPerimeter) return null
+  if (!/\b(rectangle|rectangular)\b/i.test(normalized)) return null
+
+  const dimensions = extractLocalRectangleDimensions(normalized)
+  if (!dimensions) return null
+
+  const kind = hasArea ? 'area' : 'perimeter'
+  const answer = extractRectangleMeasurementAnswer(normalized, kind)
+  if (answer === null) return null
+
+  return buildStepPair(
+    `${kind} of rectangle ${dimensions.width} by ${dimensions.height}`,
+    String(answer)
   )
 }
 
@@ -779,6 +846,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
 
   const coordinateDistanceAttempt = extractCoordinateDistanceAttempt(normalized)
   if (coordinateDistanceAttempt) return coordinateDistanceAttempt
+
+  const rectangleMeasurementAttempt = extractRectangleMeasurementAttempt(normalized)
+  if (rectangleMeasurementAttempt) return rectangleMeasurementAttempt
 
   const rewriteMatch = normalized.match(
     new RegExp(

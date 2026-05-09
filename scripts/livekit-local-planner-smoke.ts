@@ -276,6 +276,24 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks rectangle area attempts before classifying the mistake',
+    prompt: 'I got the area of a 7 by 4 rectangle as 22. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'area of rectangle 7 by 4')
+      assert.equal(input.nextStep, '22')
+    },
+  },
+  {
+    name: 'checks rectangle perimeter attempts before classifying the mistake',
+    prompt: 'I got the perimeter of a 7 by 4 rectangle as 28. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'perimeter of rectangle 7 by 4')
+      assert.equal(input.nextStep, '28')
+    },
+  },
+  {
     name: 'routes coordinate distance requests to board model',
     prompt: 'Find the distance from (2, 3) to (5, 7) on the coordinate plane.',
     expectedTools: ['coordinate_distance'],

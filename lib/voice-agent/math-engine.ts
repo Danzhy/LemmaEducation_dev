@@ -491,6 +491,106 @@ function parsePlainNumber(token: string) {
   return Number.isFinite(value) ? value : null
 }
 
+function extractPlainNumbers(text: string) {
+  return [...text.matchAll(new RegExp(PLAIN_NUMBER_PATTERN, 'g'))]
+    .map((match) => parsePlainNumber(match[0]))
+    .filter((value): value is number => value !== null)
+}
+
+function parseLastPlainNumber(text: string) {
+  const numbers = extractPlainNumbers(text)
+  return numbers.length > 0 ? numbers[numbers.length - 1] : null
+}
+
+function extractRectangleDimensions(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const byMatch = normalized.match(new RegExp(`(${PLAIN_NUMBER_PATTERN})\\s*(?:by|x|×)\\s*(${PLAIN_NUMBER_PATTERN})`, 'i'))
+  if (byMatch) {
+    const width = parsePlainNumber(byMatch[1])
+    const height = parsePlainNumber(byMatch[2])
+    if (width !== null && height !== null && width > 0 && height > 0) {
+      return { width, height }
+    }
+  }
+
+  const widthMatch = normalized.match(new RegExp(`\\b(?:width|wide)\\s*(?:is|=|:)?\\s*(${PLAIN_NUMBER_PATTERN})`, 'i'))
+  const heightMatch = normalized.match(new RegExp(`\\b(?:length|height|tall)\\s*(?:is|=|:)?\\s*(${PLAIN_NUMBER_PATTERN})`, 'i'))
+  if (widthMatch && heightMatch) {
+    const width = parsePlainNumber(widthMatch[1])
+    const height = parsePlainNumber(heightMatch[1])
+    if (width !== null && height !== null && width > 0 && height > 0) {
+      return { width, height }
+    }
+  }
+
+  if (!/\b(rectangle|rectangular|area|perimeter)\b/i.test(normalized)) return null
+  const numbers = extractPlainNumbers(normalized)
+  if (numbers.length < 2 || numbers[0] <= 0 || numbers[1] <= 0) return null
+  return { width: numbers[0], height: numbers[1] }
+}
+
+function extractRectangleMeasurementKind(previousStep: string, nextStep: string): 'area' | 'perimeter' | null {
+  const nextHasArea = /\barea\b/i.test(nextStep)
+  const nextHasPerimeter = /\bperimeter\b/i.test(nextStep)
+  if (nextHasArea && !nextHasPerimeter) return 'area'
+  if (nextHasPerimeter && !nextHasArea) return 'perimeter'
+
+  const previousHasArea = /\barea\b/i.test(previousStep)
+  const previousHasPerimeter = /\bperimeter\b/i.test(previousStep)
+  if (previousHasArea && !previousHasPerimeter) return 'area'
+  if (previousHasPerimeter && !previousHasArea) return 'perimeter'
+
+  return null
+}
+
+function checkRectangleAreaPerimeterStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const kind = extractRectangleMeasurementKind(previousStep, nextStep)
+  if (!kind) return null
+
+  const dimensions = extractRectangleDimensions(previousStep)
+  const studentAnswer = parseLastPlainNumber(nextStep)
+  if (!dimensions || studentAnswer === null) return null
+
+  const { width, height } = dimensions
+  const area = width * height
+  const perimeter = 2 * (width + height)
+
+  if (kind === 'area') {
+    const answerMatches = isNearlyEqual(area, studentAnswer, 0.01)
+    const baseReason = `A rectangle with side lengths ${formatNumber(width, 4)} and ${formatNumber(
+      height,
+      4
+    )} has area ${formatNumber(width, 4)} x ${formatNumber(height, 4)} = ${formatNumber(area, 4)} square units.`
+    return {
+      verdict: answerMatches ? 'valid' : 'invalid',
+      reason: answerMatches ? baseReason : `${baseReason} The student answer is ${formatNumber(studentAnswer, 4)}.`,
+      hintTarget: answerMatches
+        ? 'explain why multiplying length by width counts square units inside'
+        : isNearlyEqual(perimeter, studentAnswer, 0.01)
+          ? 'separate area from perimeter before choosing the operation'
+          : 'multiply length by width to count the square units inside',
+    }
+  }
+
+  const answerMatches = isNearlyEqual(perimeter, studentAnswer, 0.01)
+  const baseReason = `A rectangle with side lengths ${formatNumber(width, 4)} and ${formatNumber(
+    height,
+    4
+  )} has perimeter 2 x (${formatNumber(width, 4)} + ${formatNumber(height, 4)}) = ${formatNumber(
+    perimeter,
+    4
+  )} units.`
+  return {
+    verdict: answerMatches ? 'valid' : 'invalid',
+    reason: answerMatches ? baseReason : `${baseReason} The student answer is ${formatNumber(studentAnswer, 4)}.`,
+    hintTarget: answerMatches
+      ? 'explain why perimeter adds the side lengths around the boundary'
+      : isNearlyEqual(area, studentAnswer, 0.01)
+        ? 'separate perimeter from area before choosing the operation'
+        : 'add all side lengths around the rectangle',
+  }
+}
+
 function extractPercentChangeAmounts(text: string) {
   if (/%|\bpercent\b/i.test(text)) return null
 
@@ -1135,6 +1235,8 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasSlopeWork:
       /\b(slope|rate of change|rise|run)\b/i.test(combined) &&
       /\(\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*\)/.test(combined),
+    hasRectangleMeasurementWork:
+      /\b(area|perimeter|rectangle|rectangular)\b/i.test(combined) && extractPlainNumbers(combined).length >= 2,
     hasUnitConversionWork: hasKnownUnitQuantity(combined),
     hasMixedNumberWork: hasMixedNumber(previousStep) || hasMixedNumber(nextStep),
     hasFractionWork: /\d+\s*\/\s*\d+/.test(combined),
@@ -1179,6 +1281,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasSlopeWork) {
     return 'compare rise over run instead of using only one coordinate change'
+  }
+  if (features.hasRectangleMeasurementWork) {
+    return 'decide whether the problem asks for square units inside or distance around the boundary'
   }
   if (features.hasUnitConversionWork) {
     return 'use the conversion factor and keep the measurement type the same'
@@ -2941,6 +3046,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const coordinateDistanceStep = checkCoordinateDistanceStep(previousStep, nextStep)
   if (coordinateDistanceStep) {
     return coordinateDistanceStep
+  }
+
+  const rectangleAreaPerimeterStep = checkRectangleAreaPerimeterStep(previousStep, nextStep)
+  if (rectangleAreaPerimeterStep) {
+    return rectangleAreaPerimeterStep
   }
 
   const percentChangeStep = checkPercentChangeStep(previousStep, nextStep)

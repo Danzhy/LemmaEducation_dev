@@ -173,6 +173,18 @@ async function main() {
     { previousStep: '3 kg', nextStep: '300 g' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-unit-conversion-step-check' }
   )
+  const validRectangleAreaStep = await tools.math_check_step.execute(
+    { previousStep: 'area of rectangle 7 by 4', nextStep: '28' },
+    { ctx: {} as never, toolCallId: 'smoke-rectangle-area-step-check' }
+  )
+  const invalidRectangleAreaStep = await tools.math_check_step.execute(
+    { previousStep: 'area of rectangle 7 by 4', nextStep: '22' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-rectangle-area-step-check' }
+  )
+  const validRectanglePerimeterStep = await tools.math_check_step.execute(
+    { previousStep: 'perimeter of rectangle 7 by 4', nextStep: '22' },
+    { ctx: {} as never, toolCallId: 'smoke-rectangle-perimeter-step-check' }
+  )
   const invalidCoordinatePointStep = await tools.math_check_step.execute(
     { previousStep: 'y = 2x + 1', nextStep: '(2, 4)' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-point-step-check' }
@@ -527,6 +539,27 @@ async function main() {
     !JSON.stringify(invalidUnitConversionStep).includes('conversion factor')
   ) {
     throw new Error(`math_check_step did not reject an invalid unit conversion: ${JSON.stringify(invalidUnitConversionStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validRectangleAreaStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validRectangleAreaStep).includes('square units')
+  ) {
+    throw new Error(`math_check_step did not accept a rectangle area claim: ${JSON.stringify(validRectangleAreaStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidRectangleAreaStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidRectangleAreaStep).includes('area from perimeter')
+  ) {
+    throw new Error(`math_check_step did not reject a rectangle area/perimeter mixup: ${JSON.stringify(invalidRectangleAreaStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validRectanglePerimeterStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validRectanglePerimeterStep).includes('boundary')
+  ) {
+    throw new Error(`math_check_step did not accept a rectangle perimeter claim: ${JSON.stringify(validRectanglePerimeterStep)}`)
   }
 
   if (

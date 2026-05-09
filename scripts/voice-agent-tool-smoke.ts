@@ -388,6 +388,27 @@ assert(
   'math_check_step should catch invalid unit conversion steps.'
 )
 
+const validRectangleAreaStep = mathCheckStep('area of rectangle 7 by 4', '28')
+assert(
+  validRectangleAreaStep.verdict === 'valid' &&
+    validRectangleAreaStep.hintTarget.includes('square units'),
+  'math_check_step should validate rectangle area claims.'
+)
+
+const invalidRectangleAreaStep = mathCheckStep('area of rectangle 7 by 4', '22')
+assert(
+  invalidRectangleAreaStep.verdict === 'invalid' &&
+    invalidRectangleAreaStep.hintTarget.includes('area from perimeter'),
+  'math_check_step should catch rectangle area/perimeter mixups.'
+)
+
+const validRectanglePerimeterStep = mathCheckStep('perimeter of rectangle 7 by 4', '22')
+assert(
+  validRectanglePerimeterStep.verdict === 'valid' &&
+    validRectanglePerimeterStep.hintTarget.includes('boundary'),
+  'math_check_step should validate rectangle perimeter claims.'
+)
+
 const validCoordinatePointStep = mathCheckStep('y = 2x + 1', '(2, 5)')
 assert(
   validCoordinatePointStep.verdict === 'valid' &&
