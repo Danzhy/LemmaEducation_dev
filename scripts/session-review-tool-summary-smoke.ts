@@ -1,5 +1,6 @@
 import {
   shouldShowRawToolPayloads,
+  summarizeSessionEvidenceForReview,
   summarizeToolEventForReview,
 } from '../lib/tutor/tool-event-review'
 
@@ -100,6 +101,90 @@ const canvasSummary = summarizeToolEventForReview({
 assert(
   summaryText(canvasSummary).includes('2 structured canvas actions'),
   'Canvas summaries should count structured board actions.'
+)
+
+const evidenceSummary = summarizeSessionEvidenceForReview([
+  {
+    eventType: 'tool_completed',
+    toolName: 'math_check_step',
+    status: 'completed',
+    input: {
+      previousStep: 'Private scratch: 1/2 + 1/3',
+      nextStep: 'Private scratch: 2/5',
+    },
+    output: {
+      verdict: 'invalid',
+      reason: 'Private calculation detail should not appear in the aggregate.',
+      hintTarget: 'recheck the common denominator',
+    },
+  },
+  {
+    eventType: 'tool_completed',
+    toolName: 'mistake_pattern_classifier',
+    status: 'completed',
+    output: {
+      primaryPattern: 'adding_denominators',
+      severity: 'high',
+      evidence: 'Raw student wording should stay hidden.',
+    },
+  },
+  {
+    eventType: 'tool_completed',
+    toolName: 'session_mastery_snapshot',
+    status: 'completed',
+    input: {
+      transcriptExcerpt: 'Private transcript about a family situation.',
+    },
+    output: {
+      label: 'Fraction addition',
+      confidence: 'low',
+      needsReview: ['Check whether the whole is the same size before adding parts.'],
+      suggestedNextTutorMove: 'Ask the student to draw two same-size fraction strips before adding.',
+    },
+  },
+  {
+    eventType: 'tool_completed',
+    toolName: 'fraction_strip',
+    status: 'completed',
+    output: {
+      summary: 'Prepared fraction strips.',
+      canvasActions: [{ type: 'place_text_label' }, { type: 'draw_rect' }],
+    },
+  },
+])
+assert(evidenceSummary, 'Evidence summaries should be present when learning tool events exist.')
+const evidenceText = [evidenceSummary.headline, ...evidenceSummary.details].join(' ')
+assert(
+  evidenceText.includes('Step checks: 1 needs review') &&
+    evidenceText.includes('adding denominators') &&
+    evidenceText.includes('Fraction addition: low confidence') &&
+    evidenceText.includes('2 structured canvas actions'),
+  'Evidence summaries should aggregate step checks, misconception signals, mastery snapshots, and board actions.'
+)
+assert(
+  evidenceText.includes('recheck the common denominator') &&
+    evidenceText.includes('two same-size fraction strips'),
+  'Evidence summaries should keep safe review focus and next tutor moves visible.'
+)
+assert(
+  evidenceText.includes('private learner context') &&
+    !evidenceText.includes('family situation') &&
+    !evidenceText.includes('Private scratch') &&
+    !evidenceText.includes('Raw student wording') &&
+    !evidenceText.includes('Private calculation detail'),
+  'Evidence summaries must not leak raw inputs, raw evidence, or calculation payloads.'
+)
+
+assert(
+  summarizeSessionEvidenceForReview([
+    {
+      eventType: 'tool_completed',
+      toolName: 'curriculum_search',
+      status: 'completed',
+      output: { matches: [{ excerpt: 'Private worksheet text.' }] },
+    },
+  ]) === null,
+  'Evidence summaries should stay hidden when only private curriculum context exists.'
 )
 
 assert(

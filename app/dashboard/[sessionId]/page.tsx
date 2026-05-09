@@ -7,6 +7,7 @@ import { getCurrentUserProfile, isOnboardingComplete } from '@/lib/school/profil
 import { recordSessionAccessAudit } from '@/lib/school/access'
 import {
   shouldShowRawToolPayloads,
+  summarizeSessionEvidenceForReview,
   summarizeToolEventForReview,
 } from '@/lib/tutor/tool-event-review'
 
@@ -127,6 +128,7 @@ export default async function DashboardSessionDetailPage({
     profile.role,
     resolvedSearchParams.debugTools
   )
+  const sessionEvidenceSummary = summarizeSessionEvidenceForReview(session.toolEvents)
 
   return (
     <DashboardScaffold
@@ -223,6 +225,27 @@ export default async function DashboardSessionDetailPage({
           </div>
 
           <div className="space-y-6">
+            {sessionEvidenceSummary ? (
+              <section className="rounded-[30px] border border-[#D8E4DF] bg-white/84 px-5 py-5 shadow-[0_22px_60px_-46px_rgba(15,41,34,0.45)] md:px-6">
+                <div className="border-b border-[#E2EBE7] pb-4">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Learning evidence</p>
+                  <h2 className="mt-2 text-[1.45rem] font-light tracking-[-0.03em] text-[#0F2922] serif">
+                    Review summary
+                  </h2>
+                </div>
+                <div className="mt-5">
+                  <p className="text-sm leading-relaxed text-[#14312A]">
+                    {sessionEvidenceSummary.headline}
+                  </p>
+                  <ul className="mt-3 space-y-2 text-sm leading-relaxed text-[#4D625C]">
+                    {sessionEvidenceSummary.details.map((detail) => (
+                      <li key={detail}>{detail}</li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+            ) : null}
+
             <section className="rounded-[30px] border border-[#D8E4DF] bg-white/84 px-5 py-5 shadow-[0_22px_60px_-46px_rgba(15,41,34,0.45)] md:px-6">
               <div className="border-b border-[#E2EBE7] pb-4">
                 <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Board snapshot</p>
