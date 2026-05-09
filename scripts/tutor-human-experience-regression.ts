@@ -238,6 +238,33 @@ const CASES: TutorExperienceCase[] = [
     minCanvasActions: 5,
     expectedSubstrings: ['Tape diagram', 'Unknown 22', 'canvasActions'],
   },
+  {
+    id: 'comparison-tape-diagram',
+    title: 'Set up a comparison word problem with a tape diagram',
+    gradeBand: 'grades 3-5',
+    toolName: 'bar_model',
+    input: {
+      title: 'Comparison tape diagram',
+      bars: [
+        {
+          label: 'Larger 42',
+          segments: [
+            { label: 'Matching 27', value: 27, shaded: true },
+            { label: 'More 15', value: 15, shaded: false },
+          ],
+        },
+        {
+          label: 'Smaller 27',
+          segments: [
+            { label: 'Compared 27', value: 27, shaded: true },
+            { label: 'Gap 15', value: 15, shaded: false },
+          ],
+        },
+      ],
+    },
+    minCanvasActions: 8,
+    expectedSubstrings: ['Comparison tape diagram', 'Gap 15', 'canvasActions'],
+  },
 ]
 
 function assert(condition: unknown, message: string): asserts condition {

@@ -351,6 +351,41 @@ function buildPartWholeTapeDiagramInput(whole: number, known: number, title: str
   }
 }
 
+function buildComparisonTapeDiagramInput(first: number, second: number, title: string): LocalTapeDiagramInput | null {
+  if (!Number.isFinite(first) || !Number.isFinite(second) || first < 0 || second < 0) {
+    return null
+  }
+
+  const larger = Math.max(first, second)
+  const smaller = Math.min(first, second)
+  const difference = Number((larger - smaller).toFixed(6))
+  const largerSegments = [
+    { label: `Matching ${formatLocalNumber(smaller)}`, value: smaller, shaded: true },
+  ]
+  const smallerSegments = [
+    { label: `Compared ${formatLocalNumber(smaller)}`, value: smaller, shaded: true },
+  ]
+
+  if (difference > 0) {
+    largerSegments.push({ label: `More ${formatLocalNumber(difference)}`, value: difference, shaded: false })
+    smallerSegments.push({ label: `Gap ${formatLocalNumber(difference)}`, value: difference, shaded: false })
+  }
+
+  return {
+    title,
+    bars: [
+      {
+        label: `Larger ${formatLocalNumber(larger)}`,
+        segments: largerSegments,
+      },
+      {
+        label: `Smaller ${formatLocalNumber(smaller)}`,
+        segments: smallerSegments,
+      },
+    ],
+  }
+}
+
 function buildInferredPartWholeTapeDiagramInput(prompt: string): LocalTapeDiagramInput | null {
   const lower = prompt.toLowerCase()
   const values = extractNumbers(prompt).filter((value) => Number.isFinite(value) && value >= 0).slice(0, 5)
@@ -411,12 +446,35 @@ function buildInferredPartWholeTapeDiagramInput(prompt: string): LocalTapeDiagra
   return null
 }
 
+function buildInferredComparisonTapeDiagramInput(prompt: string): LocalTapeDiagramInput | null {
+  const lower = prompt.toLowerCase()
+  const values = extractNumbers(prompt).filter((value) => Number.isFinite(value) && value >= 0).slice(0, 5)
+  if (values.length < 2) return null
+  if (/%|\b(percent|ratio|rate|probability|chance|mean|median|mode|range|coordinate|graph|equation)\b/.test(lower)) {
+    return null
+  }
+
+  const asksForDifference =
+    /\bhow\s+(?:many|much)\s+(?:more|fewer|less)\b/.test(lower) ||
+    /\bdifference\s+between\b/.test(lower) ||
+    /\bcomparison\s+(?:tape|bar|model|diagram)\b/.test(lower)
+  const comparesKnownAmounts = /\b(?:more|fewer|less)\b[\s\S]{0,80}\bthan\b/.test(lower)
+  if (!asksForDifference && !comparesKnownAmounts) return null
+
+  return buildComparisonTapeDiagramInput(values[0], values[1], 'Comparison tape diagram')
+}
+
 function buildLocalTapeDiagramInput(prompt: string) {
   const lower = prompt.toLowerCase()
   const values = extractNumbers(prompt).filter((value) => Number.isFinite(value) && value >= 0).slice(0, 5)
   const title = /comparison/.test(lower) ? 'Comparison tape diagram' : 'Tape diagram'
 
-  if (!wantsLocalTapeDiagram(prompt)) return buildInferredPartWholeTapeDiagramInput(prompt)
+  if (!wantsLocalTapeDiagram(prompt)) {
+    return buildInferredPartWholeTapeDiagramInput(prompt) ?? buildInferredComparisonTapeDiagramInput(prompt)
+  }
+
+  const comparisonInput = buildInferredComparisonTapeDiagramInput(prompt)
+  if (comparisonInput) return comparisonInput
 
   if (values.length === 0) {
     return {
@@ -2801,6 +2859,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
   }
 
   if (firstTool === 'bar_model') {
+    const title = plans[0]?.input?.title
+    if (typeof title === 'string' && /comparison/i.test(title)) {
+      return 'I set up a comparison tape diagram on the board. Match the equal parts first, then tell me what the gap represents.'
+    }
     return 'I set up a tape diagram on the board. Point to the known part first, then tell me what the unknown part represents.'
   }
 

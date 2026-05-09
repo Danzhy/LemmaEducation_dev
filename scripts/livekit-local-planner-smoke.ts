@@ -173,6 +173,24 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'infers comparison tape diagrams for how-many-more stories',
+    prompt: 'Maya read 42 pages. Noah read 27 pages. How many more pages did Maya read than Noah?',
+    expectedTools: ['bar_model'],
+    inspect: (input) => {
+      const bars = input.bars as Array<{
+        label: string
+        segments: Array<{ label: string; value: number | string; shaded: boolean }>
+      }>
+      assert.equal(input.title, 'Comparison tape diagram')
+      assert.equal(bars.length, 2)
+      assert.equal(bars[0].label, 'Larger 42')
+      assert.equal(bars[0].segments[0].value, 27)
+      assert.equal(bars[0].segments[1].value, 15)
+      assert.equal(bars[1].label, 'Smaller 27')
+      assert.equal(bars[1].segments[1].label, 'Gap 15')
+    },
+  },
+  {
     name: 'routes percent-of-number to calculator plus visual bar',
     prompt: 'What is 25% of 80? Show me the thinking.',
     expectedTools: ['percent_of_number', 'percent_bar'],
@@ -855,6 +873,14 @@ assert.match(
     [{ summary: 'Prepared a bar model.' }]
   ),
   /tape diagram/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'draw a comparison tape diagram',
+    [{ toolName: 'bar_model', input: { title: 'Comparison tape diagram' } }],
+    [{ summary: 'Prepared a comparison bar model.' }]
+  ),
+  /gap represents/
 )
 assert.match(
   buildLocalAssistantReply(
