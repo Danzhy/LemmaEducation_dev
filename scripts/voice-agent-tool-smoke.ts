@@ -1100,6 +1100,44 @@ assert(
   'answer_disclosure_gate should allow concise topic-specific solutions after a direct math question and attempt.'
 )
 
+const attemptedProbabilityGate = answerDisclosureGate({
+  studentRequest: 'I got 3/8. What is the probability of 3 favorable outcomes out of 8?',
+  hasStudentAttempt: true,
+  attemptCount: 1,
+  isCheckingAnswer: false,
+})
+assert(
+  attemptedProbabilityGate.decision === 'solution_allowed' &&
+    attemptedProbabilityGate.topic === 'Data and probability' &&
+    attemptedProbabilityGate.requiredStudentQuestion.includes('counted first'),
+  'answer_disclosure_gate should allow concise probability solutions after an attempt.'
+)
+
+const attemptedMeanGate = answerDisclosureGate({
+  studentRequest: 'I got 6. What is the mean of 4, 7, 3, 7, and 9?',
+  hasStudentAttempt: true,
+  attemptCount: 1,
+  isCheckingAnswer: false,
+})
+assert(
+  attemptedMeanGate.decision === 'solution_allowed' &&
+    attemptedMeanGate.topic === 'Data and probability',
+  'answer_disclosure_gate should infer direct data-statistic solution requests after an attempt.'
+)
+
+const attemptedUnitRateGate = answerDisclosureGate({
+  studentRequest: 'I got $2 per notebook. What is the unit rate for 3 notebooks costing $6?',
+  hasStudentAttempt: true,
+  attemptCount: 1,
+  isCheckingAnswer: false,
+})
+assert(
+  attemptedUnitRateGate.decision === 'solution_allowed' &&
+    attemptedUnitRateGate.topic === 'Ratios and rates' &&
+    attemptedUnitRateGate.requiredStudentQuestion.includes('unit rate'),
+  'answer_disclosure_gate should infer direct unit-rate solution requests after an attempt.'
+)
+
 const animationPlan = boardAnimationPlan({
   concept: 'Explain equivalent fractions with a staged bar model',
   visualType: 'part-whole visual reveal',

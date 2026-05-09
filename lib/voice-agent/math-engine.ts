@@ -10191,6 +10191,7 @@ export function tutorTurnAudit(input: {
 }
 
 function inferAnswerDisclosureTopic(request: string): CurriculumTopic {
+  if (/\bmean|median|mode|range|data|probability|chance|outcome\b/.test(request)) return 'data_probability'
   if (/\bfraction|denominator|numerator|\d+\s*\/\s*\d+/.test(request)) return 'fractions'
   if (/\bpercent|percentage|%|decimal|round|nearest|tenths?|hundredths?|thousandths?\b/.test(request)) {
     return 'decimals_percents'
@@ -10205,7 +10206,6 @@ function inferAnswerDisclosureTopic(request: string): CurriculumTopic {
   if (/\bcoordinate|graph|slope|intercept|ordered pair|point|axis|distance from\b/.test(request)) {
     return 'coordinate_graphing'
   }
-  if (/\bmean|median|mode|range|data|probability|chance|outcome\b/.test(request)) return 'data_probability'
   if (/\btimes|multiply|divide|product|quotient|array|groups?\b|[×÷]/.test(request)) {
     return 'multiplication_division'
   }
@@ -10216,7 +10216,7 @@ function inferAnswerDisclosureTopic(request: string): CurriculumTopic {
 function isDirectFullAnswerRequest(request: string) {
   const lower = request.toLowerCase()
   const asksForExplanationOrVisual =
-    /\b(show (?:me )?(?:the )?(?:thinking|work|steps|why|how|visual|model|diagram)|draw|graph|plot|model|diagram|table|visual|explain|hint|help me start)\b/.test(
+    /\b(show (?:me )?(?:the )?(?:thinking|work|steps|why|how|visual|model|diagram)|draw|graph|plot|model|diagram|table|chart|visual|data summary|double number line|number line|explain|hint|help me start)\b/.test(
       lower
     )
   if (asksForExplanationOrVisual) return false
@@ -10239,6 +10239,22 @@ function isDirectFullAnswerRequest(request: string) {
       lower
     ))
   if (directExpressionQuestion) return true
+
+  const directDataQuestion =
+    /\b(?:what(?:'s| is)|find|calculate|compute)\b/.test(lower) &&
+    /\b(?:mean|average|median|mode|range)\b/.test(lower)
+  if (directDataQuestion) return true
+
+  const directProbabilityQuestion =
+    /\b(?:what(?:'s| is)|find|calculate|compute|what chance|how likely)\b/.test(lower) &&
+    /\b(?:probability|chance|likelihood)\b/.test(lower) &&
+    /\b(?:out of|favorable|outcomes?|total|possible)\b/.test(lower)
+  if (directProbabilityQuestion) return true
+
+  const directRatioRateQuestion =
+    /\b(?:what(?:'s| is)|find|calculate|compute|how much|how many)\b/.test(lower) &&
+    /\b(?:unit rate|rate|ratio|proportion|scale factor|per one|per each)\b/.test(lower)
+  if (directRatioRateQuestion) return true
 
   return false
 }

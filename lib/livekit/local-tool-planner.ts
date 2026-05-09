@@ -2193,7 +2193,7 @@ function inferLocalTopic(text: string) {
 function isLocalAnswerDisclosureRequest(prompt: string) {
   const lower = prompt.toLowerCase()
   const asksForExplanationOrVisual =
-    /\b(show (?:me )?(?:the )?(?:thinking|work|steps|why|how|visual|model|diagram)|draw|graph|plot|model|diagram|table|visual|explain|hint|help me start)\b/.test(
+    /\b(show (?:me )?(?:the )?(?:thinking|work|steps|why|how|visual|model|diagram)|draw|graph|plot|model|diagram|table|chart|visual|data summary|double number line|number line|explain|hint|help me start)\b/.test(
       lower
     )
 
@@ -2230,6 +2230,28 @@ function isLocalAnswerDisclosureRequest(prompt: string) {
     ))
 
   if (hasMathContent && directExpressionQuestion) {
+    return true
+  }
+
+  const directDataQuestion =
+    /\b(?:what(?:'s| is)|find|calculate|compute)\b/.test(lower) &&
+    /\b(?:mean|average|median|mode|range)\b/.test(lower)
+  if (directDataQuestion) {
+    return true
+  }
+
+  const directProbabilityQuestion =
+    /\b(?:what(?:'s| is)|find|calculate|compute|what chance|how likely)\b/.test(lower) &&
+    /\b(?:probability|chance|likelihood)\b/.test(lower) &&
+    /\b(?:out of|favorable|outcomes?|total|possible)\b/.test(lower)
+  if (directProbabilityQuestion) {
+    return true
+  }
+
+  const directRatioRateQuestion =
+    /\b(?:what(?:'s| is)|find|calculate|compute|how much|how many)\b/.test(lower) &&
+    /\b(?:unit rate|rate|ratio|proportion|scale factor|per one|per each)\b/.test(lower)
+  if (directRatioRateQuestion) {
     return true
   }
 

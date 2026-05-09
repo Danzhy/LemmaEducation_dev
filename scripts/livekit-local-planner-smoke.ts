@@ -116,6 +116,33 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'gates direct probability final-answer questions before board tools',
+    prompt: 'What is the probability of 3 favorable outcomes out of 8?',
+    expectedTools: ['answer_disclosure_gate'],
+    inspect: (input) => {
+      assert.equal(input.hasStudentAttempt, false)
+      assert.equal(input.askedForFullSolution, true)
+    },
+  },
+  {
+    name: 'gates direct data statistic final-answer questions before board tools',
+    prompt: 'What is the mean of 4, 7, 3, 7, and 9?',
+    expectedTools: ['answer_disclosure_gate'],
+    inspect: (input) => {
+      assert.equal(input.hasStudentAttempt, false)
+      assert.equal(input.askedForFullSolution, true)
+    },
+  },
+  {
+    name: 'gates direct unit-rate final-answer questions before board tools',
+    prompt: 'A store sells 3 notebooks for $6. What is the unit rate?',
+    expectedTools: ['answer_disclosure_gate'],
+    inspect: (input) => {
+      assert.equal(input.hasStudentAttempt, false)
+      assert.equal(input.askedForFullSolution, true)
+    },
+  },
+  {
     name: 'keeps disclosure gate first after a student attempt asks for a full solve',
     prompt: 'I tried 2x + 3 = 11 and got x = 4. Can you solve 2x + 3 = 11 fully?',
     expectedTools: ['answer_disclosure_gate', 'solve_linear_on_canvas'],
@@ -781,8 +808,8 @@ const cases: PlannerCase[] = [
     },
   },
   {
-    name: 'routes unit-rate word problems to rate and double number line',
-    prompt: 'A store sells 3 notebooks for $6. What is the unit rate?',
+    name: 'routes explicit unit-rate visuals to rate and double number line',
+    prompt: 'Show a double number line for the unit rate: 3 notebooks cost $6.',
     expectedTools: ['unit_rate', 'double_number_line'],
     inspect: (input) => {
       assert.equal(input.quantity, 3)
