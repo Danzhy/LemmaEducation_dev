@@ -21,6 +21,7 @@ import type {
   SessionMasterySnapshotResult,
   ShortSpokenTurnFormatterResult,
   TutorTurnAuditResult,
+  VoiceInterruptionRecoveryResult,
   PlotPointsResult,
   ValueTableResult,
   SocraticMoveResult,
@@ -9080,6 +9081,149 @@ export function shortSpokenTurnFormatter(input: {
     trimmed: draft !== formattedTurn || formattedWordCount !== originalWordCount || removedSignals.length > 0,
     removedSignals: [...new Set(removedSignals)],
     stopRule: 'Say one chunk at a time, pause after the student-facing question, and wait before adding another explanation.',
+  }
+}
+
+function inferInterruptionIntent(interruption: string): VoiceInterruptionRecoveryResult['interruptionIntent'] {
+  const lower = interruption.toLowerCase()
+  if (!lower.trim()) return 'resume'
+  if (/\b(repeat|say that again|again please|missed that|did not hear|didn't hear|what did you say)\b/.test(lower)) {
+    return 'repeat'
+  }
+  if (/\b(wait|pause|hold on|stop|one sec|one second|give me (a )?(second|minute)|i need time)\b/.test(lower)) {
+    return 'pause'
+  }
+  if (
+    /\b(i got|i think|my answer|i tried|i wrote|i changed|i added|i subtracted|i multiplied|i divided|check|is it|would it)\b/.test(
+      lower
+    ) ||
+    /[=<>]/.test(interruption)
+  ) {
+    return 'student_attempt'
+  }
+  if (/\?/.test(interruption) || /\b(why|how|what does|what do you mean|i do not get|i don't get|confused)\b/.test(lower)) {
+    return 'clarification'
+  }
+  return 'unclear'
+}
+
+function recoveryToolForIntent(intent: VoiceInterruptionRecoveryResult['interruptionIntent'], interruption: string) {
+  if (intent === 'student_attempt') {
+    return /[=<>]|\b(step|changed|rewrote|from .* to )\b/i.test(interruption)
+      ? 'math_check_step'
+      : 'student_check_question'
+  }
+  if (intent === 'clarification') return 'student_check_question'
+  if (intent === 'pause') return 'none'
+  return 'short_spoken_turn_formatter'
+}
+
+function buildInterruptionRecoveryLine(input: {
+  intent: VoiceInterruptionRecoveryResult['interruptionIntent']
+  topic: CurriculumTopic
+  resumeChunk: string
+  interruption: string
+}) {
+  if (input.intent === 'pause') {
+    return 'No rush. Tell me when you are ready.'
+  }
+  if (input.intent === 'student_attempt') {
+    const question = /[=<>]/.test(input.interruption)
+      ? 'What changed from the previous line to this line?'
+      : defaultShortTurnQuestion(input.topic)
+    return `Thanks, let us check that one step. ${question}`
+  }
+  if (input.intent === 'clarification') {
+    return `Good question. Let us zoom in on that one idea. ${defaultShortTurnQuestion(input.topic)}`
+  }
+  if (input.intent === 'repeat') {
+    return input.resumeChunk ? `I will repeat the last small part. ${input.resumeChunk}` : defaultShortTurnQuestion(input.topic)
+  }
+  return input.resumeChunk || defaultShortTurnQuestion(input.topic)
+}
+
+export function voiceInterruptionRecoveryPlan(input: {
+  topic: string
+  gradeLevel?: string
+  plannedTurn: string
+  studentInterruption?: string
+  lastCompletedChunkOrder?: number
+  interruptedDuringChunk?: boolean
+  requiredQuestion?: string
+  currentToolName?: string
+  maxWordsPerChunk?: number
+}): VoiceInterruptionRecoveryResult {
+  const topic = resolveCurriculumTopic(input.topic || input.plannedTurn || input.studentInterruption || '')
+  const guide = CURRICULUM_GUIDE[topic]
+  const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
+  const plannedTurn = input.plannedTurn.trim() || defaultShortTurnQuestion(topic)
+  const formatted = shortSpokenTurnFormatter({
+    topic,
+    gradeLevel,
+    draftTurn: plannedTurn,
+    requiredQuestion: input.requiredQuestion,
+    mustAskQuestion: true,
+    maxWordsPerChunk: input.maxWordsPerChunk,
+    maxChunks: 3,
+  })
+  const chunks = formatted.chunks
+  const lastCompletedChunkOrder = clamp(
+    Number.isFinite(input.lastCompletedChunkOrder)
+      ? Math.trunc(input.lastCompletedChunkOrder ?? 0)
+      : 0,
+    0,
+    chunks.length
+  )
+  const interruption = input.studentInterruption?.trim() ?? ''
+  const intent = inferInterruptionIntent(interruption)
+  const currentToolName = input.currentToolName?.trim()
+  const resumeIndex =
+    intent === 'repeat'
+      ? Math.max(0, lastCompletedChunkOrder - 1)
+      : Math.min(chunks.length - 1, lastCompletedChunkOrder)
+  const resumeChunk = chunks[resumeIndex]?.say ?? ''
+  const remainingChunks = intent === 'pause' ? [] : chunks.slice(Math.max(0, resumeIndex))
+  const rawNextLine = buildInterruptionRecoveryLine({
+    intent,
+    topic,
+    resumeChunk,
+    interruption,
+  })
+  const limitedNextLine = limitSpokenChunk(rawNextLine, clamp(input.maxWordsPerChunk ?? 24, 10, 32)).text
+  const recommendedTool = recoveryToolForIntent(intent, interruption)
+  const recoverySteps =
+    intent === 'pause'
+      ? [
+          'Stop speaking immediately.',
+          'Do not call another tool until the student restarts.',
+        ]
+      : [
+          'Acknowledge the interruption in one short line.',
+          'Resume from the next unfinished chunk instead of restarting the whole explanation.',
+          currentToolName
+            ? `Do not rerun ${currentToolName} unless the student asks for a fresh check.`
+            : 'Do not rerun the prior tool unless the student asks for a fresh check.',
+          recommendedTool === 'none'
+            ? 'Wait for the student.'
+            : `Use ${recommendedTool} only if the student needs another check before continuing.`,
+        ]
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel,
+    interruptionIntent: intent,
+    resumeFromChunk: intent === 'pause' ? 0 : (chunks[resumeIndex]?.order ?? 0),
+    nextSpokenChunk: limitedNextLine,
+    remainingChunks,
+    recommendedTool,
+    shouldRestartExplanation: false,
+    voicePolicy: buildTutorVoicePolicyCheck(limitedNextLine),
+    recoverySteps,
+    stopRule:
+      intent === 'pause'
+        ? 'Stop and listen until the student explicitly continues.'
+        : 'Say only the recovery chunk, then wait for the student before continuing the remaining chunks.',
   }
 }
 

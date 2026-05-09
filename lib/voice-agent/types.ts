@@ -318,6 +318,31 @@ export type ShortSpokenTurnFormatterResult = {
   stopRule: string
 }
 
+export type VoiceInterruptionRecoveryResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  interruptionIntent:
+    | 'pause'
+    | 'repeat'
+    | 'student_attempt'
+    | 'clarification'
+    | 'resume'
+    | 'unclear'
+  resumeFromChunk: number
+  nextSpokenChunk: string
+  remainingChunks: Array<{
+    order: number
+    say: string
+    pauseAfter: boolean
+  }>
+  recommendedTool: string
+  shouldRestartExplanation: boolean
+  voicePolicy: TutorVoicePolicyCheck
+  recoverySteps: string[]
+  stopRule: string
+}
+
 export type StudentCheckQuestionResult = {
   topic: string
   label: string

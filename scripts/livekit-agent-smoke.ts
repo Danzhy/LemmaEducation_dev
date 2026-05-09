@@ -28,6 +28,7 @@ async function main() {
     'tutor_turn_audit',
     'tutor_response_planner',
     'short_spoken_turn_formatter',
+    'voice_interruption_recovery_plan',
     'student_check_question',
     'answer_disclosure_gate',
     'mistake_pattern_classifier',
@@ -501,6 +502,20 @@ async function main() {
       maxChunks: 2,
     },
     { ctx: {} as never, toolCallId: 'smoke-short-spoken-turn-formatter' }
+  )
+  const interruptionRecovery = await tools.voice_interruption_recovery_plan.execute(
+    {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      plannedTurn: JSON.parse(JSON.stringify(shortSpokenTurn)).formattedTurn ?? '',
+      studentInterruption: 'Can you say that again?',
+      lastCompletedChunkOrder: 1,
+      interruptedDuringChunk: false,
+      requiredQuestion: 'What denominator could both fractions use?',
+      currentToolName: 'short_spoken_turn_formatter',
+      maxWordsPerChunk: 18,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-voice-interruption-recovery-plan' }
   )
   const checkQuestion = await tools.student_check_question.execute(
     {
@@ -1018,6 +1033,16 @@ async function main() {
     !JSON.stringify(shortSpokenTurn).includes('formattedTurn')
   ) {
     throw new Error(`short_spoken_turn_formatter did not produce one interruptible question: ${JSON.stringify(shortSpokenTurn)}`)
+  }
+
+  if (
+    !JSON.stringify(interruptionRecovery).includes('"interruptionIntent":"repeat"') ||
+    !JSON.stringify(interruptionRecovery).includes('"shouldRestartExplanation":false') ||
+    !JSON.stringify(interruptionRecovery).includes('"resumeFromChunk":1')
+  ) {
+    throw new Error(
+      `voice_interruption_recovery_plan did not resume from the interrupted short chunk: ${JSON.stringify(interruptionRecovery)}`
+    )
   }
 
   if (!JSON.stringify(checkQuestion).includes('expectedEvidence')) {

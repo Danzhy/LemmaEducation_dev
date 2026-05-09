@@ -104,6 +104,25 @@ const CASES: TutorExperienceCase[] = [
     expectedSubstrings: ['formattedTurn', 'extra_questions_removed', 'oneQuestionOnly'],
   },
   {
+    id: 'voice-interruption-recovery',
+    title: 'Resume voice tutoring from the interrupted short chunk',
+    gradeBand: 'grades 3-7',
+    toolName: 'voice_interruption_recovery_plan',
+    input: {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      plannedTurn:
+        'Use a common denominator before adding. What denominator could both fractions use?',
+      studentInterruption: 'Can you say that again?',
+      lastCompletedChunkOrder: 1,
+      interruptedDuringChunk: false,
+      requiredQuestion: 'What denominator could both fractions use?',
+      currentToolName: 'short_spoken_turn_formatter',
+      maxWordsPerChunk: 18,
+    },
+    expectedSubstrings: ['repeat', 'resumeFromChunk', 'shouldRestartExplanation'],
+  },
+  {
     id: 'turn-audit-one-question-policy',
     title: 'Reject multi-question voice turns before speaking',
     gradeBand: 'grades 3-7',

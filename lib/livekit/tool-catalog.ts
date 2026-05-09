@@ -66,6 +66,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'tutor_turn_audit',
   'unit_conversion',
   'unit_rate',
+  'voice_interruption_recovery_plan',
   'word_problem_plan',
   'worked_example_fader',
   'write_on_canvas',

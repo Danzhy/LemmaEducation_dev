@@ -66,6 +66,7 @@ import {
   tutorTeachingSequence,
   tutorResponsePlanner,
   tutorTurnAudit,
+  voiceInterruptionRecoveryPlan,
 } from '@/lib/voice-agent/math-engine'
 
 function stringifyResult(result: unknown) {
@@ -386,6 +387,85 @@ export function createVoiceAgentTools() {
             mustAskQuestion: params.mustAskQuestion,
             maxWordsPerChunk: params.maxWordsPerChunk,
             maxChunks: params.maxChunks,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'voice_interruption_recovery_plan',
+      description:
+        'Plan how to recover after a student interrupts a voice turn. Use this to pause, repeat, check a new student attempt, or resume from the next unfinished short chunk without restarting a long explanation.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          plannedTurn: {
+            type: 'string',
+            description: 'The formatted or planned tutor turn that was being spoken.',
+          },
+          studentInterruption: {
+            type: 'string',
+            description: 'What the student said while interrupting, if any transcript is available.',
+          },
+          lastCompletedChunkOrder: {
+            type: 'number',
+            description: 'The last short spoken chunk fully completed before the interruption. Use 0 if none.',
+          },
+          interruptedDuringChunk: {
+            type: 'boolean',
+            description: 'Whether the student interrupted while the tutor was still speaking a chunk.',
+          },
+          requiredQuestion: {
+            type: 'string',
+            description: 'The one student-facing question the tutor still needs to ask, if known.',
+          },
+          currentToolName: {
+            type: 'string',
+            description: 'The tool whose result the tutor was explaining, if any.',
+          },
+          maxWordsPerChunk: {
+            type: 'number',
+            description: 'Target maximum words for the recovery chunk.',
+          },
+        },
+        required: [
+          'topic',
+          'gradeLevel',
+          'plannedTurn',
+          'studentInterruption',
+          'lastCompletedChunkOrder',
+          'interruptedDuringChunk',
+          'requiredQuestion',
+          'currentToolName',
+          'maxWordsPerChunk',
+        ],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          gradeLevel?: string
+          plannedTurn: string
+          studentInterruption?: string
+          lastCompletedChunkOrder?: number
+          interruptedDuringChunk?: boolean
+          requiredQuestion?: string
+          currentToolName?: string
+          maxWordsPerChunk?: number
+        }
+        return stringifyResult(
+          voiceInterruptionRecoveryPlan({
+            topic: params.topic,
+            gradeLevel: params.gradeLevel,
+            plannedTurn: params.plannedTurn,
+            studentInterruption: params.studentInterruption,
+            lastCompletedChunkOrder: params.lastCompletedChunkOrder,
+            interruptedDuringChunk: params.interruptedDuringChunk,
+            requiredQuestion: params.requiredQuestion,
+            currentToolName: params.currentToolName,
+            maxWordsPerChunk: params.maxWordsPerChunk,
           })
         )
       },

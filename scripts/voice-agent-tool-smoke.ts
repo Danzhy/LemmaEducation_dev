@@ -56,6 +56,7 @@ import {
   tutorTurnAudit,
   unitRate,
   unitConversionScene,
+  voiceInterruptionRecoveryPlan,
   wordProblemPlan,
   workedExampleFader,
 } from '../lib/voice-agent/math-engine'
@@ -857,6 +858,44 @@ assert(
     shortSpokenTurn.removedSignals.includes('extra_questions_removed') &&
     shortSpokenTurn.formattedWordCount < shortSpokenTurn.originalWordCount,
   'short_spoken_turn_formatter should trim long drafts into interruptible chunks with one question.'
+)
+
+const interruptionRecovery = voiceInterruptionRecoveryPlan({
+  topic: 'fractions',
+  gradeLevel: 'Grade 5',
+  plannedTurn: shortSpokenTurn.formattedTurn,
+  studentInterruption: 'Hold on, give me a second.',
+  lastCompletedChunkOrder: 1,
+  interruptedDuringChunk: true,
+  requiredQuestion: 'What denominator could both fractions use?',
+  currentToolName: 'short_spoken_turn_formatter',
+  maxWordsPerChunk: 14,
+})
+assert(
+  interruptionRecovery.interruptionIntent === 'pause' &&
+    interruptionRecovery.shouldRestartExplanation === false &&
+    interruptionRecovery.resumeFromChunk === 0 &&
+    interruptionRecovery.nextSpokenChunk.includes('ready'),
+  'voice_interruption_recovery_plan should stop cleanly when the student asks for time.'
+)
+
+const interruptionResume = voiceInterruptionRecoveryPlan({
+  topic: 'fractions',
+  gradeLevel: 'Grade 5',
+  plannedTurn: shortSpokenTurn.formattedTurn,
+  studentInterruption: 'Can you say that again?',
+  lastCompletedChunkOrder: 1,
+  interruptedDuringChunk: false,
+  requiredQuestion: 'What denominator could both fractions use?',
+  currentToolName: 'short_spoken_turn_formatter',
+  maxWordsPerChunk: 18,
+})
+assert(
+  interruptionResume.interruptionIntent === 'repeat' &&
+    interruptionResume.shouldRestartExplanation === false &&
+    interruptionResume.resumeFromChunk === 1 &&
+    interruptionResume.nextSpokenChunk.includes(shortSpokenTurn.chunks[0].say),
+  'voice_interruption_recovery_plan should repeat the last short chunk without restarting the full explanation.'
 )
 
 const coachedMove = nextStepCoach({

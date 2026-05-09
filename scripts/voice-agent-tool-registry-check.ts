@@ -24,6 +24,7 @@ const REQUIRED_TOOL_NAMES = [
   'tutor_turn_audit',
   'tutor_response_planner',
   'short_spoken_turn_formatter',
+  'voice_interruption_recovery_plan',
   'student_check_question',
   'safety_boundary_check',
   'socratic_move_planner',
