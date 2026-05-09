@@ -1,4 +1,5 @@
 import { createLiveKitTutorToolContext } from '@/lib/livekit/worker-tools'
+import { runLiveKitTutorTool } from '@/lib/livekit/tool-runner'
 import type { TutorCanvasAction, TutorToolEvent } from '@/lib/tutor/session-adapter'
 
 type ToolEventDraft = Omit<TutorToolEvent, 'id' | 'createdAt'>
@@ -55,6 +56,7 @@ async function main() {
     'unit_conversion',
     'place_value_chart',
     'geometry_figure',
+    'canvas_action',
   ]
 
   for (const toolName of requiredTools) {
@@ -84,6 +86,21 @@ async function main() {
   } catch (error) {
     unknownToolFieldRejected =
       error instanceof Error && /unsupported field/i.test(error.message)
+  }
+  let nestedUnknownToolFieldRejected = false
+  try {
+    await runLiveKitTutorTool(
+      'canvas_action',
+      {
+        actionType: 'draw_line_segment',
+        start: { x: 20, y: 40, hiddenInstruction: 'draw outside the schema' },
+        end: { x: 160, y: 40 },
+        label: 'base',
+      }
+    )
+  } catch (error) {
+    nestedUnknownToolFieldRejected =
+      error instanceof Error && /start\.hiddenInstruction/i.test(error.message)
   }
   const validMixedNumberStep = await tools.math_check_step.execute(
     { previousStep: '1 1/2 + 2 1/4', nextStep: '3 3/4' },
@@ -677,6 +694,10 @@ async function main() {
 
   if (!unknownToolFieldRejected) {
     throw new Error('LiveKit tool runner did not reject an unsupported input field.')
+  }
+
+  if (!nestedUnknownToolFieldRejected) {
+    throw new Error('LiveKit tool runner did not reject an unsupported nested input field.')
   }
 
   if (!JSON.stringify(validMixedNumberStep).includes('"verdict":"valid"')) {

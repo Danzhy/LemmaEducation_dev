@@ -17,11 +17,7 @@ const MAX_TOOL_INPUT_BYTES = 12_000
 
 type ToolWithInvoke = Tool & {
   invoke?: (context: unknown, input: string) => Promise<string>
-  parameters?: {
-    type?: unknown
-    additionalProperties?: unknown
-    properties?: Record<string, unknown>
-  }
+  parameters?: JsonSchemaObject
 }
 
 export type LiveKitToolRunContext = {
@@ -30,6 +26,16 @@ export type LiveKitToolRunContext = {
 }
 
 let toolRegistry: Map<string, ToolWithInvoke> | null = null
+
+type JsonSchemaObject = {
+  type?: unknown
+  additionalProperties?: unknown
+  properties?: Record<string, JsonSchemaObject | boolean>
+  items?: JsonSchemaObject | boolean | Array<JsonSchemaObject | boolean>
+  anyOf?: Array<JsonSchemaObject | boolean>
+  oneOf?: Array<JsonSchemaObject | boolean>
+  allOf?: Array<JsonSchemaObject | boolean>
+}
 
 function jsonByteLength(value: unknown) {
   try {
@@ -52,22 +58,72 @@ function getToolRegistry() {
   return toolRegistry
 }
 
+function schemaTypeIncludes(schema: JsonSchemaObject, expectedType: string) {
+  return schema.type === expectedType || (Array.isArray(schema.type) && schema.type.includes(expectedType))
+}
+
+function formatToolInputPath(path: Array<string | number>) {
+  if (path.length === 0) return ''
+  return path
+    .map((part) => {
+      if (typeof part === 'number') return `[${part}]`
+      return /^[A-Za-z_$][\w$]*$/.test(part) ? `.${part}` : `[${JSON.stringify(part)}]`
+    })
+    .join('')
+}
+
+function assertAllowedSchemaProperties(
+  schema: JsonSchemaObject | boolean | undefined,
+  value: unknown,
+  path: Array<string | number> = []
+) {
+  if (!schema || typeof schema === 'boolean') return
+
+  const variants = [...(schema.anyOf ?? []), ...(schema.oneOf ?? []), ...(schema.allOf ?? [])]
+  for (const variant of variants) {
+    assertAllowedSchemaProperties(variant, value, path)
+  }
+
+  if (schemaTypeIncludes(schema, 'object')) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+      if (path.length === 0) throw new Error('Tool input must be a JSON object.')
+      return
+    }
+
+    if (schema.additionalProperties === false) {
+      const allowedProperties = new Set(Object.keys(schema.properties ?? {}))
+      const unknownProperties = Object.keys(value as Record<string, unknown>).filter(
+        (key) => !allowedProperties.has(key)
+      )
+
+      if (unknownProperties.length > 0) {
+        throw new Error(
+          `Tool input contains unsupported field${formatToolInputPath([...path, unknownProperties[0]])}.`
+        )
+      }
+    }
+
+    for (const [key, childSchema] of Object.entries(schema.properties ?? {})) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        assertAllowedSchemaProperties(childSchema, (value as Record<string, unknown>)[key], [...path, key])
+      }
+    }
+    return
+  }
+
+  if (schemaTypeIncludes(schema, 'array') && Array.isArray(value)) {
+    const itemSchemas = Array.isArray(schema.items) ? schema.items : schema.items ? [schema.items] : []
+    if (itemSchemas.length === 0) return
+
+    value.forEach((item, index) => {
+      const itemSchema = itemSchemas[Math.min(index, itemSchemas.length - 1)]
+      assertAllowedSchemaProperties(itemSchema, item, [...path, index])
+    })
+  }
+}
+
 function assertAllowedToolInputProperties(toolDef: ToolWithInvoke, input: unknown) {
-  const schema = toolDef.parameters
-  if (!schema || schema.type !== 'object' || schema.additionalProperties !== false) return
-
-  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('Tool input must be a JSON object.')
-  }
-
-  const allowedProperties = new Set(Object.keys(schema.properties ?? {}))
-  const unknownProperties = Object.keys(input as Record<string, unknown>).filter(
-    (key) => !allowedProperties.has(key)
-  )
-
-  if (unknownProperties.length > 0) {
-    throw new Error(`Tool input contains unsupported field: ${unknownProperties[0]}.`)
-  }
+  assertAllowedSchemaProperties(toolDef.parameters, input)
 }
 
 function createCurriculumContextTool(): ToolWithInvoke {
