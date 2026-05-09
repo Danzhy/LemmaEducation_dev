@@ -9,6 +9,11 @@ type LearnerContextOutput = {
   recentExcerpts?: unknown
 }
 
+type StudentStepPair = {
+  previousStep: string
+  nextStep: string
+}
+
 function formatToolNameForStudent(toolName: string) {
   return toolName.replace(/_/g, ' ')
 }
@@ -64,6 +69,68 @@ function extractIntegerOperation(text: string) {
   } as const
 }
 
+function cleanStepText(value: string) {
+  return value
+    .replace(/[“”]/g, '"')
+    .replace(/[’]/g, "'")
+    .replace(/^\s*(?:i\s+(?:got|wrote|tried|changed|think|said)\s+|check\s+this:?\s*|that\s+|then\s+|so\s+|is\s+)/i, '')
+    .replace(/\s+\b(?:why|where|what|because|is that|is this|was that|was this|right|wrong|correct|incorrect)\b.*$/i, '')
+    .replace(/[?!.,;:]+$/g, '')
+    .trim()
+}
+
+function hasMathToken(value: string) {
+  return /[0-9xX]/.test(value)
+}
+
+function hasMathStructure(value: string) {
+  return /[+\-*/=:%^()]|\/|\bof\b/i.test(value)
+}
+
+function buildStepPair(previousStep: string, nextStep: string): StudentStepPair | null {
+  const previous = cleanStepText(previousStep)
+  const next = cleanStepText(nextStep)
+  if (!previous || !next || previous.length > 140 || next.length > 140) return null
+  if (!hasMathToken(previous) || !hasMathToken(next)) return null
+  if (!hasMathStructure(previous) && !hasMathStructure(next)) return null
+  return { previousStep: previous, nextStep: next }
+}
+
+function splitSingleNumericEquality(candidate: string) {
+  const parts = candidate.split('=')
+  if (parts.length !== 2) return null
+  if (/[a-z]/i.test(parts[0]) || /[a-z]/i.test(parts[1])) return null
+  return buildStepPair(parts[0], parts[1])
+}
+
+function extractStudentStepPair(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
+
+  const arrowMatch = normalized.match(new RegExp(`(.{1,140}?)\\s*(?:->|→|⇒)\\s*(.{1,140}?)${stopBeforeQuestion}`, 'i'))
+  if (arrowMatch) {
+    const pair = buildStepPair(arrowMatch[1], arrowMatch[2])
+    if (pair) return pair
+  }
+
+  const rewriteMatch = normalized.match(
+    new RegExp(
+      `\\b(?:changed|change|went from|go from|from|rewrote|rewrite|turned|turn)\\s+(.{1,140}?)\\s+(?:to|into|as)\\s+(.{1,140}?)${stopBeforeQuestion}`,
+      'i'
+    )
+  )
+  if (rewriteMatch) {
+    const pair = buildStepPair(rewriteMatch[1], rewriteMatch[2])
+    if (pair) return pair
+  }
+
+  const attemptMatch = normalized.match(
+    new RegExp(`\\b(?:i got|i wrote|my answer(?: is)?|i think|check this:?)\\s+(.{1,180}?)${stopBeforeQuestion}`, 'i')
+  )
+  const equalityCandidate = attemptMatch?.[1] ?? normalized
+  return splitSingleNumericEquality(equalityCandidate)
+}
+
 function inferLocalTopic(text: string) {
   const lower = text.toLowerCase()
   if (extractFractions(text).length > 0 || /\bfraction|denominator|numerator\b/.test(lower)) return 'fractions'
@@ -81,10 +148,13 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const lower = prompt.toLowerCase()
   const fractions = extractFractions(prompt)
   const numbers = extractNumbers(prompt)
+  const studentStepPair = extractStudentStepPair(prompt)
   const plans: LocalToolPlan[] = []
   const asksForFullSolution =
     /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(lower)
-  const hasStudentAttempt = /\b(i tried|i got|my answer|i think|check this|=)\b/.test(lower)
+  const hasStudentAttempt =
+    /\b(i tried|i got|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
+    prompt.includes('=')
   const asksForCurriculumContext =
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
   const asksForLearnerContext =
@@ -92,7 +162,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const hasSpecificMathAction =
     /\b(graph|plot|parabola|function|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan|integer|negative|positive|signed)\b/.test(lower)
   const asksForMistakeHelp =
-    /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|why is this wrong)\b/.test(lower)
+    /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|check this|is this right|is that right|am i right|is my step right|correct)\b/.test(lower)
   const needsSafetyBoundary =
     /\b(cheat|test answers|exam answers|do my test|phone number|address|password|where do you live|meet me|private photo|secret|kill myself|hurt myself|self harm|suicide|abuse|violence)\b/.test(lower) ||
     (!hasSpecificMathAction &&
@@ -251,6 +321,12 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   }
 
   if (asksForMistakeHelp && hasStudentAttempt) {
+    if (studentStepPair) {
+      plans.push({
+        toolName: 'math_check_step',
+        input: studentStepPair,
+      })
+    }
     plans.push({
       toolName: 'mistake_pattern_classifier',
       input: {
@@ -625,6 +701,20 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     return classified?.diagnosticQuestion
       ? `I found the likely reasoning pattern. ${classified.diagnosticQuestion}`
       : 'I checked the mistake pattern. Let us focus on one step and explain why it changes.'
+  }
+
+  if (firstTool === 'math_check_step') {
+    const checkedStep = outputs.find(
+      (output): output is { verdict?: string; reason?: string; hintTarget?: string } =>
+        Boolean(output && typeof output === 'object' && 'verdict' in output)
+    )
+    if (checkedStep?.verdict === 'valid') {
+      return `I checked that step first, and it stays equivalent. ${checkedStep.reason} What rule made that step work?`
+    }
+    if (checkedStep?.verdict === 'invalid') {
+      return `I checked that step first, and something changed. ${checkedStep.reason} What should we check about ${checkedStep.hintTarget}?`
+    }
+    return 'I tried to check that step first, but the notation needs to be clearer. Can you rewrite the previous line and the next line separately?'
   }
 
   if (firstTool === 'problem_understanding_map') {

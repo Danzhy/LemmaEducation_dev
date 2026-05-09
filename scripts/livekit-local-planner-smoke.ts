@@ -70,12 +70,30 @@ const cases: PlannerCase[] = [
     },
   },
   {
-    name: 'routes wrong-work prompts to mistake pattern classifier',
+    name: 'checks explicit wrong fraction step before classifying the mistake',
     prompt: 'I got 1/2 + 1/3 = 2/5. Why is this wrong?',
-    expectedTools: ['mistake_pattern_classifier'],
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
     inspect: (input) => {
-      assert.equal(input.topic, 'fractions')
-      assert.match(String(input.studentWork), /2\/5/)
+      assert.equal(input.previousStep, '1/2 + 1/3')
+      assert.equal(input.nextStep, '2/5')
+    },
+  },
+  {
+    name: 'checks explicit algebra rewrite before classifying the step',
+    prompt: 'I changed 2x + 3 = 11 to 2x = 8. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '2x + 3 = 11')
+      assert.equal(input.nextStep, '2x = 8')
+    },
+  },
+  {
+    name: 'checks decimal answer claims before correcting place-value mistakes',
+    prompt: 'Check this: 0.4 + 0.08 = 0.12',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '0.4 + 0.08')
+      assert.equal(input.nextStep, '0.12')
     },
   },
   {
@@ -216,6 +234,22 @@ assert.match(
     [{ primaryPattern: 'denominator_operation', diagnosticQuestion: 'What common denominator could both fractions use?' }]
   ),
   /common denominator/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'check this',
+    [{ toolName: 'math_check_step', input: {} }],
+    [{ verdict: 'invalid', reason: 'The value changed from 0.48 to 0.12.', hintTarget: 'decimal place values' }]
+  ),
+  /checked that step first/i
+)
+assert.match(
+  buildLocalAssistantReply(
+    'is this right',
+    [{ toolName: 'math_check_step', input: {} }],
+    [{ verdict: 'valid', reason: 'Both equations keep the same solution, x = 4.', hintTarget: 'inverse operations' }]
+  ),
+  /stays equivalent/i
 )
 assert.match(
   buildLocalAssistantReply(
