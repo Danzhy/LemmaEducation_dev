@@ -1571,6 +1571,14 @@ export function createVoiceAgentTools() {
             type: 'array',
             items: { type: 'number' },
           },
+          highlightXValue: {
+            type: 'number',
+            description: 'Optional x-value whose table row should be highlighted for focused feedback.',
+          },
+          highlightLabel: {
+            type: 'string',
+            description: 'Short optional label for the highlighted row.',
+          },
         },
         required: ['expression'],
       },
@@ -1578,11 +1586,15 @@ export function createVoiceAgentTools() {
         const params = input as {
           expression: string
           xValues?: number[]
+          highlightXValue?: number
+          highlightLabel?: string
         }
         return stringifyResult(
           tableOfValues({
             expression: params.expression,
             xValues: params.xValues,
+            highlightXValue: params.highlightXValue,
+            highlightLabel: params.highlightLabel,
           })
         )
       },

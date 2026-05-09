@@ -89,7 +89,13 @@ const smokeCases: SmokeCase[] = [
   },
   {
     name: 'table_of_values',
-    run: () => tableOfValues({ expression: '2*x+1', xValues: [0, 1, 2] }),
+    run: () =>
+      tableOfValues({
+        expression: '2*x+1',
+        xValues: [0, 1, 2],
+        highlightXValue: 2,
+        highlightLabel: 'Check this row',
+      }),
   },
   {
     name: 'number_line',
@@ -632,8 +638,24 @@ assert(
 const invalidValueTableStep = mathCheckStep('table for y = 2x + 1', '(0, 1), (1, 3), (2, 4)')
 assert(
   invalidValueTableStep.verdict === 'invalid' &&
-    invalidValueTableStep.hintTarget.includes('table row'),
+    invalidValueTableStep.hintTarget.includes('table row') &&
+    invalidValueTableStep.boardFocus?.kind === 'table_row' &&
+    invalidValueTableStep.boardFocus.x === 2 &&
+    invalidValueTableStep.boardFocus.expectedY === 5,
   'math_check_step should catch table-of-values row mistakes.'
+)
+
+const highlightedValueTable = tableOfValues({
+  expression: '2*x+1',
+  xValues: [0, 1, 2],
+  highlightXValue: 2,
+  highlightLabel: 'Check x = 2 row',
+})
+assert(
+  highlightedValueTable.highlightedRow?.x === 2 &&
+    highlightedValueTable.highlightedRow.y === 5 &&
+    highlightedValueTable.canvasActions.some((action) => action.type === 'highlight_region'),
+  'table_of_values should highlight the requested x-row for focused feedback.'
 )
 
 const validMeanStep = mathCheckStep('mean of 4, 7, 3, 7, 9', '6')

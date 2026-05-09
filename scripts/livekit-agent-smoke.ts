@@ -303,6 +303,15 @@ async function main() {
     { favorableOutcomes: 3, totalOutcomes: 8, title: 'Probability model' },
     { ctx: {} as never, toolCallId: 'smoke-probability-model' }
   )
+  const highlightedTableResult = await tools.table_of_values.execute(
+    {
+      expression: '2*x + 1',
+      xValues: [0, 1, 2],
+      highlightXValue: 2,
+      highlightLabel: 'Check x = 2 row',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-highlighted-value-table' }
+  )
   const invalidNumericEqualityStep = await tools.math_check_step.execute(
     { previousStep: '3/4 = 6/8', nextStep: '3/4 = 7/8' },
     { ctx: {} as never, toolCallId: 'smoke-numeric-equality-step-check' }
@@ -855,7 +864,8 @@ async function main() {
 
   if (
     !JSON.stringify(invalidValueTableStep).includes('"verdict":"invalid"') ||
-    !JSON.stringify(invalidValueTableStep).includes('table row')
+    !JSON.stringify(invalidValueTableStep).includes('table row') ||
+    !JSON.stringify(invalidValueTableStep).includes('boardFocus')
   ) {
     throw new Error(`math_check_step did not reject an invalid table row: ${JSON.stringify(invalidValueTableStep)}`)
   }
@@ -904,6 +914,13 @@ async function main() {
 
   if (!JSON.stringify(probabilityModelResult).includes('3/8') || !JSON.stringify(probabilityModelResult).includes('canvas')) {
     throw new Error('probability_model did not return a probability board model.')
+  }
+
+  if (
+    !JSON.stringify(highlightedTableResult).includes('highlightedRow') ||
+    !JSON.stringify(highlightedTableResult).includes('highlight_region')
+  ) {
+    throw new Error('table_of_values did not return a highlighted row board model.')
   }
 
   if (!JSON.stringify(invalidNumericEqualityStep).includes('"verdict":"invalid"')) {

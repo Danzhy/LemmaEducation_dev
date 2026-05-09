@@ -678,6 +678,12 @@ function checkTableOfValuesStep(previousStep: string, nextStep: string): MathSte
       verdict: 'invalid',
       reason: `In the table, x = ${formatNumber(mismatch.x, 4)} should give y = ${formatNumber(mismatch.expectedY, 4)}, not ${formatNumber(mismatch.y, 4)}.`,
       hintTarget: 'substitute each x-value before filling the table row',
+      boardFocus: {
+        kind: 'table_row',
+        x: roundPoint(mismatch.x),
+        studentY: roundPoint(mismatch.y),
+        expectedY: roundPoint(mismatch.expectedY),
+      },
     }
   } catch {
     return null
@@ -4415,6 +4421,8 @@ export function writeOnCanvas(input: {
 export function tableOfValues(input: {
   expression: string
   xValues?: number[]
+  highlightXValue?: number
+  highlightLabel?: string
   clearExisting?: boolean
 }): ValueTableResult {
   const expression = normalizeGraphExpression(input.expression)
@@ -4426,6 +4434,15 @@ export function tableOfValues(input: {
     x: roundPoint(x),
     y: roundPoint(coerceFiniteNumber(safeEvaluate(expression, { x }))),
   }))
+  const highlightXValue = typeof input.highlightXValue === 'number' ? coerceFiniteNumber(input.highlightXValue) : null
+  const highlightedRowIndex =
+    highlightXValue === null ? -1 : rows.findIndex((row) => isNearlyEqual(row.x, highlightXValue, 0.01))
+  const highlightedRow = highlightedRowIndex >= 0 ? rows[highlightedRowIndex] : null
+  const highlightLabel =
+    highlightedRow
+      ? input.highlightLabel?.trim().replace(/\s+/g, ' ').slice(0, 42) ||
+        `Check x = ${formatNumber(highlightedRow.x)}`
+      : ''
 
   const actions: TutorCanvasAction[] = []
   if (input.clearExisting !== false) {
@@ -4476,17 +4493,39 @@ export function tableOfValues(input: {
         { x: tableX, y },
         { x: tableX + totalWidth, y },
         { color: 'grey', size: 's', dash: 'solid' }
-      ),
+      )
+    )
+    if (index === highlightedRowIndex) {
+      actions.push({
+        id: createId(),
+        type: 'highlight_region',
+        x: tableX + 4,
+        y: y + 4,
+        width: totalWidth - 8,
+        height: rowHeight - 8,
+        color: 'yellow',
+        opacity: 0.2,
+        label: highlightLabel,
+      })
+    }
+    actions.push(
       textLabel(tableX + 18, y + 12, formatNumber(row.x), { width: 56, color: 'black' }),
       textLabel(tableX + col1Width + 18, y + 12, formatNumber(row.y), { width: 120, color: 'black' })
     )
   })
 
+  const noteLines = highlightedRow
+    ? [
+        'Check the highlighted row first.',
+        `For x = ${formatNumber(highlightedRow.x)}, y should be ${formatNumber(highlightedRow.y)}.`,
+      ]
+    : [
+        'Use the table to spot a pattern.',
+        'Then plot the ordered pairs on the plane.',
+      ]
+
   actions.push(
-    ...noteParagraph(sceneX + 316, sceneY + 76, [
-      'Use the table to spot a pattern.',
-      'Then plot the ordered pairs on the plane.',
-    ], {
+    ...noteParagraph(sceneX + 316, sceneY + 76, noteLines, {
       width: 176,
       color: 'black',
       lineHeight: 34,
@@ -4497,7 +4536,10 @@ export function tableOfValues(input: {
   return {
     expression,
     rows,
-    summary: `Built a value table for y = ${expression}.`,
+    highlightedRow: highlightedRow ? { x: highlightedRow.x, y: highlightedRow.y, label: highlightLabel } : null,
+    summary: highlightedRow
+      ? `Built a value table for y = ${expression} and highlighted the x = ${formatNumber(highlightedRow.x)} row.`
+      : `Built a value table for y = ${expression}.`,
     canvasActions: actions,
   }
 }

@@ -854,4 +854,31 @@ assert.deepEqual(hydratedReviewInput.topics, ['ratios and rates'])
 assert.deepEqual(hydratedReviewInput.struggleSignals, ['needs setup support'])
 assert.equal(hydratedReviewInput.targetTopic, 'ratios and rates')
 
+const hydratedTableInput = hydrateLocalToolPlanInput(
+  {
+    toolName: 'table_of_values',
+    input: {
+      expression: '2x + 1',
+      xValues: [0, 1, 2],
+    },
+  },
+  [
+    {
+      verdict: 'invalid',
+      reason: 'In the table, x = 2 should give y = 5, not 4.',
+      hintTarget: 'substitute each x-value before filling the table row',
+      boardFocus: {
+        kind: 'table_row',
+        x: 2,
+        studentY: 4,
+        expectedY: 5,
+      },
+    },
+  ],
+  'For y = 2x + 1, my table has (2, 4). Is that right?',
+  '6'
+)
+assert.equal(hydratedTableInput.highlightXValue, 2)
+assert.equal(hydratedTableInput.highlightLabel, 'Check x = 2 row')
+
 console.log(`LiveKit local planner smoke passed ${cases.length} routing cases.`)

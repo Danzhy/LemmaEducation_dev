@@ -4,6 +4,12 @@ export type MathStepCheckResult = {
   verdict: 'valid' | 'invalid' | 'unclear'
   reason: string
   hintTarget: string
+  boardFocus?: {
+    kind: 'table_row'
+    x: number
+    studentY: number
+    expectedY: number
+  }
 }
 
 export type MathAnswerCheckResult = {
@@ -88,6 +94,7 @@ export type GeometryFigureResult = {
 export type ValueTableResult = {
   expression: string
   rows: Array<{ x: number; y: number }>
+  highlightedRow?: { x: number; y: number; label: string } | null
   summary: string
   canvasActions: TutorCanvasAction[]
 }

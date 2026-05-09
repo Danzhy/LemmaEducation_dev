@@ -59,6 +59,10 @@ function formatToolNameForStudent(toolName: string) {
   return toolName.replace(/_/g, ' ')
 }
 
+function formatLocalNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(4).replace(/\.?0+$/g, '')
+}
+
 function extractNumbers(text: string) {
   return [...text.matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => Number(match[0]))
 }
@@ -2298,6 +2302,25 @@ function findLearnerContextOutput(outputs: unknown[]): LearnerContextOutput | nu
   )
 }
 
+function findTableRowBoardFocus(outputs: unknown[]) {
+  return (
+    outputs
+      .map((output) =>
+        output && typeof output === 'object' ? (output as Record<string, unknown>).boardFocus : null
+      )
+      .find((focus): focus is { kind: 'table_row'; x: number; studentY: number; expectedY: number } => {
+        if (!focus || typeof focus !== 'object') return false
+        const record = focus as Record<string, unknown>
+        return (
+          record.kind === 'table_row' &&
+          typeof record.x === 'number' &&
+          typeof record.studentY === 'number' &&
+          typeof record.expectedY === 'number'
+        )
+      }) ?? null
+  )
+}
+
 function stringArray(value: unknown, limit: number) {
   return Array.isArray(value)
     ? value
@@ -2328,6 +2351,17 @@ export function hydrateLocalToolPlanInput(
   prompt: string,
   gradeLevel: string
 ) {
+  if (plan.toolName === 'table_of_values') {
+    const focus = findTableRowBoardFocus(previousOutputs)
+    if (!focus) return plan.input
+
+    return {
+      ...plan.input,
+      highlightXValue: focus.x,
+      highlightLabel: `Check x = ${formatLocalNumber(focus.x)} row`,
+    }
+  }
+
   if (plan.toolName !== 'adaptive_review_plan') return plan.input
 
   const learnerContext = findLearnerContextOutput(previousOutputs)
