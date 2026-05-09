@@ -13,17 +13,33 @@ import type { TutorCanvasAction } from '@/lib/tutor/session-adapter'
 import {
   annotateGraphFeatures,
   angleDiagramScene,
+  areaPerimeterModelScene,
+  arrayModelScene,
   barModelScene,
+  compositeAreaModelScene,
   coordinateDistanceScene,
+  dataDisplayScene,
+  decimalGridScene,
   doubleNumberLineScene,
   equationBalanceScene,
+  factorTreeScene,
   fractionCompareScene,
+  fractionOperationScene,
   fractionStripScene,
   graphFunction,
+  integerChipsScene,
   integerOperationScene,
+  longDivisionScene,
   numberLineScene,
+  orderOfOperationsScene,
+  percentBarScene,
   plotPointsOnPlane,
+  placeValueChartScene,
+  probabilityModelScene,
+  ratioTableScene,
   slopeTriangleScene,
+  statisticsSummaryScene,
+  unitConversionScene,
 } from '@/lib/voice-agent/math-engine'
 
 const clearAction: TutorCanvasAction = { id: 'clear', type: 'clear_tool_layer' }
@@ -396,6 +412,162 @@ assertStableSemanticArtifactIds(
   })
 )
 
+assertStableSemanticArtifactIds(
+  'array_model',
+  arrayModelScene({ rows: 3, columns: 4, highlightCount: 5 }),
+  arrayModelScene({ rows: 3, columns: 4, highlightCount: 8 })
+)
+
+assertStableSemanticArtifactIds(
+  'ratio_table',
+  ratioTableScene({
+    leftLabel: 'cups',
+    rightLabel: 'tablespoons',
+    rows: [
+      { left: 1, right: 16 },
+      { left: 2, right: 32 },
+      { left: 3, right: 48 },
+    ],
+  }),
+  ratioTableScene({
+    leftLabel: 'cups',
+    rightLabel: 'tablespoons',
+    rows: [
+      { left: 1, right: 12 },
+      { left: 2, right: 24 },
+      { left: 3, right: 36 },
+    ],
+  })
+)
+
+assertStableSemanticArtifactIds(
+  'place_value_chart',
+  placeValueChartScene({
+    columns: ['hundreds', 'tens', 'ones', 'tenths'],
+    rows: [{ label: 'number', values: [3, 4, 5, 6] }],
+    highlightColumn: 'tens',
+  }),
+  placeValueChartScene({
+    columns: ['hundreds', 'tens', 'ones', 'tenths'],
+    rows: [{ label: 'number', values: [3, 5, 2, 8] }],
+    highlightColumn: 'ones',
+  })
+)
+
+assertStableSemanticArtifactIds(
+  'factor_tree',
+  factorTreeScene({ value: 36 }),
+  factorTreeScene({ value: 84 })
+)
+
+assertStableSemanticArtifactIds(
+  'long_division',
+  longDivisionScene({ dividend: 156, divisor: 6 }),
+  longDivisionScene({ dividend: 168, divisor: 7 })
+)
+
+assertStableSemanticArtifactIds(
+  'decimal_grid',
+  decimalGridScene({ shadedParts: 37, totalParts: 100 }),
+  decimalGridScene({ shadedParts: 62, totalParts: 100 })
+)
+
+assertStableSemanticArtifactIds(
+  'data_display',
+  dataDisplayScene({
+    displayType: 'bar_chart',
+    data: [
+      { label: 'Mon', value: 4 },
+      { label: 'Tue', value: 7 },
+      { label: 'Wed', value: 5 },
+    ],
+  }),
+  dataDisplayScene({
+    displayType: 'bar_chart',
+    data: [
+      { label: 'Mon', value: 6 },
+      { label: 'Tue', value: 3 },
+      { label: 'Wed', value: 8 },
+    ],
+  })
+)
+
+assertStableSemanticArtifactIds(
+  'integer_chips',
+  integerChipsScene({ positiveCount: 6, negativeCount: 2 }),
+  integerChipsScene({ positiveCount: 5, negativeCount: 3 })
+)
+
+assertStableSemanticArtifactIds(
+  'area_perimeter_model',
+  areaPerimeterModelScene({ widthUnits: 7, heightUnits: 4, unitLabel: 'cm', showUnitSquares: false }),
+  areaPerimeterModelScene({ widthUnits: 6, heightUnits: 5, unitLabel: 'cm', showUnitSquares: false })
+)
+
+assertStableSemanticArtifactIds(
+  'fraction_operation',
+  fractionOperationScene({
+    operation: 'add',
+    leftNumerator: 1,
+    leftDenominator: 2,
+    rightNumerator: 1,
+    rightDenominator: 3,
+  }),
+  fractionOperationScene({
+    operation: 'add',
+    leftNumerator: 2,
+    leftDenominator: 5,
+    rightNumerator: 1,
+    rightDenominator: 4,
+  })
+)
+
+assertStableSemanticArtifactIds(
+  'order_of_operations',
+  orderOfOperationsScene({ expression: '3 + 4 * 2' }),
+  orderOfOperationsScene({ expression: '6 + 12 / 3' })
+)
+
+assertStableSemanticArtifactIds(
+  'statistics_summary',
+  statisticsSummaryScene({ values: [2, 4, 4, 6, 9] }),
+  statisticsSummaryScene({ values: [3, 5, 5, 7, 10] })
+)
+
+assertStableSemanticArtifactIds(
+  'unit_conversion',
+  unitConversionScene({ value: 2.5, fromUnit: 'm', toUnit: 'cm', measurementType: 'length' }),
+  unitConversionScene({ value: 3.5, fromUnit: 'm', toUnit: 'cm', measurementType: 'length' })
+)
+
+assertStableSemanticArtifactIds(
+  'probability_model',
+  probabilityModelScene({ favorableOutcomes: 3, totalOutcomes: 8 }),
+  probabilityModelScene({ favorableOutcomes: 5, totalOutcomes: 8 })
+)
+
+assertStableSemanticArtifactIds(
+  'percent_bar',
+  percentBarScene({ percent: 35 }),
+  percentBarScene({ percent: 65 })
+)
+
+assertStableSemanticArtifactIds(
+  'composite_area_model',
+  compositeAreaModelScene({
+    rectangles: [
+      { xUnits: 0, yUnits: 0, widthUnits: 4, heightUnits: 3 },
+      { xUnits: 4, yUnits: 0, widthUnits: 2, heightUnits: 5 },
+    ],
+  }),
+  compositeAreaModelScene({
+    rectangles: [
+      { xUnits: 0, yUnits: 0, widthUnits: 5, heightUnits: 2 },
+      { xUnits: 5, yUnits: 0, widthUnits: 2, heightUnits: 4 },
+    ],
+  })
+)
+
 const lookupEditor = new MockArtifactEditor()
 lookupEditor.createToolShape('tool:fraction_strip:scene:0', 'tool:fraction_strip', 'main')
 lookupEditor.createToolShape('tool:fraction_strip:scene:0:label', 'tool:fraction_strip', 'label')
@@ -473,6 +645,28 @@ assertMockRendererReplacesRepeatedArtifact(
   'number_line',
   numberLineScene({ start: -5, end: 5, highlightValues: [-3, 2], hopPairs: [{ from: -3, to: 2 }] }),
   numberLineScene({ start: -5, end: 5, highlightValues: [-2, 3], hopPairs: [{ from: -2, to: 3 }] })
+)
+
+assertMockRendererReplacesRepeatedArtifact(
+  'probability_model',
+  probabilityModelScene({ favorableOutcomes: 3, totalOutcomes: 8 }),
+  probabilityModelScene({ favorableOutcomes: 5, totalOutcomes: 8 })
+)
+
+assertMockRendererReplacesRepeatedArtifact(
+  'composite_area_model',
+  compositeAreaModelScene({
+    rectangles: [
+      { xUnits: 0, yUnits: 0, widthUnits: 4, heightUnits: 3 },
+      { xUnits: 4, yUnits: 0, widthUnits: 2, heightUnits: 5 },
+    ],
+  }),
+  compositeAreaModelScene({
+    rectangles: [
+      { xUnits: 0, yUnits: 0, widthUnits: 5, heightUnits: 2 },
+      { xUnits: 5, yUnits: 0, widthUnits: 2, heightUnits: 4 },
+    ],
+  })
 )
 
 console.log('Canvas action reveal smoke passed.')

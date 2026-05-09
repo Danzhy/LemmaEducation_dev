@@ -5649,7 +5649,7 @@ export function arrayModelScene(input: {
 
   return {
     summary: 'Prepared an array model on the canvas.',
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('array_model', actions),
   }
 }
 
@@ -5726,7 +5726,7 @@ export function ratioTableScene(input: {
 
   return {
     summary: 'Prepared a ratio table on the canvas.',
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('ratio_table', actions),
   }
 }
 
@@ -6405,7 +6405,7 @@ export function placeValueChartScene(input: {
 
   return {
     summary: 'Prepared a place-value chart on the canvas.',
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('place_value_chart', actions),
   }
 }
 
@@ -6482,7 +6482,7 @@ export function factorTreeScene(input: {
 
   return {
     summary: 'Prepared a factor tree on the canvas.',
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('factor_tree', actions),
   }
 }
 
@@ -6598,7 +6598,7 @@ export function longDivisionScene(input: {
       remainder === 0
         ? `Prepared long division for ${dividend} ÷ ${divisor}; quotient ${quotient}.`
         : `Prepared long division for ${dividend} ÷ ${divisor}; quotient ${quotient} remainder ${remainder}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('long_division', actions),
   }
 }
 
@@ -6660,7 +6660,7 @@ export function decimalGridScene(input: {
 
   return {
     summary: `Prepared a ${totalParts === 100 ? 'hundredths' : 'tenths'} grid for ${shadedParts}/${totalParts}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('decimal_grid', actions),
   }
 }
 
@@ -6773,7 +6773,7 @@ export function dataDisplayScene(input: {
 
   return {
     summary: `Prepared a ${input.displayType === 'line_plot' ? 'line plot' : 'bar chart'} for ${data.length} values.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('data_display', actions),
   }
 }
 
@@ -6853,7 +6853,7 @@ export function integerChipsScene(input: {
 
   return {
     summary: `Prepared integer chips with value ${value}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('integer_chips', actions),
   }
 }
 
@@ -7392,7 +7392,7 @@ export function areaPerimeterModelScene(input: {
 
   return {
     summary: `Prepared an area and perimeter model with area ${area} and perimeter ${perimeter}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('area_perimeter_model', actions),
   }
 }
 
@@ -7597,7 +7597,7 @@ export function fractionOperationScene(input: {
 
   return {
     summary: `Prepared fraction ${input.operation} work for ${originalExpression}; result ${formatFraction(simplified.numerator, simplified.denominator)}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('fraction_operation', actions),
   }
 }
 
@@ -7624,12 +7624,18 @@ export function orderOfOperationsScene(input: {
 
   return {
     summary: `Prepared order-of-operations work for ${readable}; result ${formatNumber(result)}.`,
-    canvasActions: buildCanvasWriteActions({
-      title: input.title?.trim() || 'Order of operations',
-      textLines: [...stepLines, `Result: ${formatNumber(result)}`],
-      mathExpressions: [readable, simplified === String(result) ? formatNumber(result) : `${simplified} = ${formatNumber(result)}`],
-      clearExisting: true,
-    }),
+    canvasActions: withSemanticSceneArtifactIds(
+      'order_of_operations',
+      buildCanvasWriteActions({
+        title: input.title?.trim() || 'Order of operations',
+        textLines: [...stepLines, `Result: ${formatNumber(result)}`],
+        mathExpressions: [
+          readable,
+          simplified === String(result) ? formatNumber(result) : `${simplified} = ${formatNumber(result)}`,
+        ],
+        clearExisting: true,
+      })
+    ),
   }
 }
 
@@ -7733,7 +7739,7 @@ export function statisticsSummaryScene(input: {
 
   return {
     summary: `Prepared statistics summary: mean ${formatNumber(mean)}, median ${formatNumber(median)}, range ${formatNumber(range)}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('statistics_summary', actions),
   }
 }
 
@@ -7759,16 +7765,21 @@ export function unitConversionScene(input: {
 
   return {
     summary: `Prepared unit conversion: ${formatNumber(value)} ${String(fromUnit)} = ${formatNumber(converted)} ${String(toUnit)}.`,
-    canvasActions: buildCanvasWriteActions({
-      title: input.title?.trim() || 'Unit conversion',
-      textLines: [
-        `Convert ${formatNumber(value)} ${String(fromUnit)} to ${String(toUnit)}.`,
-        `Conversion factor: ${formatNumber(conversionFactor, 6)}`,
-        `Answer: ${formatNumber(converted, 6)} ${String(toUnit)}`,
-      ],
-      mathExpressions: [`${formatNumber(value)} x ${formatNumber(conversionFactor, 6)} = ${formatNumber(converted, 6)}`],
-      clearExisting: true,
-    }),
+    canvasActions: withSemanticSceneArtifactIds(
+      'unit_conversion',
+      buildCanvasWriteActions({
+        title: input.title?.trim() || 'Unit conversion',
+        textLines: [
+          `Convert ${formatNumber(value)} ${String(fromUnit)} to ${String(toUnit)}.`,
+          `Conversion factor: ${formatNumber(conversionFactor, 6)}`,
+          `Answer: ${formatNumber(converted, 6)} ${String(toUnit)}`,
+        ],
+        mathExpressions: [
+          `${formatNumber(value)} x ${formatNumber(conversionFactor, 6)} = ${formatNumber(converted, 6)}`,
+        ],
+        clearExisting: true,
+      })
+    ),
   }
 }
 
@@ -7850,7 +7861,7 @@ export function probabilityModelScene(input: {
 
   return {
     summary: `Prepared probability model for ${favorableOutcomes}/${totalOutcomes}, or ${formatPercent(probability * 100)}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('probability_model', actions),
   }
 }
 
@@ -10206,7 +10217,7 @@ export function percentBarScene(input: {
 
   return {
     summary: `Prepared a percent bar for ${formatPercent(percent)}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('percent_bar', actions),
   }
 }
 
@@ -10450,7 +10461,7 @@ export function compositeAreaModelScene(input: {
       removedPieces.length > 0
         ? `Prepared a missing-piece composite area model with total area ${totalArea} ${formatSquareUnitLabel(unitLabel)}.`
         : `Prepared a composite area model with total area ${totalArea} ${formatSquareUnitLabel(unitLabel)}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('composite_area_model', actions),
   }
 }
 
