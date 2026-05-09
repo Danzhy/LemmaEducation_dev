@@ -2093,6 +2093,145 @@ function extractProportionAttempt(text: string): StudentStepPair | null {
   return buildStepPair(snippet.equation, answer)
 }
 
+type LocalProportionToken =
+  | {
+      kind: 'number'
+      value: number
+      label: string
+    }
+  | {
+      kind: 'variable'
+      label: string
+    }
+
+type LocalProportionPart = {
+  numerator: LocalProportionToken
+  denominator: LocalProportionToken
+}
+
+function parseLocalProportionToken(token: string): LocalProportionToken | null {
+  const trimmed = token.trim()
+  if (/^x$/i.test(trimmed)) {
+    return {
+      kind: 'variable',
+      label: 'x',
+    }
+  }
+
+  const value = parseLocalPlainNumber(trimmed)
+  if (value === null) return null
+
+  return {
+    kind: 'number',
+    value,
+    label: formatLocalNumber(value),
+  }
+}
+
+function parseLocalProportionPart(text: string): LocalProportionPart | null {
+  const valuePattern = String.raw`(x|${LOCAL_NUMBER_PATTERN})`
+  const match = text.trim().match(new RegExp(`^${valuePattern}\\s*(?:\\/|:)\\s*${valuePattern}$`, 'i'))
+  if (!match) return null
+
+  const numerator = parseLocalProportionToken(match[1])
+  const denominator = parseLocalProportionToken(match[2])
+  if (!numerator || !denominator) return null
+
+  return { numerator, denominator }
+}
+
+function parseLocalProportionEquation(text: string) {
+  const parts = text.split('=')
+  if (parts.length !== 2) return null
+
+  const left = parseLocalProportionPart(parts[0])
+  const right = parseLocalProportionPart(parts[1])
+  if (!left || !right) return null
+
+  return { left, right }
+}
+
+function parseLocalStepRatio(text: string): LocalProportionPart | null {
+  const match = text.trim().match(new RegExp(`^(${LOCAL_NUMBER_PATTERN})\\s*:\\s*(${LOCAL_NUMBER_PATTERN})$`, 'i'))
+  if (!match) return null
+
+  const numerator = parseLocalProportionToken(match[1])
+  const denominator = parseLocalProportionToken(match[2])
+  if (!numerator || !denominator || numerator.kind !== 'number' || denominator.kind !== 'number') return null
+
+  return { numerator, denominator }
+}
+
+function parseLocalProportionStepAnswer(text: string) {
+  const assignmentMatch =
+    text.match(new RegExp(`\\bx\\s*=\\s*(${LOCAL_NUMBER_PATTERN})\\b`, 'i')) ??
+    text.match(new RegExp(`\\b(${LOCAL_NUMBER_PATTERN})\\s*=\\s*x\\b`, 'i'))
+  if (assignmentMatch) return parseLocalPlainNumber(assignmentMatch[1])
+
+  const plainMatch = text.trim().match(new RegExp(`^${LOCAL_NUMBER_PATTERN}$`))
+  return plainMatch ? parseLocalPlainNumber(plainMatch[0]) : null
+}
+
+function resolveLocalProportionToken(token: LocalProportionToken, xValue?: number) {
+  if (token.kind === 'number') {
+    return {
+      value: token.value,
+      label: token.label,
+    }
+  }
+
+  if (typeof xValue !== 'number' || !Number.isFinite(xValue)) return null
+
+  return {
+    value: xValue,
+    label: formatLocalNumber(xValue),
+  }
+}
+
+function buildLocalCrossProductTableInputFromParts(
+  left: LocalProportionPart,
+  right: LocalProportionPart,
+  xValue?: number
+) {
+  const leftNumerator = resolveLocalProportionToken(left.numerator, xValue)
+  const leftDenominator = resolveLocalProportionToken(left.denominator, xValue)
+  const rightNumerator = resolveLocalProportionToken(right.numerator, xValue)
+  const rightDenominator = resolveLocalProportionToken(right.denominator, xValue)
+  if (!leftNumerator || !leftDenominator || !rightNumerator || !rightDenominator) return null
+
+  return {
+    leftLabel: 'Cross product',
+    rightLabel: 'Value',
+    title: 'Cross-product check',
+    rows: [
+      {
+        left: `${leftNumerator.label} * ${rightDenominator.label}`,
+        right: formatLocalNumber(leftNumerator.value * rightDenominator.value),
+      },
+      {
+        left: `${rightNumerator.label} * ${leftDenominator.label}`,
+        right: formatLocalNumber(rightNumerator.value * leftDenominator.value),
+      },
+    ],
+  }
+}
+
+function buildLocalCrossProductTableInputFromStepPair(pair: StudentStepPair): LocalToolPlan['input'] | null {
+  const proportion = parseLocalProportionEquation(pair.previousStep)
+  if (proportion) {
+    const xValue = parseLocalProportionStepAnswer(pair.nextStep)
+    return buildLocalCrossProductTableInputFromParts(proportion.left, proportion.right, xValue ?? undefined)
+  }
+
+  const leftRatio = parseLocalStepRatio(pair.previousStep)
+  const rightRatio = parseLocalStepRatio(pair.nextStep)
+  if (leftRatio && rightRatio) {
+    return buildLocalCrossProductTableInputFromParts(leftRatio, rightRatio)
+  }
+
+  return null
+}
+
 function extractRatioEquivalenceAttempt(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   if (!/\b(?:same|equivalent|equal\s+ratios?|proportional|proportion|match)\b/i.test(normalized)) {
@@ -2672,6 +2811,13 @@ export function planLocalToolTurn(
       toolName: 'math_check_step',
       input: studentStepPair,
     })
+    const crossProductTableInput = buildLocalCrossProductTableInputFromStepPair(studentStepPair)
+    if (crossProductTableInput) {
+      plans.push({
+        toolName: 'ratio_table',
+        input: crossProductTableInput,
+      })
+    }
     return plans
   }
 
@@ -2893,6 +3039,13 @@ export function planLocalToolTurn(
         plans.push({
           toolName: 'probability_model',
           input: probabilityModelInput,
+        })
+      }
+      const crossProductTableInput = buildLocalCrossProductTableInputFromStepPair(studentStepPair)
+      if (crossProductTableInput) {
+        plans.push({
+          toolName: 'ratio_table',
+          input: crossProductTableInput,
         })
       }
     }
@@ -3490,6 +3643,7 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     const hasTableOfValues = plans.some((plan) => plan.toolName === 'table_of_values')
     const hasStatisticsSummary = plans.some((plan) => plan.toolName === 'statistics_summary')
     const hasProbabilityModel = plans.some((plan) => plan.toolName === 'probability_model')
+    const hasRatioTable = plans.some((plan) => plan.toolName === 'ratio_table')
     const boardCue = hasPlaceValueChart
       ? ' I also highlighted the place-value chart so the target column is visible.'
       : hasCompositeAreaModel
@@ -3504,7 +3658,9 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
                 ? ' I also put the data summary on the board.'
                 : hasProbabilityModel
                   ? ' I also put the probability model on the board.'
-                  : ''
+                  : hasRatioTable
+                    ? ' I also put the cross-product table on the board.'
+                    : ''
     if (checkedStep?.verdict === 'valid') {
       return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
     }

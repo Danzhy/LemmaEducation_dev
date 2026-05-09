@@ -616,19 +616,28 @@ const cases: PlannerCase[] = [
   {
     name: 'checks proportion solving attempts before classifying the mistake',
     prompt: 'I solved 3/4 = x/20 and got x = 12. Is that right?',
-    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
-    inspect: (input) => {
+    expectedTools: ['math_check_step', 'ratio_table', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
       assert.equal(input.previousStep, '3/4 = x/20')
       assert.equal(input.nextStep, 'x = 12')
+      assert.equal(plans[1].input.title, 'Cross-product check')
+      assert.deepEqual(plans[1].input.rows, [
+        { left: '3 * 20', right: '60' },
+        { left: '12 * 4', right: '48' },
+      ])
     },
   },
   {
     name: 'checks direct equivalent-ratio comparisons with math_check_step',
     prompt: 'Is 6:8 the same as 9:12?',
-    expectedTools: ['math_check_step'],
-    inspect: (input) => {
+    expectedTools: ['math_check_step', 'ratio_table'],
+    inspect: (input, plans) => {
       assert.equal(input.previousStep, '6:8')
       assert.equal(input.nextStep, '9:12')
+      assert.deepEqual(plans[1].input.rows, [
+        { left: '6 * 12', right: '72' },
+        { left: '9 * 8', right: '72' },
+      ])
     },
   },
   {
@@ -1236,6 +1245,14 @@ assert.match(
     [{ verdict: 'invalid', reason: 'The mean is 6, not 5.', hintTarget: 'add all data values' }]
   ),
   /data summary/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'is this proportion right',
+    [{ toolName: 'math_check_step', input: {} }, { toolName: 'ratio_table', input: {} }],
+    [{ verdict: 'invalid', reason: 'The cross products are 60 and 48.', hintTarget: 'set the cross products equal' }]
+  ),
+  /cross-product table/
 )
 assert.match(
   buildLocalAssistantReply(
