@@ -4548,6 +4548,10 @@ export function geometryFigure(input: {
   width?: number
   height?: number
   labels?: string[]
+  baseUnits?: number
+  heightUnits?: number
+  unitLabel?: string
+  showTriangleAreaModel?: boolean
 }): GeometryFigureResult {
   const labels = input.labels ?? []
   const actions: TutorCanvasAction[] = [
@@ -4594,6 +4598,99 @@ export function geometryFigure(input: {
       figureType: 'rectangle',
       summary: 'Rectangle diagram prepared with labeled corners.',
       canvasActions: actions,
+    }
+  }
+
+  if (input.figureType === 'triangle' && input.showTriangleAreaModel) {
+    const baseUnits = typeof input.baseUnits === 'number' ? coerceFiniteNumber(input.baseUnits) : null
+    const heightUnits = typeof input.heightUnits === 'number' ? coerceFiniteNumber(input.heightUnits) : null
+    const unitLabel = input.unitLabel?.trim() || 'unit'
+
+    if (baseUnits && heightUnits && baseUnits > 0 && heightUnits > 0 && baseUnits <= 30 && heightUnits <= 30) {
+      const cellSize = Math.min(36, 310 / Math.max(baseUnits, heightUnits))
+      const rectWidth = baseUnits * cellSize
+      const rectHeight = heightUnits * cellSize
+      const x = TOOL_SCENE.x + 110
+      const baseY = TOOL_SCENE.y + 400
+      const y = baseY - rectHeight
+      const rightX = x + rectWidth
+      const rectangleArea = baseUnits * heightUnits
+      const triangleArea = rectangleArea / 2
+
+      actions.push(
+        rectangle(x, y, rectWidth, rectHeight, {
+          color: 'light-blue',
+          fill: 'semi',
+          opacity: 0.12,
+          dash: 'dashed',
+          size: 's',
+          label: 'related rectangle',
+        }),
+        lineSegment({ x, y: baseY }, { x: rightX, y: baseY }, {
+          color: 'orange',
+          size: 'm',
+          label: `base ${formatNumber(baseUnits)} ${formatUnitLabel(unitLabel, baseUnits)}`,
+        }),
+        lineSegment({ x, y: baseY }, { x, y }, {
+          color: 'green',
+          size: 'm',
+          label: `height ${formatNumber(heightUnits)} ${formatUnitLabel(unitLabel, heightUnits)}`,
+        }),
+        lineSegment({ x, y }, { x: rightX, y: baseY }, {
+          color: 'blue',
+          size: 'm',
+          label: 'diagonal splits rectangle',
+        }),
+        rectangle(x, baseY - 20, 20, 20, {
+          color: 'grey',
+          fill: 'none',
+          dash: 'solid',
+          size: 's',
+        }),
+        point(x, baseY, { label: labels[0] ?? 'A', color: 'blue', labelPosition: 'bottom-left' }),
+        point(rightX, baseY, { label: labels[1] ?? 'B', color: 'blue', labelPosition: 'bottom-right' }),
+        point(x, y, { label: labels[2] ?? 'C', color: 'blue', labelPosition: 'top-left' }),
+        textLabel(x + rectWidth / 2 - 74, baseY + 22, `base = ${formatNumber(baseUnits)}`, {
+          width: 150,
+          color: 'orange',
+        }),
+        textLabel(x + 18, y + rectHeight / 2 - 18, `height = ${formatNumber(heightUnits)}`, {
+          width: 160,
+          color: 'green',
+        }),
+        rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+          color: 'light-green',
+          fill: 'semi',
+          opacity: 0.12,
+          dash: 'solid',
+          size: 's',
+        }),
+        textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Half-rectangle area', {
+          width: NOTE_FRAME.width - 32,
+          color: 'green',
+        }),
+        ...noteParagraph(
+          NOTE_FRAME.x + 16,
+          NOTE_FRAME.y + 52,
+          [
+            `Rectangle: ${formatNumber(baseUnits)} x ${formatNumber(heightUnits)} = ${formatNumber(rectangleArea)}`,
+            `Triangle: ${formatNumber(rectangleArea)} / 2 = ${formatNumber(triangleArea)} ${formatSquareUnitLabel(unitLabel)}`,
+            'The diagonal makes two equal triangle areas.',
+          ],
+          {
+            width: NOTE_FRAME.width - 32,
+            color: 'black',
+            lineHeight: 32,
+          }
+        ),
+        focusRegion(TOOL_SCENE.x - 80, TOOL_SCENE.y - 70, TOOL_SCENE.width + 160, TOOL_SCENE.height + 140)
+      )
+
+      return {
+        figureType: 'triangle',
+        summary: `Prepared a triangle area model with base ${formatNumber(baseUnits)}, height ${formatNumber(heightUnits)}, and area ${formatNumber(triangleArea)} ${formatSquareUnitLabel(unitLabel)}.`,
+        canvasActions: actions,
+      }
     }
   }
 

@@ -21,6 +21,7 @@ import {
   fractionOperationScene,
   fractionSimplify,
   fractionStripScene,
+  geometryFigure,
   graphFunction,
   integerChipsScene,
   integerOperationScene,
@@ -184,6 +185,17 @@ const smokeCases: SmokeCase[] = [
         unitLabel: 'cm',
         rectangles: [{ xUnits: 0, yUnits: 0, widthUnits: 10, heightUnits: 8, label: 'Whole' }],
         removedRectangles: [{ xUnits: 7, yUnits: 0, widthUnits: 3, heightUnits: 4, label: 'Missing' }],
+      }),
+  },
+  {
+    name: 'triangle_area_model',
+    run: () =>
+      geometryFigure({
+        figureType: 'triangle',
+        baseUnits: 10,
+        heightUnits: 6,
+        unitLabel: 'cm',
+        showTriangleAreaModel: true,
       }),
   },
   {
@@ -444,6 +456,21 @@ assert(
   invalidMissingPieceCompositeAreaStep.verdict === 'invalid' &&
     invalidMissingPieceCompositeAreaStep.hintTarget.includes('instead of adding'),
   'math_check_step should catch missing-piece composite area addition mistakes.'
+)
+
+const triangleAreaModel = geometryFigure({
+  figureType: 'triangle',
+  baseUnits: 10,
+  heightUnits: 6,
+  unitLabel: 'cm',
+  showTriangleAreaModel: true,
+})
+assert(
+  triangleAreaModel.summary.includes('area 30 square cm') &&
+    JSON.stringify(triangleAreaModel).includes('Half-rectangle area') &&
+    JSON.stringify(triangleAreaModel).includes('base = 10') &&
+    JSON.stringify(triangleAreaModel).includes('height = 6'),
+  'geometry_figure should draw a triangle area model with base, height, and half-rectangle reasoning.'
 )
 
 const validTriangleAreaStep = mathCheckStep('area of triangle with base 10 and height 6', '30')

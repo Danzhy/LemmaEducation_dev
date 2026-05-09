@@ -1553,7 +1553,7 @@ export function createVoiceAgentTools() {
     tool({
       name: 'geometry_figure',
       description:
-        'Create a clean geometry diagram scene that the tutor can refer to while explaining.',
+        'Create a clean geometry diagram scene that the tutor can refer to while explaining. For triangle area, pass baseUnits, heightUnits, and showTriangleAreaModel to draw the half-rectangle relationship.',
       strict: true,
       parameters: {
         type: 'object',
@@ -1562,6 +1562,10 @@ export function createVoiceAgentTools() {
           figureType: { type: 'string', enum: ['triangle', 'rectangle', 'axes'] },
           width: { type: 'number' },
           height: { type: 'number' },
+          baseUnits: { type: 'number' },
+          heightUnits: { type: 'number' },
+          unitLabel: { type: 'string' },
+          showTriangleAreaModel: { type: 'boolean' },
           labels: {
             type: 'array',
             items: { type: 'string' },
@@ -1574,6 +1578,10 @@ export function createVoiceAgentTools() {
           figureType: 'triangle' | 'rectangle' | 'axes'
           width?: number
           height?: number
+          baseUnits?: number
+          heightUnits?: number
+          unitLabel?: string
+          showTriangleAreaModel?: boolean
           labels?: string[]
         }
         return stringifyResult(
@@ -1581,6 +1589,10 @@ export function createVoiceAgentTools() {
             figureType: params.figureType,
             width: params.width,
             height: params.height,
+            baseUnits: params.baseUnits,
+            heightUnits: params.heightUnits,
+            unitLabel: params.unitLabel,
+            showTriangleAreaModel: params.showTriangleAreaModel,
             labels: params.labels,
           })
         )

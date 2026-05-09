@@ -808,6 +808,20 @@ function extractTriangleAreaAttempt(text: string): StudentStepPair | null {
   )
 }
 
+function buildLocalTriangleAreaModelInput(text: string) {
+  const dimensions = extractLocalTriangleBaseHeight(text)
+  if (!dimensions || dimensions.base > 30 || dimensions.height > 30) return null
+
+  return {
+    figureType: 'triangle',
+    labels: ['A', 'B', 'C'],
+    baseUnits: dimensions.base,
+    heightUnits: dimensions.height,
+    unitLabel: 'units',
+    showTriangleAreaModel: true,
+  }
+}
+
 function extractAngleAnswerAfter(text: string) {
   const answerMatch = text.match(
     new RegExp(`\\b(?:as|is|was|equals?|=|got|answer(?:\\s+is)?|think)\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
@@ -1453,6 +1467,13 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
           },
         })
       }
+      const triangleAreaModelInput = buildLocalTriangleAreaModelInput(studentStepPair.previousStep)
+      if (triangleAreaModelInput) {
+        plans.push({
+          toolName: 'geometry_figure',
+          input: triangleAreaModelInput,
+        })
+      }
     }
     plans.push({
       toolName: 'mistake_pattern_classifier',
@@ -1730,13 +1751,11 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
-  if (/\b(triangle|triangular)\b/.test(lower) && /\barea\b/.test(lower) && numbers.length >= 2) {
+  const triangleAreaModelInput = buildLocalTriangleAreaModelInput(prompt)
+  if (triangleAreaModelInput) {
     plans.push({
       toolName: 'geometry_figure',
-      input: {
-        figureType: 'triangle',
-        labels: ['A', 'B', 'C'],
-      },
+      input: triangleAreaModelInput,
     })
     return plans
   }
@@ -1909,11 +1928,16 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     )
     const hasPlaceValueChart = plans.some((plan) => plan.toolName === 'place_value_chart')
     const hasCompositeAreaModel = plans.some((plan) => plan.toolName === 'composite_area_model')
+    const hasTriangleAreaModel = plans.some(
+      (plan) => plan.toolName === 'geometry_figure' && plan.input.showTriangleAreaModel === true
+    )
     const boardCue = hasPlaceValueChart
       ? ' I also highlighted the place-value chart so the target column is visible.'
       : hasCompositeAreaModel
         ? ' I also put the whole rectangle and missing piece on the board.'
-        : ''
+        : hasTriangleAreaModel
+          ? ' I also put the half-rectangle triangle model on the board.'
+          : ''
     if (checkedStep?.verdict === 'valid') {
       return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
     }

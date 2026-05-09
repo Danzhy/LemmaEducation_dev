@@ -319,10 +319,14 @@ const cases: PlannerCase[] = [
   {
     name: 'checks triangle area attempts before classifying the mistake',
     prompt: 'I got the area of a triangle with base 10 and height 6 as 60. Is that right?',
-    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
-    inspect: (input) => {
+    expectedTools: ['math_check_step', 'geometry_figure', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
       assert.equal(input.previousStep, 'area of triangle with base 10 and height 6')
       assert.equal(input.nextStep, '60')
+      assert.equal(plans[1].input.figureType, 'triangle')
+      assert.equal(plans[1].input.baseUnits, 10)
+      assert.equal(plans[1].input.heightUnits, 6)
+      assert.equal(plans[1].input.showTriangleAreaModel, true)
     },
   },
   {
@@ -344,11 +348,14 @@ const cases: PlannerCase[] = [
     },
   },
   {
-    name: 'routes triangle area requests to a triangle diagram',
+    name: 'routes triangle area requests to a half-rectangle model',
     prompt: 'Find the area of a triangle with base 10 and height 6.',
     expectedTools: ['geometry_figure'],
     inspect: (input) => {
       assert.equal(input.figureType, 'triangle')
+      assert.equal(input.baseUnits, 10)
+      assert.equal(input.heightUnits, 6)
+      assert.equal(input.showTriangleAreaModel, true)
     },
   },
   {
@@ -557,6 +564,14 @@ assert.match(
     [{ verdict: 'invalid', reason: 'The whole area is 80 and the missing piece is 12.', hintTarget: 'subtract the missing rectangle' }]
   ),
   /whole rectangle and missing piece/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'is this triangle area right',
+    [{ toolName: 'math_check_step', input: {} }, { toolName: 'geometry_figure', input: { showTriangleAreaModel: true } }],
+    [{ verdict: 'invalid', reason: 'The triangle area should be half the related rectangle area.', hintTarget: 'halve the base times height product' }]
+  ),
+  /half-rectangle triangle model/
 )
 assert.match(
   buildLocalAssistantReply(

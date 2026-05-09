@@ -253,6 +253,16 @@ async function main() {
     { pointA: { x: 1, y: 2 }, pointB: { x: 5, y: 6 } },
     { ctx: {} as never, toolCallId: 'smoke-slope-triangle' }
   )
+  const triangleAreaModelResult = await tools.geometry_figure.execute(
+    {
+      figureType: 'triangle',
+      baseUnits: 10,
+      heightUnits: 6,
+      unitLabel: 'cm',
+      showTriangleAreaModel: true,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-triangle-area-model' }
+  )
   const teachingResult = await tools.tutor_teaching_sequence.execute(
     {
       topic: 'fractions',
@@ -700,6 +710,13 @@ async function main() {
 
   if (!JSON.stringify(slopeTriangleResult).includes('slope')) {
     throw new Error('slope_triangle did not return a slope board model.')
+  }
+
+  if (
+    !JSON.stringify(triangleAreaModelResult).includes('Half-rectangle area') ||
+    !JSON.stringify(triangleAreaModelResult).includes('area 30 square cm')
+  ) {
+    throw new Error('geometry_figure did not return a triangle area half-rectangle model.')
   }
 
   if (!JSON.stringify(teachingResult).includes('boardPlan')) {
