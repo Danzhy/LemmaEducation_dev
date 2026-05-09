@@ -8864,6 +8864,29 @@ function answerPolicyForPlan(input: {
   return 'hint_first'
 }
 
+function buildTutorVoicePolicyCheck(text: string) {
+  const trimmed = text.trim()
+  const wordCount = trimmed.split(/\s+/).filter(Boolean).length
+  const sentenceCount = trimmed.split(/[.!?]+/).map((item) => item.trim()).filter(Boolean).length
+  const questionCount = (trimmed.match(/\?/g) ?? []).length
+  const multiPartQuestion =
+    questionCount > 1 ||
+    /(?:,\s*|\band\s+|\bor\s+)(?:what|which|why|how|where|when|who|can|could|do|does|is|are)\b/i.test(
+      trimmed
+    )
+
+  return {
+    wordCount,
+    sentenceCount,
+    questionCount,
+    hasStudentQuestion: questionCount > 0,
+    multiPartQuestion,
+    oneQuestionOnly: questionCount === 1 && !multiPartQuestion,
+    shortEnoughForVoice: wordCount <= 95 && sentenceCount <= 5,
+    waitsAfterQuestion: questionCount > 0 && /\?\s*$/.test(trimmed),
+  }
+}
+
 export function tutorResponsePlanner(input: {
   topic: string
   gradeLevel?: string
@@ -8920,8 +8943,8 @@ export function tutorResponsePlanner(input: {
   > = {
     clarify: {
       sayFirst: 'Let us get the problem clear before we calculate.',
-      askNext: 'What do we know, what are we trying to find, and what have you tried so far?',
-      waitFor: 'The student names a known quantity, an unknown, or a first attempt.',
+      askNext: 'What are we trying to find?',
+      waitFor: 'The student names the unknown or shares the first missing piece.',
       boardMove: 'Write knowns, unknown, and first step as three short prompts.',
     },
     hint: {
@@ -8973,6 +8996,8 @@ export function tutorResponsePlanner(input: {
       boardMove: 'Use answer_disclosure_gate before writing any final answer.',
     },
   }
+  const selectedMoveCopy = moveCopy[recommendedMove]
+  const plannedSpokenTurn = `${selectedMoveCopy.sayFirst} ${selectedMoveCopy.askNext}`
 
   return {
     topic,
@@ -8982,7 +9007,9 @@ export function tutorResponsePlanner(input: {
     recommendedMove,
     recommendedTool,
     toolSequence: [...new Set(toolSequence)],
-    ...moveCopy[recommendedMove],
+    ...selectedMoveCopy,
+    plannedSpokenTurn,
+    voicePolicy: buildTutorVoicePolicyCheck(plannedSpokenTurn),
     answerPolicy,
     auditChecklist: [
       'One student-facing question only.',
@@ -9365,20 +9392,21 @@ export function tutorTurnAudit(input: {
   const draft = input.assistantDraft.trim()
   const lowerDraft = draft.toLowerCase()
   const issues: TutorTurnAuditResult['issues'] = []
-  const sentences = draft.split(/[.!?]+/).map((item) => item.trim()).filter(Boolean)
-  const wordCount = draft.split(/\s+/).filter(Boolean).length
-  const questionCount = (draft.match(/\?/g) ?? []).length
+  const voicePolicy = buildTutorVoicePolicyCheck(draft)
 
   if (/\b(answer is|final answer|solution is|therefore x\s*=|so x\s*=)\b/.test(lowerDraft) && !/\bwhy|because|try|your turn|what\b/.test(lowerDraft)) {
     issues.push('answer_dumping')
   }
-  if (sentences.length > 5 || /\bstep 4\b|\bstep 5\b|\bstep 6\b/i.test(draft)) {
+  if (voicePolicy.sentenceCount > 5 || /\bstep 4\b|\bstep 5\b|\bstep 6\b/i.test(draft)) {
     issues.push('too_many_steps')
   }
-  if (questionCount === 0) {
+  if (!voicePolicy.hasStudentQuestion) {
     issues.push('missing_student_question')
   }
-  if (wordCount > 95) {
+  if (!voicePolicy.oneQuestionOnly && voicePolicy.hasStudentQuestion) {
+    issues.push('multiple_student_questions')
+  }
+  if (!voicePolicy.shortEnoughForVoice) {
     issues.push('too_long')
   }
   if (/\b(phone|address|password|private|secret|contact me)\b/.test(lowerDraft)) {
@@ -9406,14 +9434,15 @@ export function tutorTurnAudit(input: {
   return {
     approved,
     riskLevel,
+    voicePolicy,
     issues: uniqueIssues,
     revisedTutorMove: approved
       ? draft
       : `Let's focus on one part of ${topic}. ${toolUsed ? `The ${toolUsed.replace(/_/g, ' ')} result can help, but ` : ''}I want you to make the next move.`,
     mustAskStudent:
-      approved && questionCount > 0
+      approved && voicePolicy.hasStudentQuestion
         ? 'Use the question already in the draft.'
-        : 'What is the next step you would try, and why?',
+        : 'What is the next step you would try?',
     allowedNextAction:
       riskLevel === 'high'
         ? 'stop_and_redirect'

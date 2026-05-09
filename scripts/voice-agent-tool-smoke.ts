@@ -811,6 +811,9 @@ assert(
   responsePlan.recommendedMove === 'check_question' &&
     responsePlan.recommendedTool === 'math_check_step' &&
     responsePlan.toolSequence.includes('student_check_question') &&
+    responsePlan.plannedSpokenTurn.includes(responsePlan.askNext) &&
+    responsePlan.voicePolicy.oneQuestionOnly &&
+    responsePlan.voicePolicy.waitsAfterQuestion &&
     responsePlan.auditChecklist.some((item) => item.includes('One student-facing question')),
   'tutor_response_planner should choose one checked next move before adding more explanation.'
 )
@@ -898,6 +901,20 @@ assert(
     turnAudit.issues.includes('answer_dumping') &&
     turnAudit.allowedNextAction !== 'say_as_written',
   'tutor_turn_audit should flag answer dumping before the tutor speaks.'
+)
+
+const multiQuestionAudit = tutorTurnAudit({
+  studentPrompt: 'Can you help with 1/2 + 1/3?',
+  assistantDraft:
+    'Use a common denominator before adding. What is the whole? How many equal pieces do thirds and halves need?',
+  topic: 'fractions',
+  toolUsed: 'fraction_operation',
+})
+assert(
+  multiQuestionAudit.approved === false &&
+    multiQuestionAudit.issues.includes('multiple_student_questions') &&
+    multiQuestionAudit.voicePolicy.oneQuestionOnly === false,
+  'tutor_turn_audit should enforce one student-facing question per voice turn.'
 )
 
 const answerGate = answerDisclosureGate({

@@ -515,7 +515,7 @@ export function createVoiceAgentTools() {
     tool({
       name: 'tutor_turn_audit',
       description:
-        'Audit a planned tutor response before speaking. Flags answer dumping, missing student questions, too many steps, privacy risk, off-topic content, and unsupported certainty.',
+        'Audit a planned tutor response before speaking. Flags answer dumping, missing or multiple student questions, too many steps, privacy risk, off-topic content, and unsupported certainty.',
       strict: true,
       parameters: {
         type: 'object',

@@ -456,6 +456,16 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-tutor-turn-audit' }
   )
+  const multiQuestionAudit = await tools.tutor_turn_audit.execute(
+    {
+      studentPrompt: 'Can you help with 1/2 + 1/3?',
+      assistantDraft:
+        'Use a common denominator before adding. What is the whole? How many equal pieces do thirds and halves need?',
+      topic: 'fractions',
+      toolUsed: 'fraction_operation',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-tutor-turn-one-question-audit' }
+  )
   const responsePlanner = await tools.tutor_response_planner.execute(
     {
       topic: 'fractions',
@@ -959,9 +969,14 @@ async function main() {
     throw new Error('tutor_turn_audit did not flag answer dumping.')
   }
 
+  if (!JSON.stringify(multiQuestionAudit).includes('multiple_student_questions')) {
+    throw new Error('tutor_turn_audit did not flag multiple student-facing questions.')
+  }
+
   if (
     !JSON.stringify(responsePlanner).includes('"recommendedMove":"check_question"') ||
-    !JSON.stringify(responsePlanner).includes('math_check_step')
+    !JSON.stringify(responsePlanner).includes('math_check_step') ||
+    !JSON.stringify(responsePlanner).includes('"oneQuestionOnly":true')
   ) {
     throw new Error(`tutor_response_planner did not choose a checked next move: ${JSON.stringify(responsePlanner)}`)
   }

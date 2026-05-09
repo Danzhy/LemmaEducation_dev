@@ -57,6 +57,37 @@ const CASES: TutorExperienceCase[] = [
     expectedSubstrings: ['student_stuck', 'askNext', 'hint_ladder'],
   },
   {
+    id: 'response-planner-one-question-turn',
+    title: 'Plan one short spoken turn with one student question',
+    gradeBand: 'grades 3-7',
+    toolName: 'tutor_response_planner',
+    input: {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      studentRequest: 'I got 1/2 + 1/3 = 2/5. What should we do next?',
+      studentWork: '1/2 + 1/3 = 2/5',
+      recentToolName: '',
+      recentToolResult: '',
+      hasStudentAttempt: true,
+      attemptCount: 1,
+    },
+    expectedSubstrings: ['plannedSpokenTurn', 'voicePolicy', 'oneQuestionOnly'],
+  },
+  {
+    id: 'turn-audit-one-question-policy',
+    title: 'Reject multi-question voice turns before speaking',
+    gradeBand: 'grades 3-7',
+    toolName: 'tutor_turn_audit',
+    input: {
+      studentPrompt: 'Can you help with 1/2 + 1/3?',
+      assistantDraft:
+        'Use a common denominator before adding. What is the whole? How many equal pieces do thirds and halves need?',
+      topic: 'fractions',
+      toolUsed: 'fraction_operation',
+    },
+    expectedSubstrings: ['multiple_student_questions', 'oneQuestionOnly'],
+  },
+  {
     id: 'human-sequence-ratio',
     title: 'Plan a short tutor turn before ratio solving',
     gradeBand: 'grades 5-7',

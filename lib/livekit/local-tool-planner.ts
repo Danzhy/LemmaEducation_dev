@@ -2470,9 +2470,17 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'tutor_response_planner') {
     const planned = outputs.find(
-      (output): output is { sayFirst?: string; askNext?: string; recommendedMove?: string } =>
+      (output): output is {
+        sayFirst?: string
+        askNext?: string
+        plannedSpokenTurn?: string
+        recommendedMove?: string
+      } =>
         Boolean(output && typeof output === 'object' && 'recommendedMove' in output)
     )
+    if (planned?.plannedSpokenTurn) {
+      return planned.plannedSpokenTurn
+    }
     if (planned?.sayFirst && planned.askNext) {
       return `${planned.sayFirst} ${planned.askNext}`
     }

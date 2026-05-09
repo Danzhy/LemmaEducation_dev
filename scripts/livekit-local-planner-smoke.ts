@@ -808,7 +808,14 @@ assert.match(
   buildLocalAssistantReply(
     'what should we do next',
     [{ toolName: 'tutor_response_planner', input: {} }],
-    [{ recommendedMove: 'check_question', sayFirst: 'Let us check one part before moving on.', askNext: 'What changed?' }]
+    [
+      {
+        recommendedMove: 'check_question',
+        sayFirst: 'Let us check one part before moving on.',
+        askNext: 'What changed?',
+        plannedSpokenTurn: 'Let us check one part before moving on. What changed?',
+      },
+    ]
   ),
   /What changed/
 )

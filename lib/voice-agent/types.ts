@@ -272,11 +272,24 @@ export type TutorResponsePlannerResult = {
   toolSequence: string[]
   sayFirst: string
   askNext: string
+  plannedSpokenTurn: string
+  voicePolicy: TutorVoicePolicyCheck
   waitFor: string
   boardMove: string
   answerPolicy: 'hint_first' | 'next_step_only' | 'solution_after_attempt'
   auditChecklist: string[]
   avoid: string[]
+}
+
+export type TutorVoicePolicyCheck = {
+  wordCount: number
+  sentenceCount: number
+  questionCount: number
+  hasStudentQuestion: boolean
+  multiPartQuestion: boolean
+  oneQuestionOnly: boolean
+  shortEnoughForVoice: boolean
+  waitsAfterQuestion: boolean
 }
 
 export type StudentCheckQuestionResult = {
@@ -352,10 +365,12 @@ export type SessionMasterySnapshotResult = {
 export type TutorTurnAuditResult = {
   approved: boolean
   riskLevel: 'low' | 'medium' | 'high'
+  voicePolicy: TutorVoicePolicyCheck
   issues: Array<
     | 'answer_dumping'
     | 'too_many_steps'
     | 'missing_student_question'
+    | 'multiple_student_questions'
     | 'too_long'
     | 'off_topic'
     | 'privacy_risk'
