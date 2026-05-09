@@ -914,6 +914,20 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks axis-of-symmetry claims with a vertex graph before classifying the mistake',
+    prompt: 'The axis of symmetry of y = x^2 - 4x + 3 is x = 4. Is that right?',
+    expectedTools: ['math_check_step', 'graph_function', 'annotate_graph_features', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'axis of symmetry of y = x^2 - 4x + 3')
+      assert.equal(input.nextStep, 'x = 4')
+      assert.equal(plans[1].toolName, 'graph_function')
+      assert.equal(plans[1].input.expression, 'x^2 - 4x + 3')
+      assert.equal(plans[1].input.showVertex, true)
+      assert.equal(plans[2].toolName, 'annotate_graph_features')
+      assert.deepEqual(plans[2].input.features, ['axis-of-symmetry'])
+    },
+  },
+  {
     name: 'checks graph vertex claims before classifying the mistake',
     prompt: 'The vertex of y = x^2 - 4x + 3 is (4, 3). Is that right?',
     expectedTools: ['math_check_step', 'graph_function', 'mistake_pattern_classifier'],

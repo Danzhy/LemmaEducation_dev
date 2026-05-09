@@ -488,6 +488,14 @@ async function main() {
     { previousStep: 'x-intercept of y = 2x + 4', nextStep: '(4, 0)' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-x-intercept-step-check' }
   )
+  const validAxisOfSymmetryStep = await tools.math_check_step.execute(
+    { previousStep: 'axis of symmetry of y = x^2 - 4x + 3', nextStep: 'x = 2' },
+    { ctx: {} as never, toolCallId: 'smoke-axis-of-symmetry-step-check' }
+  )
+  const invalidAxisOfSymmetryStep = await tools.math_check_step.execute(
+    { previousStep: 'axis of symmetry of y = x^2 - 4x + 3', nextStep: 'x = 4' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-axis-of-symmetry-step-check' }
+  )
   const validVertexStep = await tools.math_check_step.execute(
     { previousStep: 'vertex of y = x^2 - 4x + 3', nextStep: '(2, -1)' },
     { ctx: {} as never, toolCallId: 'smoke-vertex-step-check' }
@@ -1390,6 +1398,23 @@ async function main() {
     !JSON.stringify(invalidXInterceptStep).includes('x-intercept')
   ) {
     throw new Error(`math_check_step did not reject an invalid x-intercept claim: ${JSON.stringify(invalidXInterceptStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validAxisOfSymmetryStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validAxisOfSymmetryStep).includes('vertex x-coordinate')
+  ) {
+    throw new Error(`math_check_step did not accept a valid axis-of-symmetry claim: ${JSON.stringify(validAxisOfSymmetryStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidAxisOfSymmetryStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidAxisOfSymmetryStep).includes('x = -b/(2a)') ||
+    !JSON.stringify(invalidAxisOfSymmetryStep).includes('x = 2')
+  ) {
+    throw new Error(
+      `math_check_step did not reject an invalid axis-of-symmetry claim: ${JSON.stringify(invalidAxisOfSymmetryStep)}`
+    )
   }
 
   if (
