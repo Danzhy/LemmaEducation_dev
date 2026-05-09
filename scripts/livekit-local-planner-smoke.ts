@@ -174,6 +174,16 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'continues after a trailing data attempt with the original data set',
+    prompt: 'The data set is 4, 7, 3, 7, and 9. What is the mean? I got 5.',
+    expectedTools: ['answer_disclosure_gate', 'statistics_summary'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.deepEqual(plans[1].input.values, [4, 7, 3, 7, 9])
+    },
+  },
+  {
     name: 'continues after a unit-rate attempt with the original rate pair',
     prompt: 'I got $2 per notebook. What is the unit rate for 3 notebooks costing $6?',
     expectedTools: ['answer_disclosure_gate', 'unit_rate', 'double_number_line'],
@@ -187,6 +197,39 @@ const cases: PlannerCase[] = [
       assert.deepEqual(plans[2].input.pairs, [
         { top: 0, bottom: 0, label: 'start' },
         { top: 3, bottom: 6, label: 'given' },
+      ])
+    },
+  },
+  {
+    name: 'continues after a recipe ratio attempt with the target quantity',
+    prompt: 'I got 4 cups. For the recipe, 3 cups make 12 muffins. How many cups for 20 muffins?',
+    expectedTools: ['answer_disclosure_gate', 'double_number_line'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.equal(plans[1].input.topLabel, 'muffins')
+      assert.equal(plans[1].input.bottomLabel, 'cups')
+      assert.deepEqual(plans[1].input.pairs, [
+        { top: 0, bottom: 0, label: 'start' },
+        { top: 12, bottom: 3, label: 'given' },
+        { top: 20, bottom: 5, label: 'target' },
+      ])
+    },
+  },
+  {
+    name: 'continues after a speed unit-rate attempt with the original distance and time',
+    prompt: 'I got 30 miles per hour. What is the unit rate for 150 miles in 3 hours?',
+    expectedTools: ['answer_disclosure_gate', 'unit_rate', 'double_number_line'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.equal(plans[1].input.quantity, 3)
+      assert.equal(plans[1].input.value, 150)
+      assert.equal(plans[1].input.quantityLabel, 'hours')
+      assert.equal(plans[1].input.valueLabel, 'miles')
+      assert.deepEqual(plans[2].input.pairs, [
+        { top: 0, bottom: 0, label: 'start' },
+        { top: 3, bottom: 150, label: 'given' },
       ])
     },
   },
@@ -674,6 +717,18 @@ const cases: PlannerCase[] = [
       assert.equal(input.nextStep, '5')
       assert.equal(plans[1].toolName, 'statistics_summary')
       assert.deepEqual(plans[1].input.values, [4, 7, 3, 7, 9])
+    },
+  },
+  {
+    name: 'checks trailing data attempts before classifying the mistake',
+    prompt: 'The data set is 4, 7, 3, 7, and 9. What is the mean? I got 5. Is that right?',
+    expectedTools: ['answer_disclosure_gate', 'math_check_step', 'statistics_summary', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.equal(plans[1].input.previousStep, 'mean of 4, 7, 3, 7, 9')
+      assert.equal(plans[1].input.nextStep, '5')
+      assert.deepEqual(plans[2].input.values, [4, 7, 3, 7, 9])
     },
   },
   {

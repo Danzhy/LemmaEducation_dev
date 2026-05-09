@@ -1130,8 +1130,7 @@ function extractStatisticsAttempt(text: string): StudentStepPair | null {
   )
   if (!answerMatch || typeof answerMatch.index !== 'number') return null
 
-  const dataSegment = normalized.slice(statistic.index + statistic.label.length, answerMatch.index)
-  const values = extractNumbers(dataSegment).slice(0, 24)
+  const values = extractLocalStatisticsValues(normalized, statistic).slice(0, 24)
   if (values.length < 2) return null
 
   return buildStepPair(`${statistic.kind} of ${formatLocalDataValues(values)}`, answerMatch[1])
@@ -1141,19 +1140,38 @@ function extractStatisticsSummaryRequest(text: string) {
   const statistic = extractLocalStatisticsKind(text)
   if (!statistic) return null
 
-  const afterStatistic = text.slice(statistic.index + statistic.label.length)
-  const dataMatch = afterStatistic.match(/\b(?:of|for|from|with|values?|data(?:\s+set)?)\b([\s\S]{0,260})/i)
-  const candidate = dataMatch?.[1] ?? afterStatistic
-  const answerLeadPattern = String.raw`\b(?:i\s+(?:got|found|think)|my\s+answer|and\s+got|got|equals?|is|was|=)\s+(?:no\s+mode|none|${LOCAL_NUMBER_PATTERN})`
-  const stopMatch = candidate.search(new RegExp(`${answerLeadPattern}|[?!]`, 'i'))
-  const dataSegment = stopMatch >= 0 ? candidate.slice(0, stopMatch) : candidate
-  const values = extractNumbers(dataSegment).slice(0, 24)
+  const values = extractLocalStatisticsValues(text, statistic)
   if (values.length < 2) return null
 
   return {
     values,
     title: 'Statistics summary',
   }
+}
+
+function extractLocalStatisticsValues(
+  text: string,
+  statistic: { label: string; index: number }
+) {
+  const afterStatistic = text.slice(statistic.index + statistic.label.length)
+  const dataMatch = afterStatistic.match(/\b(?:of|for|from|with|values?|data(?:\s+set)?)\b([\s\S]{0,260})/i)
+  const candidate = dataMatch?.[1] ?? afterStatistic
+  const answerLeadPattern = String.raw`\b(?:i\s+(?:got|found|think)|my\s+answer|and\s+got|got|equals?|is|was|=)\s+(?:no\s+mode|none|${LOCAL_NUMBER_PATTERN})`
+  const stopMatch = candidate.search(new RegExp(`${answerLeadPattern}|[?!]`, 'i'))
+  const dataSegment = stopMatch >= 0 ? candidate.slice(0, stopMatch) : candidate
+  const valuesAfter = extractNumbers(dataSegment).slice(0, 24)
+  if (valuesAfter.length >= 2) return valuesAfter
+
+  const beforeStatistic = text.slice(0, statistic.index)
+  const explicitBeforeMatch = beforeStatistic.match(
+    /\b(?:data(?:\s+set)?|values?|numbers?)\s*(?:are|is|:)?\s*([^?!.]{3,260})$/i
+  )
+  const forBeforeMatch = beforeStatistic.match(/\b(?:of|for|from|with)\s+([^?!.]{3,260})$/i)
+  const fallbackBefore = beforeStatistic
+    .replace(/\b(?:what(?:'s| is)|find|calculate|compute)\s+(?:the\s+)?$/i, '')
+    .replace(/[,;:\s]+$/g, '')
+  const beforeCandidate = explicitBeforeMatch?.[1] ?? forBeforeMatch?.[1] ?? fallbackBefore
+  return extractNumbers(beforeCandidate).slice(-24)
 }
 
 function buildLocalStatisticsSummaryInputFromStepPair(stepPair: StudentStepPair) {
@@ -1246,26 +1264,70 @@ type LocalUnitRateRequest = {
   value: number
   quantityLabel: string
   valueLabel: string
+  target?: number
 }
 
 function extractLocalUnitRateRequest(text: string): LocalUnitRateRequest | null {
   const normalized = normalizeLocalPromptText(text)
-  const quantityFirstMatch = normalized.match(
+  const speedMatch = normalized.match(
     new RegExp(
-      String.raw`\b(${LOCAL_NUMBER_PATTERN})\s+([A-Za-z][A-Za-z-]*)(?:s)?\s+(?:costs?|costing|priced\s+at|for|=|is|are)\s+\$?\s*(${LOCAL_NUMBER_PATTERN})`,
+      String.raw`\b(${LOCAL_NUMBER_PATTERN})\s+([A-Za-z][A-Za-z-]*)(?:s)?\s+(?:in|over|for)\s+(${LOCAL_NUMBER_PATTERN})\s+([A-Za-z][A-Za-z-]*)(?:s)?\b`,
       'i'
     )
   )
-  if (quantityFirstMatch) {
-    const quantity = parseLocalPlainNumber(quantityFirstMatch[1])
-    const value = parseLocalPlainNumber(quantityFirstMatch[3])
-    const quantityLabel = normalizeLocalUnitLabel(quantityFirstMatch[2])
-    if (quantity !== null && value !== null && quantity > 0 && quantityLabel) {
+  if (speedMatch && isLocalDistanceUnit(speedMatch[2]) && isLocalTimeUnit(speedMatch[4])) {
+    const value = parseLocalPlainNumber(speedMatch[1])
+    const quantity = parseLocalPlainNumber(speedMatch[3])
+    const valueLabel = normalizeLocalUnitLabel(speedMatch[2])
+    const quantityLabel = normalizeLocalUnitLabel(speedMatch[4])
+    if (quantity !== null && value !== null && quantity > 0 && quantityLabel && valueLabel) {
       return {
         quantity,
         value,
         quantityLabel,
-        valueLabel: /\$|dollars?|cost|price/i.test(quantityFirstMatch[0]) ? 'dollars' : 'value',
+        valueLabel,
+        ...extractLocalRateTarget(normalized, (speedMatch.index ?? 0) + speedMatch[0].length, quantityLabel),
+      }
+    }
+  }
+
+  const quantityFirstMatch = normalized.match(
+    new RegExp(
+      String.raw`\b(${LOCAL_NUMBER_PATTERN})\s+([A-Za-z][A-Za-z-]*)(?:s)?\s+(?:costs?|costing|priced\s+at|for|make|makes|making|serves|yields?|=|is|are)\s+\$?\s*(${LOCAL_NUMBER_PATTERN})(?:\s+([A-Za-z][A-Za-z-]*)(?:s)?)?`,
+      'i'
+    )
+  )
+  if (quantityFirstMatch) {
+    const firstValue = parseLocalPlainNumber(quantityFirstMatch[1])
+    const secondValue = parseLocalPlainNumber(quantityFirstMatch[3])
+    const firstLabel = normalizeLocalUnitLabel(quantityFirstMatch[2])
+    const secondLabel = normalizeLocalUnitLabel(quantityFirstMatch[4])
+    const hasCurrency = /\$|dollars?|cost|price/i.test(quantityFirstMatch[0])
+    if (firstValue !== null && secondValue !== null && firstValue > 0 && firstLabel) {
+      if (secondLabel && !hasCurrency) {
+        return {
+          quantity: secondValue,
+          value: firstValue,
+          quantityLabel: secondLabel,
+          valueLabel: firstLabel,
+          ...extractLocalRateTarget(
+            normalized,
+            (quantityFirstMatch.index ?? 0) + quantityFirstMatch[0].length,
+            secondLabel
+          ),
+        }
+      }
+
+      return {
+        quantity: firstValue,
+        value: secondValue,
+        quantityLabel: firstLabel,
+        valueLabel: hasCurrency ? 'dollars' : 'value',
+        ...extractLocalRateTarget(
+          normalized,
+          (quantityFirstMatch.index ?? 0) + quantityFirstMatch[0].length,
+          firstLabel
+        ),
       }
     }
   }
@@ -1286,11 +1348,55 @@ function extractLocalUnitRateRequest(text: string): LocalUnitRateRequest | null 
         value,
         quantityLabel,
         valueLabel: /\$|dollars?|cost|price/i.test(valueFirstMatch[0]) ? 'dollars' : 'value',
+        ...extractLocalRateTarget(normalized, (valueFirstMatch.index ?? 0) + valueFirstMatch[0].length, quantityLabel),
       }
     }
   }
 
   return null
+}
+
+function isLocalDistanceUnit(unit: string) {
+  return /^(?:miles?|kilometers?|kilometres?|meters?|metres?|feet|foot|yards?)$/i.test(unit)
+}
+
+function isLocalTimeUnit(unit: string) {
+  return /^(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)$/i.test(unit)
+}
+
+function escapeLocalRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function localUnitMatchPattern(unitLabel: string) {
+  const normalized = normalizeLocalUnitLabel(unitLabel)
+  if (!normalized) return null
+
+  const variants = new Set([normalized])
+  if (normalized.endsWith('s') && normalized.length > 1) {
+    variants.add(normalized.slice(0, -1))
+  } else {
+    variants.add(`${normalized}s`)
+  }
+
+  return `(?:${[...variants].map(escapeLocalRegex).join('|')})`
+}
+
+function extractLocalRateTarget(text: string, afterIndex: number, quantityLabel: string): { target?: number } {
+  const unitPattern = localUnitMatchPattern(quantityLabel)
+  if (!unitPattern) return {}
+
+  const afterGiven = text.slice(afterIndex)
+  const targetMatch =
+    afterGiven.match(
+      new RegExp(
+        `\\b(?:for|in|over|at|when|if|to|make|makes|making)\\s+(${LOCAL_NUMBER_PATTERN})\\s+${unitPattern}\\b`,
+        'i'
+      )
+    ) ?? afterGiven.match(new RegExp(`\\b(${LOCAL_NUMBER_PATTERN})\\s+${unitPattern}\\b`, 'i'))
+  const target = targetMatch ? parseLocalPlainNumber(targetMatch[1]) : null
+
+  return target !== null && target > 0 ? { target } : {}
 }
 
 function extractFunctionExpressionForInterceptAttempt(text: string) {
@@ -2313,7 +2419,13 @@ function isLocalAnswerDisclosureRequest(prompt: string) {
   const directRatioRateQuestion =
     /\b(?:what(?:'s| is)|find|calculate|compute|how much|how many)\b/.test(lower) &&
     /\b(?:unit rate|rate|ratio|proportion|scale factor|per one|per each)\b/.test(lower)
-  if (directRatioRateQuestion) {
+  const directRateSetupQuestion =
+    /\b(?:what(?:'s| is)|find|calculate|compute|how much|how many)\b/.test(lower) &&
+    /\b(?:recipe|muffins?|cups?|notebooks?|cost|priced?|miles?|kilometers?|kilometres?|hours?|minutes?|seconds?)\b/.test(
+      lower
+    ) &&
+    Boolean(extractLocalUnitRateRequest(prompt))
+  if (directRatioRateQuestion || directRateSetupQuestion) {
     return true
   }
 
@@ -2908,7 +3020,7 @@ export function planLocalToolTurn(
   ) {
     const quantity = unitRateRequest?.quantity ?? numbers[0]
     const value = unitRateRequest?.value ?? numbers[1]
-    const target = unitRateRequest ? undefined : numbers[2]
+    const target = unitRateRequest ? unitRateRequest.target : numbers[2]
     const quantityLabel = unitRateRequest?.quantityLabel ?? (/notebook/.test(lower) ? 'notebooks' : 'units')
     const valueLabel = unitRateRequest?.valueLabel ?? (/\$|cost/.test(lower) ? 'dollars' : 'value')
     if (/unit rate|cost/.test(lower)) {
