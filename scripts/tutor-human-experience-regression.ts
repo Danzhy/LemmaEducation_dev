@@ -57,6 +57,19 @@ const CASES: TutorExperienceCase[] = [
     expectedSubstrings: ['hint_only', 'requiredPause', 'preserve productive struggle'],
   },
   {
+    id: 'direct-percent-answer-disclosure-guardrail',
+    title: 'Gate direct percent-answer questions before a student attempt',
+    gradeBand: 'grades 5-7',
+    toolName: 'answer_disclosure_gate',
+    input: {
+      studentRequest: 'What is 25% of 80?',
+      hasStudentAttempt: false,
+      attemptCount: 0,
+      isCheckingAnswer: false,
+    },
+    expectedSubstrings: ['hint_only', 'Decimals and percents', 'requiredStudentQuestion'],
+  },
+  {
     id: 'next-step-coach-stuck-work',
     title: 'Choose the next human tutor move from stuck student work',
     gradeBand: 'grades 4-6',

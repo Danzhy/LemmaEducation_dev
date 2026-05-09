@@ -1048,6 +1048,10 @@ assert(
   answerGate.decision === 'hint_only' && answerGate.requiredPause === true,
   'answer_disclosure_gate should preserve student thinking before any attempt.'
 )
+assert(
+  answerGate.requiredStudentQuestion === 'What is one whole here, and what size pieces are we using?',
+  'answer_disclosure_gate should return one required student question for hint-only turns.'
+)
 
 const directSolveGate = answerDisclosureGate({
   studentRequest: 'Can you solve 2x + 3 = 11?',
@@ -1060,6 +1064,19 @@ assert(
   'answer_disclosure_gate should treat direct equation solving as a full-answer request before any attempt.'
 )
 
+const directPercentGate = answerDisclosureGate({
+  studentRequest: 'What is 25% of 80?',
+  hasStudentAttempt: false,
+  attemptCount: 0,
+  isCheckingAnswer: false,
+})
+assert(
+  directPercentGate.decision === 'hint_only' &&
+    directPercentGate.topic === 'Decimals and percents' &&
+    /whole|hundredths/.test(directPercentGate.requiredStudentQuestion),
+  'answer_disclosure_gate should infer direct percent final-answer requests without a literal answer keyword.'
+)
+
 const attemptedSolveGate = answerDisclosureGate({
   studentRequest: 'Can you solve 2x + 3 = 11?',
   hasStudentAttempt: true,
@@ -1069,6 +1086,18 @@ const attemptedSolveGate = answerDisclosureGate({
 assert(
   attemptedSolveGate.decision === 'solution_allowed' && attemptedSolveGate.requiredPause === false,
   'answer_disclosure_gate should allow a concise solution after the student has tried and explicitly asks.'
+)
+
+const attemptedPercentGate = answerDisclosureGate({
+  studentRequest: 'I got 20. What is 25% of 80?',
+  hasStudentAttempt: true,
+  attemptCount: 1,
+  isCheckingAnswer: false,
+})
+assert(
+  attemptedPercentGate.decision === 'solution_allowed' &&
+    attemptedPercentGate.requiredStudentQuestion.includes('100% whole'),
+  'answer_disclosure_gate should allow concise topic-specific solutions after a direct math question and attempt.'
 )
 
 const animationPlan = boardAnimationPlan({

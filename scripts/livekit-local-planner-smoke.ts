@@ -89,6 +89,33 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'gates direct percent final-answer questions before tools',
+    prompt: 'What is 25% of 80?',
+    expectedTools: ['answer_disclosure_gate'],
+    inspect: (input) => {
+      assert.equal(input.hasStudentAttempt, false)
+      assert.equal(input.askedForFullSolution, true)
+    },
+  },
+  {
+    name: 'gates direct fraction final-answer questions before tools',
+    prompt: 'What is 1/2 + 1/3?',
+    expectedTools: ['answer_disclosure_gate'],
+    inspect: (input) => {
+      assert.equal(input.hasStudentAttempt, false)
+      assert.equal(input.askedForFullSolution, true)
+    },
+  },
+  {
+    name: 'gates direct area final-answer questions before board tools',
+    prompt: 'What is the final answer for the area of a 4 by 5 rectangle?',
+    expectedTools: ['answer_disclosure_gate'],
+    inspect: (input) => {
+      assert.equal(input.hasStudentAttempt, false)
+      assert.equal(input.askedForFullSolution, true)
+    },
+  },
+  {
     name: 'keeps disclosure gate first after a student attempt asks for a full solve',
     prompt: 'I tried 2x + 3 = 11 and got x = 4. Can you solve 2x + 3 = 11 fully?',
     expectedTools: ['answer_disclosure_gate', 'solve_linear_on_canvas'],
@@ -96,6 +123,17 @@ const cases: PlannerCase[] = [
       assert.equal(input.hasStudentAttempt, true)
       assert.equal(input.askedForFullSolution, true)
       assert.equal(plans[1].input.problem, '2x + 3 = 11')
+    },
+  },
+  {
+    name: 'keeps disclosure gate first then continues after a percent attempt',
+    prompt: 'I got 20 for 25% of 80. What is 25% of 80?',
+    expectedTools: ['answer_disclosure_gate', 'percent_of_number', 'percent_bar'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.equal(plans[1].input.percent, 25)
+      assert.equal(plans[1].input.whole, 80)
     },
   },
   {

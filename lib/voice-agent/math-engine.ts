@@ -10190,6 +10190,108 @@ export function tutorTurnAudit(input: {
   }
 }
 
+function inferAnswerDisclosureTopic(request: string): CurriculumTopic {
+  if (/\bfraction|denominator|numerator|\d+\s*\/\s*\d+/.test(request)) return 'fractions'
+  if (/\bpercent|percentage|%|decimal|round|nearest|tenths?|hundredths?|thousandths?\b/.test(request)) {
+    return 'decimals_percents'
+  }
+  if (/\bratio|rate|unit rate|proportion|scale factor|per one\b/.test(request)) return 'ratios_rates'
+  if (/\bequation|expression|variable|solve for|x\s*=|\b[xy]\b|[A-Za-z]\s*[+\-*/=]/.test(request)) {
+    return 'expressions_equations'
+  }
+  if (/\barea|perimeter|angle|triangle|rectangle|geometry|measurement|meter|centimeter|gram|liter|kilogram|convert\b/.test(request)) {
+    return 'geometry_measurement'
+  }
+  if (/\bcoordinate|graph|slope|intercept|ordered pair|point|axis|distance from\b/.test(request)) {
+    return 'coordinate_graphing'
+  }
+  if (/\bmean|median|mode|range|data|probability|chance|outcome\b/.test(request)) return 'data_probability'
+  if (/\btimes|multiply|divide|product|quotient|array|groups?\b|[×÷]/.test(request)) {
+    return 'multiplication_division'
+  }
+  if (/\bplace value|digit|ones?|tens?|hundreds?|thousands?\b/.test(request)) return 'place_value'
+  return 'fractions'
+}
+
+function isDirectFullAnswerRequest(request: string) {
+  const lower = request.toLowerCase()
+  const asksForExplanationOrVisual =
+    /\b(show (?:me )?(?:the )?(?:thinking|work|steps|why|how|visual|model|diagram)|draw|graph|plot|model|diagram|table|visual|explain|hint|help me start)\b/.test(
+      lower
+    )
+  if (asksForExplanationOrVisual) return false
+
+  if (
+    /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me|answer only|final answer)\b/.test(
+      lower
+    )
+  ) {
+    return true
+  }
+
+  const hasMathContent = /\d|%|\d+\s*\/\s*\d+|[=<>+\-*/^×÷]/.test(lower)
+  if (!hasMathContent) return false
+
+  if (/\b(solve|calculate|compute|evaluate|simplify|reduce|convert|round)\b/.test(lower)) return true
+  const directExpressionQuestion =
+    /\bwhat(?:'s| is)|how much is\b/.test(lower) &&
+    (/%\s*of|\bpercent(?:age)?\s+of\b|\d+\s*\/\s*\d+|[=+\-*/^×÷]|\b\d+(?:\.\d+)?\s*(?:times|divided by|plus|minus)\s*\d/i.test(
+      lower
+    ))
+  if (directExpressionQuestion) return true
+
+  return false
+}
+
+function buildAnswerDisclosureGuidance(request: string) {
+  const topic = inferAnswerDisclosureTopic(request)
+  const guide = CURRICULUM_GUIDE[topic]
+
+  const questions: Record<CurriculumTopic, string> = {
+    place_value: 'Which place value should we look at first?',
+    multiplication_division: 'What equal groups or repeated action do you see in the problem?',
+    fractions: 'What is one whole here, and what size pieces are we using?',
+    decimals_percents: 'What whole or hundredths model should anchor the percent or decimal?',
+    ratios_rates: 'Which two quantities need to stay paired as we scale?',
+    expressions_equations: 'What operation is being undone or preserved in this step?',
+    geometry_measurement: 'Are we finding a length, an area, or an angle?',
+    coordinate_graphing: 'What does the x-value tell us before we find or plot y?',
+    data_probability: 'What values or outcomes are we counting first?',
+  }
+
+  const nextStepQuestions: Record<CurriculumTopic, string> = {
+    place_value: 'Which digit or place changed from your last step?',
+    multiplication_division: 'Which group or factor should we check before the answer?',
+    fractions: 'Which denominator or whole should stay consistent in the next step?',
+    decimals_percents: 'Which benchmark, hundredth, or percent bar should we check next?',
+    ratios_rates: 'Which row or scale factor should we verify before moving on?',
+    expressions_equations: 'What did you do to one side, and did the other side match it?',
+    geometry_measurement: 'Which measurement belongs in the formula or diagram next?',
+    coordinate_graphing: 'Which coordinate, change, or table row should we check next?',
+    data_probability: 'Which value, outcome count, or repeated value should we verify next?',
+  }
+
+  const solutionQuestions: Record<CurriculumTopic, string> = {
+    place_value: 'After I show it, tell me which place value made the answer change.',
+    multiplication_division: 'After I show it, tell me what the equal groups represent.',
+    fractions: 'After I show it, tell me why the whole stayed the same.',
+    decimals_percents: 'After I show it, tell me what the 100% whole was.',
+    ratios_rates: 'After I show it, tell me which scale factor or unit rate was used.',
+    expressions_equations: 'After I show it, tell me how balance was kept.',
+    geometry_measurement: 'After I show it, tell me which measurement was length, area, or angle.',
+    coordinate_graphing: 'After I show it, tell me how x and y were used.',
+    data_probability: 'After I show it, tell me what was counted first.',
+  }
+
+  return {
+    topic: guide.label,
+    firstQuestion: questions[topic],
+    nextStepQuestion: nextStepQuestions[topic],
+    solutionQuestion: solutionQuestions[topic],
+    allowedDetail: `One ${guide.label.toLowerCase()} hint, setup, or visual model without the final answer.`,
+  }
+}
+
 export function answerDisclosureGate(input: {
   studentRequest: string
   hasStudentAttempt?: boolean
@@ -10200,17 +10302,18 @@ export function answerDisclosureGate(input: {
   const request = input.studentRequest.trim().toLowerCase()
   const attemptCount = Math.max(0, Math.floor(input.attemptCount ?? 0))
   const hasStudentAttempt = Boolean(input.hasStudentAttempt) || attemptCount > 0
+  const guidance = buildAnswerDisclosureGuidance(request)
   const askedForFullSolution =
     Boolean(input.askedForFullSolution) ||
-    /\b(answer|solve(?: it)?|calculate|compute|evaluate|full solution|show me the solution|just tell me|final answer)\b/.test(
-      request
-    )
+    isDirectFullAnswerRequest(request)
 
   if (askedForFullSolution && (hasStudentAttempt || input.isCheckingAnswer)) {
     return {
       decision: 'solution_allowed',
+      topic: guidance.topic,
       reason: 'The student explicitly asked for the full solution after making or checking an attempt.',
       sayThis: 'I can show the solution, but I will still name the reasoning behind each step.',
+      requiredStudentQuestion: guidance.solutionQuestion,
       allowedDetail: 'A concise full solution with the key reason for each step.',
       requiredPause: false,
     }
@@ -10219,8 +10322,10 @@ export function answerDisclosureGate(input: {
   if (hasStudentAttempt || input.isCheckingAnswer) {
     return {
       decision: 'next_step_only',
+      topic: guidance.topic,
       reason: 'The student has attempted the problem, so the tutor can reveal the next useful step without finishing everything.',
-      sayThis: 'I will show the next step only, then I want you to explain why it works.',
+      sayThis: `I will show the next step only, then pause. ${guidance.nextStepQuestion}`,
+      requiredStudentQuestion: guidance.nextStepQuestion,
       allowedDetail: 'One checked step, one hint, or one board mark.',
       requiredPause: true,
     }
@@ -10228,9 +10333,11 @@ export function answerDisclosureGate(input: {
 
   return {
     decision: 'hint_only',
+    topic: guidance.topic,
     reason: 'The student has not made an attempt yet, so preserve productive struggle.',
-    sayThis: 'I will start with a hint so you still get to do the thinking.',
-    allowedDetail: 'A question, setup, or visual model without the final answer.',
+    sayThis: `I will start with a hint so you still get to do the thinking. ${guidance.firstQuestion}`,
+    requiredStudentQuestion: guidance.firstQuestion,
+    allowedDetail: guidance.allowedDetail,
     requiredPause: true,
   }
 }

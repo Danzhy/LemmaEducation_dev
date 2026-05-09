@@ -210,6 +210,19 @@ function parseLocalPlainNumber(token: string) {
   return Number.isFinite(value) ? value : null
 }
 
+function extractLocalPercentOfRequest(text: string) {
+  const match = text.match(
+    new RegExp(`(${LOCAL_NUMBER_PATTERN})\\s*(?:%|percent(?:age)?)\\s+of\\s+(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (!match) return null
+
+  const percent = parseLocalPlainNumber(match[1])
+  const whole = parseLocalPlainNumber(match[2])
+  if (percent === null || whole === null) return null
+
+  return { percent, whole }
+}
+
 function normalizeLocalPlaceValue(place: string) {
   const match = place.toLowerCase().match(new RegExp(`\\b(${LOCAL_PLACE_VALUE_PATTERN})\\b`))
   return match ? match[1] : null
@@ -2179,19 +2192,26 @@ function inferLocalTopic(text: string) {
 
 function isLocalAnswerDisclosureRequest(prompt: string) {
   const lower = prompt.toLowerCase()
+  const asksForExplanationOrVisual =
+    /\b(show (?:me )?(?:the )?(?:thinking|work|steps|why|how|visual|model|diagram)|draw|graph|plot|model|diagram|table|visual|explain|hint|help me start)\b/.test(
+      lower
+    )
+
+  if (asksForExplanationOrVisual) {
+    return false
+  }
+
   if (
-    /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me|what(?:'s| is) the answer|answer to|final answer)\b/.test(
+    /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me|what(?:'s| is) the answer|answer to|answer only|final answer)\b/.test(
       lower
     )
   ) {
     return true
   }
 
-  if (/\b(show|draw|graph|plot|model|diagram|table|visual|explain|hint|help me start)\b/.test(lower)) {
-    return false
-  }
+  const hasMathContent = /\d|%|\d+\s*\/\s*\d+|[=<>+\-*/^×÷]/.test(prompt)
 
-  if (/\b(solve|calculate|compute|evaluate)\b/.test(lower) && /[-+*/÷×^=]|\d/.test(prompt)) {
+  if (/\b(solve|calculate|compute|evaluate)\b/.test(lower) && hasMathContent) {
     return true
   }
 
@@ -2200,6 +2220,16 @@ function isLocalAnswerDisclosureRequest(prompt: string) {
     /\b(answer|final answer|value of|find\s+x|find\s+the\s+value)\b/.test(lower) &&
     /\d/.test(prompt)
   ) {
+    return true
+  }
+
+  const directExpressionQuestion =
+    /\bwhat(?:'s| is)|how much is\b/.test(lower) &&
+    (/%\s*of|\bpercent(?:age)?\s+of\b|\d+\s*\/\s*\d+|[=+\-*/^×÷]|\b\d+(?:\.\d+)?\s*(?:times|divided by|plus|minus)\s*\d/i.test(
+      prompt
+    ))
+
+  if (hasMathContent && directExpressionQuestion) {
     return true
   }
 
@@ -2222,6 +2252,7 @@ export function planLocalToolTurn(
   const tableOfValuesRequest = extractTableOfValuesRequest(prompt)
   const statisticsSummaryRequest = extractStatisticsSummaryRequest(prompt)
   const probabilityModelRequest = extractProbabilityModelRequest(prompt)
+  const percentOfRequest = extractLocalPercentOfRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
   const tapeDiagramInput = buildLocalTapeDiagramInput(prompt)
   const plans: LocalToolPlan[] = []
@@ -2721,21 +2752,21 @@ export function planLocalToolTurn(
     return plans
   }
 
-  if (/%\s*of|percent of/.test(lower) && numbers.length >= 2) {
+  if (percentOfRequest) {
     plans.push({
       toolName: 'percent_of_number',
       input: {
-        percent: numbers[0],
-        whole: numbers[1],
+        percent: percentOfRequest.percent,
+        whole: percentOfRequest.whole,
       },
     })
     plans.push({
       toolName: 'percent_bar',
       input: {
-        part: numbers[0],
+        part: percentOfRequest.percent,
         total: 100,
-        title: `${numbers[0]}% of ${numbers[1]}`,
-        label: `${numbers[0]}%`,
+        title: `${percentOfRequest.percent}% of ${percentOfRequest.whole}`,
+        label: `${percentOfRequest.percent}%`,
       },
     })
     return plans

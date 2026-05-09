@@ -460,8 +460,10 @@ export type TutorTurnAuditResult = {
 
 export type AnswerDisclosureGateResult = {
   decision: 'hint_only' | 'next_step_only' | 'solution_allowed'
+  topic: string
   reason: string
   sayThis: string
+  requiredStudentQuestion: string
   allowedDetail: string
   requiredPause: boolean
 }
