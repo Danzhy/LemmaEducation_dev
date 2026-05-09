@@ -8,6 +8,11 @@ import {
   sanitizeCurriculumText,
   vectorToSqlLiteral,
 } from '@/lib/curriculum/rag'
+import {
+  assessCurriculumSearchQuality,
+  buildCurriculumSearchInstruction,
+  type CurriculumSearchResult,
+} from '@/lib/curriculum/search'
 
 const rawText = `
   Lesson 3: Equivalent fractions
@@ -52,5 +57,49 @@ const instruction = buildCurriculumContextInstruction({
 assert(instruction.includes('Teacher-provided curriculum context'), 'Context instruction should identify teacher context.')
 assert(instruction.includes('Grade 6 ratios support'), 'Context instruction should include active custom profiles.')
 assert(instruction.includes('Ratios Unit 1 Lesson Notes'), 'Context instruction should include curriculum document titles.')
+
+const strongKeywordResult: CurriculumSearchResult = {
+  documentId: 'doc-fractions',
+  documentTitle: 'Equivalent Fractions Lesson',
+  sourceName: 'teacher notes',
+  chunkIndex: 0,
+  content: 'Use fraction strips to compare equivalent fractions before simplifying.',
+  score: 0.42,
+  matchType: 'keyword',
+}
+const strongKeywordQuality = assessCurriculumSearchQuality({
+  query: 'equivalent fractions fraction strip',
+  matchType: 'keyword',
+  results: [strongKeywordResult],
+})
+assert.equal(strongKeywordQuality.quality, 'strong', 'Keyword matches should be usable when curriculum text contains query terms.')
+const strongKeywordInstruction = buildCurriculumSearchInstruction('equivalent fractions fraction strip', [strongKeywordResult], strongKeywordQuality)
+assert(
+  strongKeywordInstruction.includes('Use these teacher-provided curriculum excerpts'),
+  'Strong curriculum matches should produce usable excerpt instructions.'
+)
+assert(strongKeywordInstruction.includes('fraction strips'), 'Strong curriculum matches should include the relevant excerpt.')
+
+const weakVectorResult: CurriculumSearchResult = {
+  documentId: 'doc-unrelated',
+  documentTitle: 'Classroom routines',
+  sourceName: 'teacher-only answer key',
+  chunkIndex: 0,
+  content: 'Answer key: students may use silent reading time after finishing the warmup.',
+  score: 0.03,
+  matchType: 'vector',
+}
+const weakVectorQuality = assessCurriculumSearchQuality({
+  query: 'divide decimals with hundredths',
+  matchType: 'vector',
+  results: [weakVectorResult],
+})
+assert.equal(weakVectorQuality.quality, 'weak', 'Low-score unrelated vector matches should be treated as weak retrieval.')
+const weakVectorInstruction = buildCurriculumSearchInstruction('divide decimals with hundredths', [], weakVectorQuality)
+assert(
+  weakVectorInstruction.includes('Ask one clarifying question') && weakVectorInstruction.includes('Do not claim the class materials covered this'),
+  'Weak curriculum matches should tell the tutor to clarify or fall back safely.'
+)
+assert(!weakVectorInstruction.includes('Answer key'), 'Weak curriculum matches should not expose unrelated private excerpts.')
 
 console.log('Curriculum RAG smoke test passed.')
