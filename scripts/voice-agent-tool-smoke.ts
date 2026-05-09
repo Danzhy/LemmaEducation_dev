@@ -409,6 +409,20 @@ assert(
   'math_check_step should validate rectangle perimeter claims.'
 )
 
+const validTriangleAreaStep = mathCheckStep('area of triangle with base 10 and height 6', '30')
+assert(
+  validTriangleAreaStep.verdict === 'valid' &&
+    validTriangleAreaStep.hintTarget.includes('half'),
+  'math_check_step should validate triangle area claims.'
+)
+
+const invalidTriangleAreaStep = mathCheckStep('area of triangle with base 10 and height 6', '60')
+assert(
+  invalidTriangleAreaStep.verdict === 'invalid' &&
+    invalidTriangleAreaStep.hintTarget.includes('halve'),
+  'math_check_step should catch triangle area base-times-height mistakes.'
+)
+
 const validCoordinatePointStep = mathCheckStep('y = 2x + 1', '(2, 5)')
 assert(
   validCoordinatePointStep.verdict === 'valid' &&

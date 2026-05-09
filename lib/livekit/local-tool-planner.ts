@@ -382,7 +382,7 @@ function hasMathStructure(value: string) {
   return (
     /[+\-*/=:%^()]|\/|\bof\b/i.test(value) ||
     /\b(round|rounded|nearest|tenths?|hundredths?|thousandths?|ones?|tens?|hundreds?|thousands?)\b/i.test(value) ||
-    /\b(area|perimeter|rectangle|rectangular)\b/i.test(value) ||
+    /\b(area|perimeter|rectangle|rectangular|triangle|triangular|base|height|altitude)\b/i.test(value) ||
     hasKnownUnitQuantity(value)
   )
 }
@@ -534,6 +534,60 @@ function extractRectangleMeasurementAttempt(text: string): StudentStepPair | nul
 
   return buildStepPair(
     `${kind} of rectangle ${dimensions.width} by ${dimensions.height}`,
+    String(answer)
+  )
+}
+
+function extractLocalTriangleBaseHeight(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(triangle|triangular)\b/i.test(normalized) || !/\barea\b/i.test(normalized)) return null
+
+  const baseMatch = normalized.match(new RegExp(`\\bbase\\b\\s*(?:is|=|:|of)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i'))
+  const heightMatch = normalized.match(
+    new RegExp(`\\b(?:height|altitude)\\b\\s*(?:is|=|:|of)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (!baseMatch || !heightMatch) return null
+
+  const base = parseLocalPlainNumber(baseMatch[1])
+  const height = parseLocalPlainNumber(heightMatch[1])
+  if (base === null || height === null || base <= 0 || height <= 0) return null
+
+  const baseEnd = (baseMatch.index ?? 0) + baseMatch[0].length
+  const heightEnd = (heightMatch.index ?? 0) + heightMatch[0].length
+  return { base, height, endIndex: Math.max(baseEnd, heightEnd) }
+}
+
+function extractTriangleAreaAnswer(text: string, dimensionEndIndex: number) {
+  const beforeAreaMatch = text.match(
+    new RegExp(`\\b(?:got|found|calculated|answer(?:\\s+is)?|think)\\s+(${LOCAL_NUMBER_PATTERN})\\s+(?:square\\s+\\w+\\s+)?(?:for\\s+)?(?:the\\s+)?area\\b`, 'i')
+  )
+  if (beforeAreaMatch) {
+    const answer = parseLocalPlainNumber(beforeAreaMatch[1])
+    if (answer !== null) return answer
+  }
+
+  const afterDimensions = text.slice(dimensionEndIndex)
+  const afterDimensionsMatch = afterDimensions.match(
+    new RegExp(`\\b(?:as|is|was|equals?|=|got|answer(?:\\s+is)?)\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (afterDimensionsMatch) {
+    const answer = parseLocalPlainNumber(afterDimensionsMatch[1])
+    if (answer !== null) return answer
+  }
+
+  return null
+}
+
+function extractTriangleAreaAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const dimensions = extractLocalTriangleBaseHeight(normalized)
+  if (!dimensions) return null
+
+  const answer = extractTriangleAreaAnswer(normalized, dimensions.endIndex)
+  if (answer === null) return null
+
+  return buildStepPair(
+    `area of triangle with base ${dimensions.base} and height ${dimensions.height}`,
     String(answer)
   )
 }
@@ -847,6 +901,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const coordinateDistanceAttempt = extractCoordinateDistanceAttempt(normalized)
   if (coordinateDistanceAttempt) return coordinateDistanceAttempt
 
+  const triangleAreaAttempt = extractTriangleAreaAttempt(normalized)
+  if (triangleAreaAttempt) return triangleAreaAttempt
+
   const rectangleMeasurementAttempt = extractRectangleMeasurementAttempt(normalized)
   if (rectangleMeasurementAttempt) return rectangleMeasurementAttempt
 
@@ -909,7 +966,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|coordinate|distance|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?)\b/.test(lower)
+    /\b(graph|plot|parabola|function|coordinate|distance|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?)\b/.test(lower)
   const asksForMistakeHelp =
     /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|check this|is this right|is that right|am i right|is my step right|correct)\b/.test(lower)
   const needsSafetyBoundary =
@@ -1331,7 +1388,18 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
-  if (/area|perimeter|rectangle/.test(lower) && numbers.length >= 2) {
+  if (/\b(triangle|triangular)\b/.test(lower) && /\barea\b/.test(lower) && numbers.length >= 2) {
+    plans.push({
+      toolName: 'geometry_figure',
+      input: {
+        figureType: 'triangle',
+        labels: ['A', 'B', 'C'],
+      },
+    })
+    return plans
+  }
+
+  if (/area|perimeter|rectangle/.test(lower) && !/\b(triangle|triangular)\b/.test(lower) && numbers.length >= 2) {
     plans.push({
       toolName: 'area_perimeter_model',
       input: {

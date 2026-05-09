@@ -591,6 +591,50 @@ function checkRectangleAreaPerimeterStep(previousStep: string, nextStep: string)
   }
 }
 
+function extractTriangleBaseHeight(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(triangle|triangular)\b/i.test(normalized) || !/\barea\b/i.test(normalized)) return null
+
+  const baseMatch = normalized.match(new RegExp(`\\bbase\\b\\s*(?:is|=|:|of)?\\s*(${PLAIN_NUMBER_PATTERN})`, 'i'))
+  const heightMatch = normalized.match(
+    new RegExp(`\\b(?:height|altitude)\\b\\s*(?:is|=|:|of)?\\s*(${PLAIN_NUMBER_PATTERN})`, 'i')
+  )
+  if (!baseMatch || !heightMatch) return null
+
+  const base = parsePlainNumber(baseMatch[1])
+  const height = parsePlainNumber(heightMatch[1])
+  if (base === null || height === null || base <= 0 || height <= 0) return null
+  return { base, height }
+}
+
+function checkTriangleAreaStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const dimensions = extractTriangleBaseHeight(previousStep)
+  const studentAnswer = parseLastPlainNumber(nextStep)
+  if (!dimensions || studentAnswer === null) return null
+
+  const { base, height } = dimensions
+  const rectangleArea = base * height
+  const triangleArea = rectangleArea / 2
+  const answerMatches = isNearlyEqual(triangleArea, studentAnswer, 0.01)
+  const baseReason = `A triangle with base ${formatNumber(base, 4)} and height ${formatNumber(
+    height,
+    4
+  )} has area (${formatNumber(base, 4)} x ${formatNumber(height, 4)}) / 2 = ${formatNumber(
+    triangleArea,
+    4
+  )} square units.`
+
+  return {
+    verdict: answerMatches ? 'valid' : 'invalid',
+    reason: answerMatches ? baseReason : `${baseReason} The student answer is ${formatNumber(studentAnswer, 4)}.`,
+    hintTarget: answerMatches
+      ? 'explain why triangle area is half of the base-height rectangle'
+      : isNearlyEqual(rectangleArea, studentAnswer, 0.01)
+        ? 'halve the base-times-height rectangle area for a triangle'
+        : 'multiply base by height, then divide by 2',
+  }
+}
+
 function extractPercentChangeAmounts(text: string) {
   if (/%|\bpercent\b/i.test(text)) return null
 
@@ -1235,6 +1279,10 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasSlopeWork:
       /\b(slope|rate of change|rise|run)\b/i.test(combined) &&
       /\(\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*\)/.test(combined),
+    hasTriangleAreaWork:
+      /\b(area|triangle|triangular|base|height|altitude)\b/i.test(combined) &&
+      /\b(triangle|triangular)\b/i.test(combined) &&
+      extractPlainNumbers(combined).length >= 2,
     hasRectangleMeasurementWork:
       /\b(area|perimeter|rectangle|rectangular)\b/i.test(combined) && extractPlainNumbers(combined).length >= 2,
     hasUnitConversionWork: hasKnownUnitQuantity(combined),
@@ -1281,6 +1329,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasSlopeWork) {
     return 'compare rise over run instead of using only one coordinate change'
+  }
+  if (features.hasTriangleAreaWork) {
+    return 'use the triangle area formula and halve the base-times-height product'
   }
   if (features.hasRectangleMeasurementWork) {
     return 'decide whether the problem asks for square units inside or distance around the boundary'
@@ -3046,6 +3097,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const coordinateDistanceStep = checkCoordinateDistanceStep(previousStep, nextStep)
   if (coordinateDistanceStep) {
     return coordinateDistanceStep
+  }
+
+  const triangleAreaStep = checkTriangleAreaStep(previousStep, nextStep)
+  if (triangleAreaStep) {
+    return triangleAreaStep
   }
 
   const rectangleAreaPerimeterStep = checkRectangleAreaPerimeterStep(previousStep, nextStep)

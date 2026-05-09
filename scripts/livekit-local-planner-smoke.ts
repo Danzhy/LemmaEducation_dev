@@ -294,6 +294,23 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks triangle area attempts before classifying the mistake',
+    prompt: 'I got the area of a triangle with base 10 and height 6 as 60. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'area of triangle with base 10 and height 6')
+      assert.equal(input.nextStep, '60')
+    },
+  },
+  {
+    name: 'routes triangle area requests to a triangle diagram',
+    prompt: 'Find the area of a triangle with base 10 and height 6.',
+    expectedTools: ['geometry_figure'],
+    inspect: (input) => {
+      assert.equal(input.figureType, 'triangle')
+    },
+  },
+  {
     name: 'routes coordinate distance requests to board model',
     prompt: 'Find the distance from (2, 3) to (5, 7) on the coordinate plane.',
     expectedTools: ['coordinate_distance'],

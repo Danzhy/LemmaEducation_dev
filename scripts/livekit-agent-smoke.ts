@@ -185,6 +185,14 @@ async function main() {
     { previousStep: 'perimeter of rectangle 7 by 4', nextStep: '22' },
     { ctx: {} as never, toolCallId: 'smoke-rectangle-perimeter-step-check' }
   )
+  const validTriangleAreaStep = await tools.math_check_step.execute(
+    { previousStep: 'area of triangle with base 10 and height 6', nextStep: '30' },
+    { ctx: {} as never, toolCallId: 'smoke-triangle-area-step-check' }
+  )
+  const invalidTriangleAreaStep = await tools.math_check_step.execute(
+    { previousStep: 'area of triangle with base 10 and height 6', nextStep: '60' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-triangle-area-step-check' }
+  )
   const invalidCoordinatePointStep = await tools.math_check_step.execute(
     { previousStep: 'y = 2x + 1', nextStep: '(2, 4)' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-point-step-check' }
@@ -560,6 +568,20 @@ async function main() {
     !JSON.stringify(validRectanglePerimeterStep).includes('boundary')
   ) {
     throw new Error(`math_check_step did not accept a rectangle perimeter claim: ${JSON.stringify(validRectanglePerimeterStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validTriangleAreaStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validTriangleAreaStep).includes('half')
+  ) {
+    throw new Error(`math_check_step did not accept a triangle area claim: ${JSON.stringify(validTriangleAreaStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidTriangleAreaStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidTriangleAreaStep).includes('halve')
+  ) {
+    throw new Error(`math_check_step did not reject a triangle area base-times-height mistake: ${JSON.stringify(invalidTriangleAreaStep)}`)
   }
 
   if (
