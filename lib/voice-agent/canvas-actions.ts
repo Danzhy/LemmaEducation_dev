@@ -9,8 +9,32 @@ import type {
   TutorCanvasLabelPosition,
   TutorCanvasSize,
 } from '@/lib/tutor/session-adapter'
+import { canvasArtifactIdMatches } from '@/lib/tutor/canvas-action-artifacts'
 
 const TOOL_META = { lemmaToolOwned: true } as const
+
+function buildToolMeta(action: TutorCanvasAction, suffix?: string) {
+  const artifactId = action.artifactId ? `${action.artifactId}${suffix ? `:${suffix}` : ''}` : undefined
+  return {
+    ...TOOL_META,
+    ...(artifactId ? { lemmaArtifactId: artifactId } : {}),
+    ...(action.artifactGroupId ? { lemmaArtifactGroupId: action.artifactGroupId } : {}),
+  }
+}
+
+function deleteExistingArtifactShapes(editor: Editor, artifactId: string) {
+  const matchingShapeIds = [...editor.getCurrentPageShapeIds()].filter((shapeId) => {
+    const shape = editor.getShape(shapeId)
+    return canvasArtifactIdMatches(
+      (shape as { meta?: Record<string, unknown> } | undefined)?.meta?.lemmaArtifactId,
+      artifactId
+    )
+  })
+
+  if (matchingShapeIds.length > 0) {
+    editor.deleteShapes(matchingShapeIds)
+  }
+}
 
 function resolveColor(color?: TutorCanvasColor) {
   return color ?? 'black'
@@ -36,7 +60,7 @@ function createText(editor: Editor, action: Extract<TutorCanvasAction, { type: '
     type: 'text',
     x: action.x,
     y: action.y,
-    meta: TOOL_META,
+    meta: buildToolMeta(action),
     props: {
       w: action.width ?? 220,
       richText: toRichText(action.text),
@@ -54,7 +78,7 @@ function createMathBlock(editor: Editor, action: Extract<TutorCanvasAction, { ty
     type: 'math-block',
     x: action.x,
     y: action.y,
-    meta: TOOL_META,
+    meta: buildToolMeta(action),
     props: {
       latex: action.latex,
       displayMode: action.displayMode ?? true,
@@ -74,7 +98,7 @@ function createPoint(editor: Editor, action: Extract<TutorCanvasAction, { type: 
     type: 'geo',
     x: action.x - 6,
     y: action.y - 6,
-    meta: TOOL_META,
+    meta: buildToolMeta(action),
     props: {
       geo: 'ellipse',
       w: 12,
@@ -102,6 +126,8 @@ function createPoint(editor: Editor, action: Extract<TutorCanvasAction, { type: 
     createdIds.push(
       ...createText(editor, {
         id: `${action.id}-label`,
+        artifactId: action.artifactId ? `${action.artifactId}:label` : undefined,
+        artifactGroupId: action.artifactGroupId,
         type: 'place_text_label',
         x: action.x + offset.x,
         y: action.y + offset.y,
@@ -123,7 +149,7 @@ function createLine(editor: Editor, action: Extract<TutorCanvasAction, { type: '
     type: 'arrow',
     x: 0,
     y: 0,
-    meta: TOOL_META,
+    meta: buildToolMeta(action),
     props: {
       start: action.start,
       end: action.end,
@@ -139,14 +165,16 @@ function createLine(editor: Editor, action: Extract<TutorCanvasAction, { type: '
   if (action.label) {
     createdIds.push(
       ...createText(editor, {
-      id: `${action.id}-label`,
-      type: 'place_text_label',
-      x: (action.start.x + action.end.x) / 2 + 10,
-      y: (action.start.y + action.end.y) / 2 - 24,
-      text: action.label,
-      width: 140,
-      color: action.color,
-    })
+        id: `${action.id}-label`,
+        artifactId: action.artifactId ? `${action.artifactId}:label` : undefined,
+        artifactGroupId: action.artifactGroupId,
+        type: 'place_text_label',
+        x: (action.start.x + action.end.x) / 2 + 10,
+        y: (action.start.y + action.end.y) / 2 - 24,
+        text: action.label,
+        width: 140,
+        color: action.color,
+      })
     )
   }
 
@@ -168,7 +196,7 @@ function createAxes(editor: Editor, action: Extract<TutorCanvasAction, { type: '
     type: 'arrow',
     x: 0,
     y: 0,
-    meta: TOOL_META,
+    meta: buildToolMeta(action, 'x-axis'),
     props: {
       start: { x: origin.x - xLength / 2, y: origin.y },
       end: { x: origin.x + xLength / 2, y: origin.y },
@@ -185,7 +213,7 @@ function createAxes(editor: Editor, action: Extract<TutorCanvasAction, { type: '
     type: 'arrow',
     x: 0,
     y: 0,
-    meta: TOOL_META,
+    meta: buildToolMeta(action, 'y-axis'),
     props: {
       start: { x: origin.x, y: origin.y + yLength / 2 },
       end: { x: origin.x, y: origin.y - yLength / 2 },
@@ -199,28 +227,32 @@ function createAxes(editor: Editor, action: Extract<TutorCanvasAction, { type: '
   if (action.xLabel) {
     createdIds.push(
       ...createText(editor, {
-      id: `${action.id}-xlabel`,
-      type: 'place_text_label',
-      x: origin.x + xLength / 2 - 10,
-      y: origin.y + 10,
-      text: action.xLabel,
-      width: 40,
-      color: action.color,
-    })
+        id: `${action.id}-xlabel`,
+        artifactId: action.artifactId ? `${action.artifactId}:x-label` : undefined,
+        artifactGroupId: action.artifactGroupId,
+        type: 'place_text_label',
+        x: origin.x + xLength / 2 - 10,
+        y: origin.y + 10,
+        text: action.xLabel,
+        width: 40,
+        color: action.color,
+      })
     )
   }
 
   if (action.yLabel) {
     createdIds.push(
       ...createText(editor, {
-      id: `${action.id}-ylabel`,
-      type: 'place_text_label',
-      x: origin.x + 10,
-      y: origin.y - yLength / 2 - 24,
-      text: action.yLabel,
-      width: 40,
-      color: action.color,
-    })
+        id: `${action.id}-ylabel`,
+        artifactId: action.artifactId ? `${action.artifactId}:y-label` : undefined,
+        artifactGroupId: action.artifactGroupId,
+        type: 'place_text_label',
+        x: origin.x + 10,
+        y: origin.y - yLength / 2 - 24,
+        text: action.yLabel,
+        width: 40,
+        color: action.color,
+      })
     )
   }
 
@@ -236,7 +268,7 @@ function createRectangle(editor: Editor, action: Extract<TutorCanvasAction, { ty
     x: action.x,
     y: action.y,
     opacity: resolveOpacity(action.opacity, action.fill === 'solid' ? 0.22 : 0.16),
-    meta: TOOL_META,
+    meta: buildToolMeta(action),
     props: {
       geo: 'rectangle',
       w: action.width,
@@ -253,6 +285,8 @@ function createRectangle(editor: Editor, action: Extract<TutorCanvasAction, { ty
     createdIds.push(
       ...createText(editor, {
         id: `${action.id}-label`,
+        artifactId: action.artifactId ? `${action.artifactId}:label` : undefined,
+        artifactGroupId: action.artifactGroupId,
         type: 'place_text_label',
         x: action.x + 14,
         y: action.y + 12,
@@ -293,7 +327,7 @@ function createPolyline(editor: Editor, action: Extract<TutorCanvasAction, { typ
     type: 'line',
     x: origin.x,
     y: origin.y,
-    meta: TOOL_META,
+    meta: buildToolMeta(action),
     props: {
       points,
       color: resolveColor(action.color ?? 'blue'),
@@ -308,14 +342,16 @@ function createPolyline(editor: Editor, action: Extract<TutorCanvasAction, { typ
     const lastPoint = action.points[action.points.length - 1]
     createdIds.push(
       ...createText(editor, {
-      id: `${action.id}-label`,
-      type: 'place_text_label',
-      x: lastPoint.x + 12,
-      y: lastPoint.y - 32,
-      text: action.label,
-      width: 160,
-      color: action.color ?? 'blue',
-    })
+        id: `${action.id}-label`,
+        artifactId: action.artifactId ? `${action.artifactId}:label` : undefined,
+        artifactGroupId: action.artifactGroupId,
+        type: 'place_text_label',
+        x: lastPoint.x + 12,
+        y: lastPoint.y - 32,
+        text: action.label,
+        width: 160,
+        color: action.color ?? 'blue',
+      })
     )
   }
 
@@ -331,7 +367,7 @@ function createHighlight(editor: Editor, action: Extract<TutorCanvasAction, { ty
     x: action.x,
     y: action.y,
     opacity: resolveOpacity(action.opacity, 0.18),
-    meta: TOOL_META,
+    meta: buildToolMeta(action),
     props: {
       geo: 'rectangle',
       w: action.width,
@@ -346,14 +382,16 @@ function createHighlight(editor: Editor, action: Extract<TutorCanvasAction, { ty
   if (action.label) {
     createdIds.push(
       ...createText(editor, {
-      id: `${action.id}-label`,
-      type: 'place_text_label',
-      x: action.x,
-      y: action.y - 28,
-      text: action.label,
-      width: Math.max(120, Math.min(action.width, 240)),
-      color: action.color ?? 'yellow',
-    })
+        id: `${action.id}-label`,
+        artifactId: action.artifactId ? `${action.artifactId}:label` : undefined,
+        artifactGroupId: action.artifactGroupId,
+        type: 'place_text_label',
+        x: action.x,
+        y: action.y - 28,
+        text: action.label,
+        width: Math.max(120, Math.min(action.width, 240)),
+        color: action.color ?? 'yellow',
+      })
     )
   }
 
@@ -361,6 +399,10 @@ function createHighlight(editor: Editor, action: Extract<TutorCanvasAction, { ty
 }
 
 export function applyTutorCanvasAction(editor: Editor, action: TutorCanvasAction): string[] {
+  if (action.artifactId) {
+    deleteExistingArtifactShapes(editor, action.artifactId)
+  }
+
   switch (action.type) {
     case 'clear_tool_layer':
     case 'focus_region':

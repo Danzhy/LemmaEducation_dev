@@ -53,12 +53,18 @@ export type TutorCanvasLabelPosition =
   | 'bottom-left'
   | 'bottom-right'
 
-export type TutorCanvasAction =
-  | {
+type TutorCanvasActionMetadata = {
+  artifactId?: string
+  artifactGroupId?: string
+}
+
+export type TutorCanvasAction = TutorCanvasActionMetadata &
+  (
+    | {
       id: string
       type: 'clear_tool_layer'
     }
-  | {
+    | {
       id: string
       type: 'focus_region'
       x: number
@@ -66,7 +72,7 @@ export type TutorCanvasAction =
       width: number
       height: number
     }
-  | {
+    | {
       id: string
       type: 'place_text_label'
       x: number
@@ -75,7 +81,7 @@ export type TutorCanvasAction =
       width?: number
       color?: TutorCanvasColor
     }
-  | {
+    | {
       id: string
       type: 'place_math_block'
       x: number
@@ -85,7 +91,7 @@ export type TutorCanvasAction =
       width?: number
       height?: number
     }
-  | {
+    | {
       id: string
       type: 'place_point'
       x: number
@@ -95,7 +101,7 @@ export type TutorCanvasAction =
       labelPosition?: TutorCanvasLabelPosition
       labelWidth?: number
     }
-  | {
+    | {
       id: string
       type: 'draw_line_segment'
       start: { x: number; y: number }
@@ -105,7 +111,7 @@ export type TutorCanvasAction =
       dash?: TutorCanvasDash
       size?: TutorCanvasSize
     }
-  | {
+    | {
       id: string
       type: 'draw_axes'
       origin: { x: number; y: number }
@@ -117,7 +123,7 @@ export type TutorCanvasAction =
       dash?: TutorCanvasDash
       size?: TutorCanvasSize
     }
-  | {
+    | {
       id: string
       type: 'draw_rectangle'
       x: number
@@ -131,7 +137,7 @@ export type TutorCanvasAction =
       opacity?: number
       label?: string
     }
-  | {
+    | {
       id: string
       type: 'plot_polyline'
       points: Array<{ x: number; y: number }>
@@ -140,7 +146,7 @@ export type TutorCanvasAction =
       dash?: TutorCanvasDash
       size?: TutorCanvasSize
     }
-  | {
+    | {
       id: string
       type: 'highlight_region'
       x: number
@@ -151,6 +157,7 @@ export type TutorCanvasAction =
       color?: TutorCanvasColor
       opacity?: number
     }
+  )
 
 export type TutorSessionAdapter = {
   state: TutorState

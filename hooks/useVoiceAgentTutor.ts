@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { OpenAIRealtimeWebRTC, RealtimeAgent, RealtimeSession } from '@openai/agents/realtime'
 import type { RealtimeItem } from '@openai/agents/realtime'
 import type { TutorState } from '@/components/TutorAvatar'
+import { assignCanvasArtifactIds, normalizeCanvasArtifactId } from '@/lib/tutor/canvas-action-artifacts'
 import { TUTOR_INACTIVITY_PAUSE_SECONDS } from '@/lib/tutor/constants'
 import type {
   TutorConnectOptions,
@@ -147,10 +148,15 @@ function parseCanvasLabelPosition(value: unknown) {
 
 function buildCanvasActionFromPayload(actionType: string, payload: Record<string, any>) {
   const actionId = typeof payload.id === 'string' && payload.id.trim() ? payload.id : crypto.randomUUID()
+  const artifactFields = {
+    artifactId: normalizeCanvasArtifactId(payload.artifactId),
+    artifactGroupId: normalizeCanvasArtifactId(payload.artifactGroupId),
+  }
 
   switch (actionType) {
     case 'clear_tool_layer':
       return {
+        ...artifactFields,
         id: actionId,
         type: 'clear_tool_layer' as const,
       }
@@ -164,6 +170,7 @@ function buildCanvasActionFromPayload(actionType: string, payload: Record<string
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'focus_region' as const,
         x: payload.x,
@@ -176,6 +183,7 @@ function buildCanvasActionFromPayload(actionType: string, payload: Record<string
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'place_text_label' as const,
         x: payload.x,
@@ -189,6 +197,7 @@ function buildCanvasActionFromPayload(actionType: string, payload: Record<string
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'place_math_block' as const,
         x: payload.x,
@@ -203,6 +212,7 @@ function buildCanvasActionFromPayload(actionType: string, payload: Record<string
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'place_point' as const,
         x: payload.x,
@@ -222,6 +232,7 @@ function buildCanvasActionFromPayload(actionType: string, payload: Record<string
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'draw_line_segment' as const,
         start: { x: payload.start.x, y: payload.start.y },
@@ -241,6 +252,7 @@ function buildCanvasActionFromPayload(actionType: string, payload: Record<string
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'draw_axes' as const,
         origin: { x: payload.origin.x, y: payload.origin.y },
@@ -262,6 +274,7 @@ function buildCanvasActionFromPayload(actionType: string, payload: Record<string
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'draw_rectangle' as const,
         x: payload.x,
@@ -278,6 +291,7 @@ function buildCanvasActionFromPayload(actionType: string, payload: Record<string
     case 'plot_polyline':
       if (!Array.isArray(payload.points)) return null
       return {
+        ...artifactFields,
         id: actionId,
         type: 'plot_polyline' as const,
         points: payload.points
@@ -298,6 +312,7 @@ function buildCanvasActionFromPayload(actionType: string, payload: Record<string
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'highlight_region' as const,
         x: payload.x,
@@ -317,15 +332,16 @@ function extractCanvasActionsFromToolResult(toolName: string, parsed: any): Tuto
   if (!parsed || typeof parsed !== 'object') return []
 
   if (Array.isArray(parsed.canvasActions)) {
-    return parsed.canvasActions
+    const actions = parsed.canvasActions
       .map((action: Record<string, any>) => buildCanvasActionFromPayload(action.type, action))
       .filter(Boolean)
       .slice(0, MAX_CANVAS_ACTIONS_PER_TOOL_RESULT) as TutorCanvasAction[]
+    return assignCanvasArtifactIds(toolName, actions)
   }
 
   if (toolName === 'canvas_action' && typeof parsed.actionType === 'string' && parsed.payload && typeof parsed.payload === 'object') {
     const action = buildCanvasActionFromPayload(parsed.actionType, parsed.payload as Record<string, any>)
-    return action ? [action] : []
+    return action ? assignCanvasArtifactIds(toolName, [action]) : []
   }
 
   return []

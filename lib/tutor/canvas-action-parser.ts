@@ -5,6 +5,7 @@ import type {
   TutorCanvasLabelPosition,
   TutorCanvasSize,
 } from '@/lib/tutor/session-adapter'
+import { assignCanvasArtifactIds, normalizeCanvasArtifactId } from '@/lib/tutor/canvas-action-artifacts'
 
 const CANVAS_COLORS = [
   'black',
@@ -79,10 +80,15 @@ export function buildCanvasActionFromPayload(
   payload: Record<string, any>
 ): TutorCanvasAction | null {
   const actionId = typeof payload.id === 'string' && payload.id.trim() ? payload.id : crypto.randomUUID()
+  const artifactFields = {
+    artifactId: normalizeCanvasArtifactId(payload.artifactId),
+    artifactGroupId: normalizeCanvasArtifactId(payload.artifactGroupId),
+  }
 
   switch (actionType) {
     case 'clear_tool_layer':
       return {
+        ...artifactFields,
         id: actionId,
         type: 'clear_tool_layer',
       }
@@ -96,6 +102,7 @@ export function buildCanvasActionFromPayload(
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'focus_region',
         x: payload.x,
@@ -108,6 +115,7 @@ export function buildCanvasActionFromPayload(
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'place_text_label',
         x: payload.x,
@@ -121,6 +129,7 @@ export function buildCanvasActionFromPayload(
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'place_math_block',
         x: payload.x,
@@ -135,6 +144,7 @@ export function buildCanvasActionFromPayload(
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'place_point',
         x: payload.x,
@@ -154,6 +164,7 @@ export function buildCanvasActionFromPayload(
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'draw_line_segment',
         start: { x: payload.start.x, y: payload.start.y },
@@ -173,6 +184,7 @@ export function buildCanvasActionFromPayload(
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'draw_axes',
         origin: { x: payload.origin.x, y: payload.origin.y },
@@ -194,6 +206,7 @@ export function buildCanvasActionFromPayload(
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'draw_rectangle',
         x: payload.x,
@@ -210,6 +223,7 @@ export function buildCanvasActionFromPayload(
     case 'plot_polyline':
       if (!Array.isArray(payload.points)) return null
       return {
+        ...artifactFields,
         id: actionId,
         type: 'plot_polyline',
         points: payload.points
@@ -230,6 +244,7 @@ export function buildCanvasActionFromPayload(
         return null
       }
       return {
+        ...artifactFields,
         id: actionId,
         type: 'highlight_region',
         x: payload.x,
@@ -253,10 +268,11 @@ export function extractCanvasActionsFromToolResult(
   if (!parsed || typeof parsed !== 'object') return []
 
   if (Array.isArray(parsed.canvasActions)) {
-    return parsed.canvasActions
+    const actions = parsed.canvasActions
       .map((action: Record<string, any>) => buildCanvasActionFromPayload(action.type, action))
       .filter(Boolean)
       .slice(0, maxActions) as TutorCanvasAction[]
+    return assignCanvasArtifactIds(toolName, actions)
   }
 
   if (
@@ -266,7 +282,7 @@ export function extractCanvasActionsFromToolResult(
     typeof parsed.payload === 'object'
   ) {
     const action = buildCanvasActionFromPayload(parsed.actionType, parsed.payload as Record<string, any>)
-    return action ? [action] : []
+    return action ? assignCanvasArtifactIds(toolName, [action]) : []
   }
 
   return []

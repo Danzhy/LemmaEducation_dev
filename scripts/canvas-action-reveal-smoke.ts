@@ -3,6 +3,8 @@ import {
   planCanvasActionReveal,
   shouldStageCanvasActions,
 } from '@/lib/tutor/canvas-action-reveal'
+import { canvasArtifactIdMatches } from '@/lib/tutor/canvas-action-artifacts'
+import { extractCanvasActionsFromToolResult } from '@/lib/tutor/canvas-action-parser'
 import type { TutorCanvasAction } from '@/lib/tutor/session-adapter'
 
 const clearAction: TutorCanvasAction = { id: 'clear', type: 'clear_tool_layer' }
@@ -43,5 +45,40 @@ const instant = planCanvasActionReveal(labels.slice(0, 2), { sourceToolName: 'fr
 assert.equal(instant.length, 1)
 assert.equal(instant[0].delayMs, 0)
 assert.equal(instant[0].actions.length, 2)
+
+const firstParsedActions = extractCanvasActionsFromToolResult('fraction_strip', {
+  canvasActions: [
+    {
+      id: 'random-first',
+      type: 'place_text_label',
+      x: 80,
+      y: 120,
+      text: 'Equivalent parts',
+    },
+  ],
+})
+const secondParsedActions = extractCanvasActionsFromToolResult('fraction_strip', {
+  canvasActions: [
+    {
+      id: 'random-second',
+      type: 'place_text_label',
+      x: 80,
+      y: 120,
+      text: 'Equivalent parts',
+    },
+  ],
+})
+
+assert.equal(firstParsedActions.length, 1)
+assert.equal(secondParsedActions.length, 1)
+assert.equal(
+  firstParsedActions[0].artifactId,
+  secondParsedActions[0].artifactId,
+  'Matching tool actions should receive stable artifact ids despite random action ids.'
+)
+assert.equal(firstParsedActions[0].artifactGroupId, 'tool:fraction_strip')
+assert.ok(firstParsedActions[0].artifactId?.startsWith('tool:fraction_strip:0:'))
+assert.equal(canvasArtifactIdMatches(`${firstParsedActions[0].artifactId}:label`, firstParsedActions[0].artifactId!), true)
+assert.equal(canvasArtifactIdMatches(`${firstParsedActions[0].artifactId}-stale`, firstParsedActions[0].artifactId!), false)
 
 console.log('Canvas action reveal smoke passed.')
