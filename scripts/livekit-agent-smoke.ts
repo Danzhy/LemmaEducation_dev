@@ -92,6 +92,10 @@ async function main() {
     { previousStep: '2x + 3 = 11', nextStep: '2x = 14' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-linear-balance-step-check' }
   )
+  const invalidOrderOfOperationsStep = await tools.math_check_step.execute(
+    { previousStep: '3 + 4 * 2', nextStep: '14' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-order-step-check' }
+  )
   const validPercentStep = await tools.math_check_step.execute(
     { previousStep: '25% of 80', nextStep: '20' },
     { ctx: {} as never, toolCallId: 'smoke-percent-step-check' }
@@ -352,6 +356,13 @@ async function main() {
     !JSON.stringify(invalidLinearBalanceStep).includes('changed differently')
   ) {
     throw new Error(`math_check_step did not explain an invalid linear balance step: ${JSON.stringify(invalidLinearBalanceStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidOrderOfOperationsStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidOrderOfOperationsStep).includes('multiplication or division')
+  ) {
+    throw new Error(`math_check_step did not reject an order-of-operations mistake: ${JSON.stringify(invalidOrderOfOperationsStep)}`)
   }
 
   if (!JSON.stringify(validPercentStep).includes('"verdict":"valid"')) {

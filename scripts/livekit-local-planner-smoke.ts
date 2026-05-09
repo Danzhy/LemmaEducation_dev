@@ -135,6 +135,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks natural order-of-operations attempts before classifying the mistake',
+    prompt: 'I calculated 3 + 4 * 2 and got 14. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '3 + 4 * 2')
+      assert.equal(input.nextStep, '14')
+    },
+  },
+  {
     name: 'checks natural two-step equation balance attempts before classifying the mistake',
     prompt: 'I subtracted 3 from 2x + 3 = 11 and got 2x = 14. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],

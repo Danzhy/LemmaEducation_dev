@@ -611,6 +611,40 @@ function checkVariableExpressionStep(
   }
 }
 
+function hasAdditionOrSubtractionOperator(expression: string) {
+  for (let index = 0; index < expression.length; index += 1) {
+    const char = expression[index]
+    if (char === '+') return true
+    if (char !== '-') continue
+
+    const previous = expression[index - 1]
+    if (
+      !previous ||
+      previous === '(' ||
+      previous === '=' ||
+      previous === '+' ||
+      previous === '-' ||
+      previous === '*' ||
+      previous === '/' ||
+      previous === '^'
+    ) {
+      continue
+    }
+    return true
+  }
+
+  return false
+}
+
+function hasOrderOfOperationsWork(previousStep: string, nextStep: string) {
+  return [previousStep, nextStep].some((step) => {
+    const compact = normalizeExpression(step)
+    if (!/\d/.test(compact) || /[A-Za-z]/.test(compact)) return false
+    if (/[()^]/.test(compact) && /[+\-*/]/.test(compact)) return true
+    return hasAdditionOrSubtractionOperator(compact) && /[*\/]/.test(compact)
+  })
+}
+
 function detectStepFeatures(previousStep: string, nextStep: string) {
   const combined = `${previousStep} ${nextStep}`
   const compactCombined = normalizeExpression(combined)
@@ -628,6 +662,7 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasRatioWork: /-?\d+(?:\.\d+)?\s*:\s*-?\d+(?:\.\d+)?/.test(combined),
     hasDecimalWork: /\d+\.\d+/.test(combined),
     hasIntegerSignWork: /(^|[=+\-*/(]\s*)-\d/.test(combined),
+    hasOrderOfOperationsWork: hasOrderOfOperationsWork(previousStep, nextStep),
     hasAlgebraExpressionWork: /x/i.test(combined),
     hasDistributivePropertyWork:
       /(?:^|[=+\-*/(]\s*)-?(?:\d+(?:\.\d+)?|\.\d+)?\s*x?\s*\([^)]*[+\-][^)]*\)/i.test(combined),
@@ -636,6 +671,17 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
         compactCombined
       ),
   }
+}
+
+function hasOrderOfOperationsFocus(features: ReturnType<typeof detectStepFeatures>) {
+  return (
+    features.hasOrderOfOperationsWork &&
+    !features.hasUnitConversionWork &&
+    !features.hasMixedNumberWork &&
+    !features.hasFractionWork &&
+    !features.hasRatioWork &&
+    !features.hasAlgebraExpressionWork
+  )
 }
 
 function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures>) {
@@ -662,6 +708,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasDecimalWork) {
     return 'line up decimal place values before combining'
+  }
+  if (hasOrderOfOperationsFocus(features)) {
+    return 'evaluate parentheses and multiplication or division before addition or subtraction'
   }
   if (features.hasDistributivePropertyWork) {
     return 'multiply every term inside the parentheses when using the distributive property'
@@ -2428,11 +2477,15 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
             ? `Both ratios have the same quotient, ${formatNumber(prevValue, 4)}.`
             : stepFeatures.hasMixedNumberWork
             ? `Both mixed-number expressions have the same value, ${formatNumber(prevValue, 4)}.`
+            : hasOrderOfOperationsFocus(stepFeatures)
+            ? `Both expressions have the same value, ${formatNumber(prevValue, 4)}, after following order of operations.`
             : `Both expressions have the same value, ${formatNumber(prevValue, 4)}.`
           : comparesUnits
             ? `The measurement changed after converting units, from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)} in base units.`
             : stepFeatures.hasMixedNumberWork
             ? `The mixed-number value changed from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)}.`
+            : hasOrderOfOperationsFocus(stepFeatures)
+            ? `Following order of operations, the previous line equals ${formatNumber(prevValue, 4)}, but the next line equals ${formatNumber(nextValue, 4)}.`
             : `The value changed from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)}.`,
         hintTarget: valuesMatch
           ? comparesUnits
@@ -2441,6 +2494,8 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
             ? 'explain the scale factor that kept the ratio equivalent'
             : stepFeatures.hasMixedNumberWork
             ? 'explain how the mixed numbers were converted or combined'
+            : hasOrderOfOperationsFocus(stepFeatures)
+            ? 'explain which operation was evaluated first'
             : 'explain why the value stayed the same'
           : expressionStepHintTarget(stepFeatures),
       }

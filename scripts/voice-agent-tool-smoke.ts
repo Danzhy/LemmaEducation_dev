@@ -253,6 +253,13 @@ assert(
 const validArithmeticStep = mathCheckStep('3 + 4 * 2', '11')
 assert(validArithmeticStep.verdict === 'valid', 'math_check_step should validate equivalent arithmetic steps.')
 
+const invalidOrderOfOperationsStep = mathCheckStep('3 + 4 * 2', '14')
+assert(
+  invalidOrderOfOperationsStep.verdict === 'invalid' &&
+    invalidOrderOfOperationsStep.hintTarget.includes('multiplication or division'),
+  'math_check_step should catch order-of-operations mistakes.'
+)
+
 const validPercentStep = mathCheckStep('25% of 80', '20')
 assert(validPercentStep.verdict === 'valid', 'math_check_step should validate percent-of wording.')
 

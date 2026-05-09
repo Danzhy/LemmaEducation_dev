@@ -408,6 +408,29 @@ function extractAlgebraExpressionAttempt(text: string): StudentStepPair | null {
   return null
 }
 
+function extractArithmeticOperationAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+
+  const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
+  const valuePattern = String.raw`-?(?:\d+\s+\d+\s*\/\s*\d+|\d+\s*\/\s*-?\d+|\d+(?:\.\d+)?|\.\d+)`
+  const expressionPattern = String.raw`(?:[-+*/÷×^().\d\s%]|\bof\b){3,120}?`
+  const connector = String.raw`(?:\s+(?:and\s+)?(?:got|gets|equals?|is|as)\s+|\s*(?:=|->|→|⇒)\s*)`
+  const actionMatch = normalized.match(
+    new RegExp(
+      `\\b(?:i\\s+)?(?:calculated|calculate|evaluated|evaluate|did|worked\\s+out|simplified|simplify)\\s+(${expressionPattern})${connector}(${valuePattern})${stopBeforeQuestion}`,
+      'i'
+    )
+  )
+
+  if (!actionMatch) return null
+
+  const expression = actionMatch[1].trim()
+  if (/[A-Za-z]/.test(expression.replace(/\bof\b/gi, ''))) return null
+  if (!/[+\-*/÷×^()]|\bof\b/i.test(expression)) return null
+
+  return buildStepPair(expression, actionMatch[2])
+}
+
 function extractStudentStepPair(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
@@ -426,6 +449,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
 
   const mixedNumberOperationAttempt = extractMixedNumberOperationAttempt(normalized)
   if (mixedNumberOperationAttempt) return mixedNumberOperationAttempt
+
+  const arithmeticOperationAttempt = extractArithmeticOperationAttempt(normalized)
+  if (arithmeticOperationAttempt) return arithmeticOperationAttempt
 
   const slopeAttempt = extractSlopeAttempt(normalized)
   if (slopeAttempt) return slopeAttempt
@@ -480,7 +506,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(lower)
   const hasStudentAttempt =
     /\b(i tried|i got|i found|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
-    /\b(i added|i subtracted|i calculated|and got)\b/.test(lower) ||
+    /\b(i added|i subtracted|i calculated|i evaluated|i did|i worked out|i simplified|and got)\b/.test(lower) ||
     prompt.includes('=')
   const asksForCurriculumContext =
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
