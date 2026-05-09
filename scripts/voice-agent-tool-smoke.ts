@@ -612,6 +612,36 @@ assert(
   'math_check_step should catch coordinate-triangle base-times-altitude area mistakes.'
 )
 
+const validCoordinateTriangleMeasurementsStep = mathCheckStep(
+  'measurements of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB',
+  'base AB is 6, height is 4, area is 12'
+)
+assert(
+  validCoordinateTriangleMeasurementsStep.verdict === 'valid' &&
+    validCoordinateTriangleMeasurementsStep.reason.includes('base, perpendicular altitude, and area'),
+  'math_check_step should validate coordinate-triangle base, altitude, and area together.'
+)
+
+const invalidCoordinateTriangleSwappedMeasurementsStep = mathCheckStep(
+  'measurements of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB',
+  'base AB is 4, height is 6, area is 12'
+)
+assert(
+  invalidCoordinateTriangleSwappedMeasurementsStep.verdict === 'invalid' &&
+    invalidCoordinateTriangleSwappedMeasurementsStep.hintTarget.includes('base vertices'),
+  'math_check_step should reject swapped coordinate-triangle base and altitude even when the area happens to match.'
+)
+
+const invalidCoordinateTriangleMeasuredAreaStep = mathCheckStep(
+  'measurements of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB',
+  'base AB is 6, height is 4, area is 24'
+)
+assert(
+  invalidCoordinateTriangleMeasuredAreaStep.verdict === 'invalid' &&
+    invalidCoordinateTriangleMeasuredAreaStep.hintTarget.includes('halve'),
+  'math_check_step should still catch coordinate-triangle area mistakes after validating base and altitude.'
+)
+
 const invalidCoordinateTriangleHeightStep = mathCheckStep(
   'height to base AB of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4)',
   '4.472'

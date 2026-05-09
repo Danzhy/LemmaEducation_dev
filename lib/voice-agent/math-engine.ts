@@ -580,10 +580,59 @@ function checkCoordinateTriangleStep(previousStep: string, nextStep: string): Ma
           : null
   const baseClaim = parseCoordinateTriangleLabeledMeasurement(nextStep, 'base')
   const heightClaim = parseCoordinateTriangleLabeledMeasurement(nextStep, 'height')
-  const hasExplicitAreaClaim = /\barea\b/i.test(nextStep) || target === 'area'
+  const hasMeasurementClaim = baseClaim !== null || heightClaim !== null
+  const hasExplicitAreaClaim = /\barea\b/i.test(nextStep) || (target === 'area' && !hasMeasurementClaim)
   const areaClaim = hasExplicitAreaClaim ? parseCoordinateTriangleAreaClaim(nextStep) : null
   const plainClaim = parseLastPlainNumber(nextStep)
   const reasonPrefix = coordinateTriangleReasonPrefix(metrics)
+
+  if (baseClaim !== null && heightClaim !== null && areaClaim !== null) {
+    const baseMatches = isNearlyEqual(metrics.baseLength, baseClaim, 0.01)
+    const heightMatches = isNearlyEqual(metrics.altitudeLength, heightClaim, 0.01)
+    const areaMatches = isNearlyEqual(metrics.triangleArea, areaClaim, 0.01)
+    const rectangleArea = metrics.baseLength * metrics.altitudeLength
+    const usedSlantedSide = metrics.slantedSideLengths.some((length) => isNearlyEqual(length, heightClaim, 0.01))
+    const issueParts: string[] = []
+    if (!baseMatches) {
+      issueParts.push(`The base length is ${formatNumber(metrics.baseLength, 4)}, not ${formatNumber(baseClaim, 4)}.`)
+    }
+    if (!heightMatches) {
+      issueParts.push(
+        `The perpendicular altitude is ${formatNumber(metrics.altitudeLength, 4)}, not ${formatNumber(heightClaim, 4)}.`
+      )
+    }
+    if (!areaMatches) {
+      issueParts.push(
+        `The area is ${formatNumber(metrics.baseLength, 4)} x ${formatNumber(metrics.altitudeLength, 4)} / 2 = ${formatNumber(
+          metrics.triangleArea,
+          4
+        )} square units, not ${formatNumber(areaClaim, 4)}.`
+      )
+    }
+
+    return {
+      verdict: baseMatches && heightMatches && areaMatches ? 'valid' : 'invalid',
+      reason:
+        baseMatches && heightMatches && areaMatches
+          ? `${reasonPrefix} The base, perpendicular altitude, and area all match: ${formatNumber(
+              metrics.baseLength,
+              4
+            )} x ${formatNumber(metrics.altitudeLength, 4)} / 2 = ${formatNumber(metrics.triangleArea, 4)} square units.`
+          : `${reasonPrefix} ${issueParts.join(' ')}`,
+      hintTarget:
+        baseMatches && heightMatches && areaMatches
+          ? 'explain how the coordinate base and perpendicular altitude determine the area'
+          : !baseMatches
+            ? 'measure the distance between the two chosen base vertices'
+            : !heightMatches
+              ? usedSlantedSide
+                ? 'use the perpendicular altitude, not a slanted side'
+                : 'drop a perpendicular from the opposite vertex to the chosen base'
+              : isNearlyEqual(rectangleArea, areaClaim, 0.01)
+                ? 'halve the base-times-altitude product for a triangle'
+                : 'use the verified base and perpendicular altitude before finding area',
+    }
+  }
 
   if (baseClaim !== null && heightClaim !== null) {
     const baseMatches = isNearlyEqual(metrics.baseLength, baseClaim, 0.01)

@@ -392,6 +392,23 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'preserves coordinate-triangle base and altitude attempts before checking area',
+    prompt: 'For triangle A(0, 0), B(6, 0), C(2, 4), using base AB, I used base 4 and height 6 and got area 12. Is that right?',
+    expectedTools: ['math_check_step', 'geometry_figure', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(
+        input.previousStep,
+        'measurements and area of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB'
+      )
+      assert.equal(input.nextStep, 'base AB is 4, height is 6, area is 12')
+      const geometryInput = plans[1].input
+      assert.equal(geometryInput.figureType, 'triangle')
+      assert.equal(geometryInput.showAltitude, true)
+      assert.equal(geometryInput.showTriangleAreaModel, true)
+      assert.deepEqual(geometryInput.baseVertexLabels, ['A', 'B'])
+    },
+  },
+  {
     name: 'routes coordinate-triangle area requests without treating vertices as an answer',
     prompt: 'Find the area of triangle A(0, 0), B(6, 0), C(2, 4) using base AB.',
     expectedTools: ['geometry_figure'],

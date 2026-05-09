@@ -2565,6 +2565,14 @@ function extractLocalCoordinateTriangleAreaAnswer(text: string) {
 
 function extractLocalCoordinateTriangleMeasurementAnswer(text: string, kind: 'base' | 'height') {
   const labelPattern = kind === 'base' ? 'base(?:\\s+[A-Z]\\s*[A-Z])?' : '(?:height|altitude)'
+  const directMeasureMatch = text.match(
+    new RegExp(`\\b${labelPattern}\\b\\s*(?:length)?\\s*(?:is|=|:|as|equals?|of)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (directMeasureMatch) {
+    const answer = parseLocalPlainNumber(directMeasureMatch[1])
+    if (answer !== null) return answer
+  }
+
   const beforeMeasureMatch = text.match(
     new RegExp(`\\b(?:got|found|calculated|answer(?:\\s+is)?|think)\\s+(${LOCAL_NUMBER_PATTERN})\\s+(?:for\\s+)?(?:the\\s+)?${labelPattern}\\b`, 'i')
   )
@@ -2584,23 +2592,48 @@ function extractLocalCoordinateTriangleMeasurementAnswer(text: string, kind: 'ba
   return null
 }
 
+function buildCoordinateTriangleMeasurementStepPair(
+  vertices: LocalTriangleVertex[],
+  baseLabels: string[],
+  nextStep: string
+) {
+  const verticesText = formatLocalTriangleVerticesForStep(vertices)
+  const baseName = baseLabels.join('')
+  return buildStepPair(
+    `measurements and area of coordinate triangle with vertices ${verticesText} using base ${baseName}`,
+    nextStep
+  )
+}
+
 function extractCoordinateTriangleAttempt(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const vertices = extractLocalTriangleVertices(normalized)
   if (!vertices) return null
 
   const baseLabels = extractLocalTriangleBaseLabels(normalized, vertices)
+  const baseAnswer = extractLocalCoordinateTriangleMeasurementAnswer(normalized, 'base')
+  const heightAnswer = extractLocalCoordinateTriangleMeasurementAnswer(normalized, 'height')
   const areaAnswer = extractLocalCoordinateTriangleAreaAnswer(normalized)
+  if (baseAnswer !== null && heightAnswer !== null) {
+    const baseName = baseLabels.join('')
+    const nextStep =
+      areaAnswer !== null && /\barea\b/i.test(normalized)
+        ? `base ${baseName} is ${formatLocalNumber(baseAnswer)}, height is ${formatLocalNumber(heightAnswer)}, area is ${formatLocalNumber(
+            areaAnswer
+          )}`
+        : `base ${baseName} is ${formatLocalNumber(baseAnswer)} and height is ${formatLocalNumber(heightAnswer)}`
+    const pair = buildCoordinateTriangleMeasurementStepPair(vertices, baseLabels, nextStep)
+    if (pair) return pair
+  }
+
   if (areaAnswer !== null && /\barea\b/i.test(normalized)) {
     return buildCoordinateTriangleStepPair(vertices, baseLabels, 'area', areaAnswer)
   }
 
-  const heightAnswer = extractLocalCoordinateTriangleMeasurementAnswer(normalized, 'height')
   if (heightAnswer !== null && /\b(height|altitude)\b/i.test(normalized)) {
     return buildCoordinateTriangleStepPair(vertices, baseLabels, 'height', heightAnswer)
   }
 
-  const baseAnswer = extractLocalCoordinateTriangleMeasurementAnswer(normalized, 'base')
   if (baseAnswer !== null && /\bbase\b/i.test(normalized)) {
     return buildCoordinateTriangleStepPair(vertices, baseLabels, 'base', baseAnswer)
   }

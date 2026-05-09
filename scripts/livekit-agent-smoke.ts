@@ -420,6 +420,27 @@ async function main() {
     },
     { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-triangle-area-step-check' }
   )
+  const validCoordinateTriangleMeasurementsStep = await tools.math_check_step.execute(
+    {
+      previousStep: 'measurements of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB',
+      nextStep: 'base AB is 6, height is 4, area is 12',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-coordinate-triangle-measurements-step-check' }
+  )
+  const invalidCoordinateTriangleSwappedMeasurementsStep = await tools.math_check_step.execute(
+    {
+      previousStep: 'measurements of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB',
+      nextStep: 'base AB is 4, height is 6, area is 12',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-triangle-swapped-measurements-step-check' }
+  )
+  const invalidCoordinateTriangleMeasuredAreaStep = await tools.math_check_step.execute(
+    {
+      previousStep: 'measurements of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4) using base AB',
+      nextStep: 'base AB is 6, height is 4, area is 24',
+    },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-triangle-measured-area-step-check' }
+  )
   const invalidCoordinateTriangleHeightStep = await tools.math_check_step.execute(
     {
       previousStep: 'height to base AB of coordinate triangle with vertices A(0, 0), B(6, 0), C(2, 4)',
@@ -1260,6 +1281,33 @@ async function main() {
   ) {
     throw new Error(
       `math_check_step did not reject a coordinate-triangle base-times-altitude mistake: ${JSON.stringify(invalidCoordinateTriangleAreaStep)}`
+    )
+  }
+
+  if (
+    !JSON.stringify(validCoordinateTriangleMeasurementsStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validCoordinateTriangleMeasurementsStep).includes('base, perpendicular altitude, and area')
+  ) {
+    throw new Error(
+      `math_check_step did not accept coordinate-triangle measurements with a matching area: ${JSON.stringify(validCoordinateTriangleMeasurementsStep)}`
+    )
+  }
+
+  if (
+    !JSON.stringify(invalidCoordinateTriangleSwappedMeasurementsStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidCoordinateTriangleSwappedMeasurementsStep).includes('base vertices')
+  ) {
+    throw new Error(
+      `math_check_step did not reject swapped coordinate-triangle base and altitude claims: ${JSON.stringify(invalidCoordinateTriangleSwappedMeasurementsStep)}`
+    )
+  }
+
+  if (
+    !JSON.stringify(invalidCoordinateTriangleMeasuredAreaStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidCoordinateTriangleMeasuredAreaStep).includes('halve')
+  ) {
+    throw new Error(
+      `math_check_step did not reject coordinate-triangle area mistakes after checking measurements: ${JSON.stringify(invalidCoordinateTriangleMeasuredAreaStep)}`
     )
   }
 
