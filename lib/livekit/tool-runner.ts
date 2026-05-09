@@ -33,6 +33,7 @@ type JsonSchemaObject = {
   enum?: unknown
   additionalProperties?: unknown
   properties?: Record<string, JsonSchemaObject | boolean>
+  required?: unknown
   items?: JsonSchemaObject | boolean | Array<JsonSchemaObject | boolean>
   anyOf?: Array<JsonSchemaObject | boolean>
   oneOf?: Array<JsonSchemaObject | boolean>
@@ -115,6 +116,20 @@ function formatEnumValues(values: unknown) {
     : ''
 }
 
+function getRequiredProperties(schema: JsonSchemaObject) {
+  return Array.isArray(schema.required)
+    ? schema.required.filter((key): key is string => typeof key === 'string')
+    : []
+}
+
+function schemaAllowsNull(schema: JsonSchemaObject | boolean | undefined): boolean {
+  if (!schema || typeof schema === 'boolean') return false
+  if (schema.type === 'null' || (Array.isArray(schema.type) && schema.type.includes('null'))) {
+    return true
+  }
+  return [...(schema.anyOf ?? []), ...(schema.oneOf ?? [])].some(schemaAllowsNull)
+}
+
 function assertSchemaVariants(
   label: 'anyOf' | 'oneOf',
   schemas: Array<JsonSchemaObject | boolean> | undefined,
@@ -178,6 +193,18 @@ function assertAllowedSchemaProperties(
           `Tool input contains unsupported field${formatToolInputPath([...path, unknownProperties[0]])}.`
         )
       }
+    }
+
+    const requiredProperties = getRequiredProperties(schema).filter(
+      (key) => !schemaAllowsNull(schema.properties?.[key])
+    )
+    const missingRequiredProperty = requiredProperties.find(
+      (key) => !Object.prototype.hasOwnProperty.call(value, key)
+    )
+    if (missingRequiredProperty) {
+      throw new Error(
+        `Tool input is missing required field${formatToolInputPath([...path, missingRequiredProperty])}.`
+      )
     }
 
     for (const [key, childSchema] of Object.entries(schema.properties ?? {})) {

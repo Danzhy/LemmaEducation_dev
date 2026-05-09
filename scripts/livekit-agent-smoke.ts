@@ -146,6 +146,31 @@ async function main() {
     oversizedCanvasArrayRejected =
       error instanceof Error && /field\.points.*too many items/i.test(error.message)
   }
+  let missingRequiredToolFieldRejected = false
+  try {
+    await tools.math_check_step.execute(
+      {
+        previousStep: '1/2 + 1/3',
+      },
+      { ctx: {} as never, toolCallId: 'smoke-missing-required-tool-field-rejection' }
+    )
+  } catch (error) {
+    missingRequiredToolFieldRejected =
+      error instanceof Error && /missing required field\.nextStep/i.test(error.message)
+  }
+  let missingNestedRequiredToolFieldRejected = false
+  try {
+    await runLiveKitTutorTool(
+      'slope_triangle',
+      {
+        pointA: { x: 1, y: 2 },
+        pointB: { x: 5 },
+      }
+    )
+  } catch (error) {
+    missingNestedRequiredToolFieldRejected =
+      error instanceof Error && /missing required field\.pointB\.y/i.test(error.message)
+  }
   const validMixedNumberStep = await tools.math_check_step.execute(
     { previousStep: '1 1/2 + 2 1/4', nextStep: '3 3/4' },
     { ctx: {} as never, toolCallId: 'smoke-mixed-number-step-check' }
@@ -754,6 +779,14 @@ async function main() {
 
   if (!oversizedCanvasArrayRejected) {
     throw new Error('LiveKit tool runner did not reject an oversized structured canvas array.')
+  }
+
+  if (!missingRequiredToolFieldRejected) {
+    throw new Error('LiveKit tool runner did not reject a missing required tool field.')
+  }
+
+  if (!missingNestedRequiredToolFieldRejected) {
+    throw new Error('LiveKit tool runner did not reject a missing nested required tool field.')
   }
 
   if (!JSON.stringify(validMixedNumberStep).includes('"verdict":"valid"')) {
