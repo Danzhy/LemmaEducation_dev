@@ -817,6 +817,26 @@ assert(
   'math_check_step should catch chart comparison mistakes.'
 )
 
+const validLineGraphIncreaseStep = mathCheckStep(
+  'line graph data: Monday 4, Tuesday 7, Wednesday 5; increase from Monday to Tuesday',
+  '3'
+)
+assert(
+  validLineGraphIncreaseStep.verdict === 'valid' &&
+    validLineGraphIncreaseStep.hintTarget.includes('trend'),
+  'math_check_step should validate line-graph increase claims.'
+)
+
+const invalidLineGraphDecreaseStep = mathCheckStep(
+  'line graph data: Monday 4, Tuesday 7, Wednesday 5; decrease from Tuesday to Wednesday',
+  '3'
+)
+assert(
+  invalidLineGraphDecreaseStep.verdict === 'invalid' &&
+    invalidLineGraphDecreaseStep.hintTarget.includes('decrease'),
+  'math_check_step should catch line-graph decrease mistakes.'
+)
+
 const validProbabilityStep = mathCheckStep('probability of 3 favorable outcomes out of 8', '3/8')
 assert(
   validProbabilityStep.verdict === 'valid' &&

@@ -1269,7 +1269,7 @@ function formatLocalDataItems(items: LocalLabeledDataItem[]) {
 function parseLocalLabeledDataItems(text: string): LocalLabeledDataItem[] {
   const normalized = normalizeLocalPromptText(text)
   const beforeClaim = normalized.split(
-    /\b(?:(?:value|amount|count|number)\s+(?:for|of|at)|how\s+many\s+(?:more|fewer|less)|difference\s+between|total\s+(?:for|of)?|sum\s+(?:for|of)?|altogether|in\s+all|combined)\b/i
+    /\b(?:(?:value|amount|count|number)\s+(?:for|of|at)|how\s+many\s+(?:more|fewer|less)|difference\s+between|total\s+(?:for|of)?|sum\s+(?:for|of)?|altogether|in\s+all|combined|increase(?:d)?\s+from|decrease(?:d)?\s+from|went\s+up\s+from|went\s+down\s+from|rose\s+from|fell\s+from|change(?:d)?\s+from)\b/i
   )[0]
   const afterChartLabel =
     beforeClaim.match(
@@ -1337,6 +1337,36 @@ function extractLocalDataDisplayComputation(
   items: LocalLabeledDataItem[]
 ): { canonical: string; endIndex: number } | null {
   const normalized = normalizeLocalPromptText(text)
+  const trendPatterns: Array<{ label: 'increase' | 'decrease'; patterns: RegExp[] }> = [
+    {
+      label: 'increase',
+      patterns: [
+        /\b(?:increase(?:d)?|went\s+up|rose)\s+(?:from\s+)?([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:to|through)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:by|is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
+        /\bfrom\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:to|through)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:it\s+)?(?:increase(?:d)?|went\s+up|rose)\b/i,
+      ],
+    },
+    {
+      label: 'decrease',
+      patterns: [
+        /\b(?:decrease(?:d)?|went\s+down|fell|dropped)\s+(?:from\s+)?([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:to|through)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:by|is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
+        /\bfrom\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:to|through)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:it\s+)?(?:decrease(?:d)?|went\s+down|fell|dropped)\b/i,
+      ],
+    },
+  ]
+
+  for (const trend of trendPatterns) {
+    for (const pattern of trend.patterns) {
+      const match = normalized.match(pattern)
+      const pair = match ? extractLocalDataPair(items, match[1], match[2]) : null
+      if (match && typeof match.index === 'number' && pair) {
+        return {
+          canonical: `${trend.label} from ${pair.first.label} to ${pair.second.label}`,
+          endIndex: match.index + match[0].length,
+        }
+      }
+    }
+  }
+
   const pairPatterns = [
     /\b(?:how\s+many\s+)?(?:more|fewer|less)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:than|compared\s+to)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
     /\bdifference\s+(?:between|of|for)?\s*([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:and|vs\.?|versus|to)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
@@ -3181,6 +3211,7 @@ export function planLocalToolTurn(
     /\b(mean|average|median|mode|range)\b.{0,120}\b(is|was|equals?|got)\b/.test(lower) ||
     /\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display)\b.{0,180}\b(value|amount|count|number)\b.{0,80}\b(is|was|equals?|got)\b/.test(lower) ||
     /\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display)\b.{0,220}\b(more|fewer|less|difference|total|sum|altogether|in\s+all|combined)\b.{0,80}\b(is|was|equals?|got)\b/.test(lower) ||
+    /\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display)\b.{0,220}\b(increase(?:d)?|decrease(?:d)?|went\s+up|went\s+down|rose|fell|dropped)\b.{0,100}\b(by|is|was|equals?|got)\b/.test(lower) ||
     /\b(probability|chance)\b.{0,140}\b(is|was|equals?|got|as)\b/.test(lower)
   const hasStudentAttempt = hasExplicitStudentAttempt || Boolean(studentStepPair)
   const asksForCurriculumContext =

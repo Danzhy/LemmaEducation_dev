@@ -483,6 +483,14 @@ async function main() {
     { previousStep: 'line plot data: Monday 4, Tuesday 7, Wednesday 5; how many more Tuesday than Monday', nextStep: '2' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-line-plot-comparison-step-check' }
   )
+  const validLineGraphIncreaseStep = await tools.math_check_step.execute(
+    { previousStep: 'line graph data: Monday 4, Tuesday 7, Wednesday 5; increase from Monday to Tuesday', nextStep: '3' },
+    { ctx: {} as never, toolCallId: 'smoke-line-graph-increase-step-check' }
+  )
+  const invalidLineGraphDecreaseStep = await tools.math_check_step.execute(
+    { previousStep: 'line graph data: Monday 4, Tuesday 7, Wednesday 5; decrease from Tuesday to Wednesday', nextStep: '3' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-line-graph-decrease-step-check' }
+  )
   const validProbabilityStep = await tools.math_check_step.execute(
     { previousStep: 'probability of 3 favorable outcomes out of 8', nextStep: '3/8' },
     { ctx: {} as never, toolCallId: 'smoke-probability-step-check' }
@@ -1280,6 +1288,20 @@ async function main() {
     !JSON.stringify(invalidLinePlotComparisonStep).includes('subtract')
   ) {
     throw new Error(`math_check_step did not reject a chart comparison mistake: ${JSON.stringify(invalidLinePlotComparisonStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validLineGraphIncreaseStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validLineGraphIncreaseStep).includes('trend')
+  ) {
+    throw new Error(`math_check_step did not accept a line-graph increase claim: ${JSON.stringify(validLineGraphIncreaseStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidLineGraphDecreaseStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidLineGraphDecreaseStep).includes('decrease')
+  ) {
+    throw new Error(`math_check_step did not reject a line-graph decrease mistake: ${JSON.stringify(invalidLineGraphDecreaseStep)}`)
   }
 
   if (

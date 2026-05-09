@@ -965,7 +965,7 @@ function cleanDataDisplayLabel(label: string) {
 function parseLabeledDataItems(text: string): LabeledDataItem[] {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const beforeClaim = normalized.split(
-    /\b(?:(?:value|amount|count|number)\s+(?:for|of|at)|how\s+many\s+(?:more|fewer|less)|difference\s+between|total\s+(?:for|of)?|sum\s+(?:for|of)?|altogether|in\s+all|combined)\b/i
+    /\b(?:(?:value|amount|count|number)\s+(?:for|of|at)|how\s+many\s+(?:more|fewer|less)|difference\s+between|total\s+(?:for|of)?|sum\s+(?:for|of)?|altogether|in\s+all|combined|increase(?:d)?\s+from|decrease(?:d)?\s+from|went\s+up\s+from|went\s+down\s+from|rose\s+from|fell\s+from|change(?:d)?\s+from)\b/i
   )[0]
   const afterChartLabel =
     beforeClaim.match(
@@ -1057,12 +1057,49 @@ type DataDisplayComputation =
       second: LabeledDataItem
     }
   | {
+      kind: 'trend'
+      direction: 'increase' | 'decrease'
+      first: LabeledDataItem
+      second: LabeledDataItem
+    }
+  | {
       kind: 'total'
       items: LabeledDataItem[]
     }
 
 function extractDataDisplayComputation(items: LabeledDataItem[], text: string): DataDisplayComputation | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const trendPatterns: Array<{ direction: 'increase' | 'decrease'; patterns: RegExp[] }> = [
+    {
+      direction: 'increase',
+      patterns: [
+        /\b(?:increase(?:d)?|went\s+up|rose)\s+(?:from\s+)?([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:to|through)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:by|is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
+        /\bfrom\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:to|through)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:it\s+)?(?:increase(?:d)?|went\s+up|rose)\b/i,
+      ],
+    },
+    {
+      direction: 'decrease',
+      patterns: [
+        /\b(?:decrease(?:d)?|went\s+down|fell|dropped)\s+(?:from\s+)?([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:to|through)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:by|is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
+        /\bfrom\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:to|through)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:it\s+)?(?:decrease(?:d)?|went\s+down|fell|dropped)\b/i,
+      ],
+    },
+  ]
+
+  for (const trend of trendPatterns) {
+    for (const pattern of trend.patterns) {
+      const match = normalized.match(pattern)
+      const pair = match ? extractDataDisplayPair(items, match[1], match[2]) : null
+      if (pair) {
+        return {
+          kind: 'trend',
+          direction: trend.direction,
+          ...pair,
+        }
+      }
+    }
+  }
+
   const pairPatterns = [
     /\b(?:how\s+many\s+)?(?:more|fewer|less)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:than|compared\s+to)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
     /\bdifference\s+(?:between|of|for)?\s*([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:and|vs\.?|versus|to)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:is|was|equals?|=|should|right|wrong|got)\b|[?!.;,]|$)/i,
@@ -1118,6 +1155,21 @@ function formatDataDisplayLabels(items: LabeledDataItem[]) {
     .join(', ')}, and ${items[items.length - 1].displayLabel}`
 }
 
+function describeDataTrend(start: LabeledDataItem, end: LabeledDataItem) {
+  const delta = end.value - start.value
+  const amount = Math.abs(delta)
+  const direction = delta > 0 ? 'increased' : delta < 0 ? 'decreased' : 'stayed the same'
+  return {
+    delta,
+    amount,
+    direction,
+    sentence:
+      direction === 'stayed the same'
+        ? `${start.displayLabel} and ${end.displayLabel} both show ${formatNumber(start.value, 4)}, so the value stayed the same.`
+        : `From ${start.displayLabel} to ${end.displayLabel}, the value ${direction} by ${formatNumber(amount, 4)}.`,
+  }
+}
+
 function checkDataDisplayValueStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
   const combined = `${previousStep} ${nextStep}`
   if (!/\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|chart)\b/i.test(combined)) {
@@ -1132,6 +1184,30 @@ function checkDataDisplayValueStep(previousStep: string, nextStep: string): Math
   const chartKind = /\bline\s+(?:plot|graph)\b/i.test(combined) ? 'line plot' : 'bar chart'
 
   if (computation && studentComputationValue !== null) {
+    if (computation.kind === 'trend') {
+      const trend = describeDataTrend(computation.first, computation.second)
+      const expectedSignedChange = computation.direction === 'increase' ? trend.delta : -trend.delta
+      const requestedDirection = computation.direction === 'increase' ? 'increase' : 'decrease'
+      const trendMatches = expectedSignedChange >= 0 && isNearlyEqual(expectedSignedChange, studentComputationValue, 0.01)
+
+      return {
+        verdict: trendMatches ? 'valid' : 'invalid',
+        reason: trendMatches
+          ? `In the ${chartKind}, ${trend.sentence}`
+          : expectedSignedChange < 0
+            ? `In the ${chartKind}, ${trend.sentence} That is not a ${requestedDirection}.`
+            : `In the ${chartKind}, ${trend.sentence} The ${requestedDirection} is ${formatNumber(
+                expectedSignedChange,
+                4
+              )}, not ${formatNumber(studentComputationValue, 4)}.`,
+        hintTarget: trendMatches
+          ? 'explain the trend using the starting and ending values'
+          : computation.direction === 'increase'
+            ? 'subtract the starting value from the ending value for an increase'
+            : 'subtract the ending value from the starting value for a decrease',
+      }
+    }
+
     if (computation.kind === 'difference') {
       const expectedDifference = Math.abs(computation.first.value - computation.second.value)
       const differenceMatches = isNearlyEqual(expectedDifference, studentComputationValue, 0.01)

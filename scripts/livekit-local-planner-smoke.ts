@@ -902,6 +902,22 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks line-graph trend claims before classifying the mistake',
+    prompt: 'The line graph has Monday 4, Tuesday 7, and Wednesday 5. It decreased from Tuesday to Wednesday by 3. Is that right?',
+    expectedTools: ['math_check_step', 'data_display', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'line plot data: monday 4, tuesday 7, wednesday 5; decrease from tuesday to wednesday')
+      assert.equal(input.nextStep, '3')
+      assert.equal(plans[1].toolName, 'data_display')
+      assert.equal(plans[1].input.displayType, 'line_plot')
+      assert.deepEqual(plans[1].input.data, [
+        { label: 'Monday', value: 4 },
+        { label: 'Tuesday', value: 7 },
+        { label: 'Wednesday', value: 5 },
+      ])
+    },
+  },
+  {
     name: 'checks statistics claims before classifying the mistake',
     prompt: 'The mean of 4, 7, 3, 7, 9 is 5. Is that right?',
     expectedTools: ['math_check_step', 'statistics_summary', 'mistake_pattern_classifier'],
