@@ -394,6 +394,7 @@ function hasMathStructure(value: string) {
     /\b(round|rounded|nearest|tenths?|hundredths?|thousandths?|ones?|tens?|hundreds?|thousands?)\b/i.test(value) ||
     /\b(area|perimeter|rectangle|rectangular|triangle|triangular|base|height|altitude)\b/i.test(value) ||
     /\b(angle|degrees?|complementary|complement|supplementary|supplement|linear\s+pair|straight\s+line)\b/i.test(value) ||
+    /\b(intercept|root|zero|x-axis|y-axis)\b/i.test(value) ||
     hasKnownUnitQuantity(value)
   )
 }
@@ -481,6 +482,79 @@ function extractSlopeAttempt(text: string): StudentStepPair | null {
     `slope from (${points[0].x}, ${points[0].y}) to (${points[1].x}, ${points[1].y})`,
     answer
   )
+}
+
+function extractGraphInterceptType(text: string): 'x' | 'y' | null {
+  if (/\b(?:x\s*[- ]?intercepts?|roots?|zeros?|cross(?:es|ing)?\s+the\s+x-axis|x-axis)\b/i.test(text)) {
+    return 'x'
+  }
+
+  if (/\b(?:y\s*[- ]?intercepts?|cross(?:es|ing)?\s+the\s+y-axis|y-axis|where\s+it\s+starts)\b/i.test(text)) {
+    return 'y'
+  }
+
+  return null
+}
+
+function extractFunctionExpressionForInterceptAttempt(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const match = normalized.match(
+    /\by\s*=\s*(.+?)(?=\s+(?:is|equals?|was|to|has|have|with|where|crosses?|intercepts?|and|i\s+got|i\s+found|my\s+answer)\b|\s*,\s*(?:point|\(?-?\d)|[?!.;]|$)/i
+  )
+  return match?.[1]?.trim().replace(/\s+$/g, '') || ''
+}
+
+function extractGraphInterceptAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const interceptType = extractGraphInterceptType(normalized)
+  if (!interceptType) return null
+
+  const expression = extractFunctionExpressionForInterceptAttempt(normalized)
+  if (!expression) return null
+
+  const points = extractCoordinatePoints(normalized)
+  if (points.length > 0) {
+    return buildStepPair(`${interceptType}-intercept of y = ${expression}`, points[0].raw)
+  }
+
+  if (/\b(?:no|none|neither|does\s+not|doesn't|never)\b/i.test(normalized)) {
+    return buildStepPair(`${interceptType}-intercept of y = ${expression}`, `no ${interceptType}-intercept`)
+  }
+
+  const answerAfterExpressionMatch = normalized.match(
+    new RegExp(`\\by\\s*=\\s*.+?\\s+(?:is|equals?|was|to|at)\\s*(${LOCAL_NUMBER_PATTERN})\\b`, 'i')
+  )
+  if (answerAfterExpressionMatch) {
+    return buildStepPair(`${interceptType}-intercept of y = ${expression}`, answerAfterExpressionMatch[1])
+  }
+
+  const interceptNumberMatch = normalized.match(
+    new RegExp(
+      `\\b(?:${interceptType}\\s*[- ]?intercept|intercept|root|zero|answer|got|found|think)\\s*(?:is|equals?|=|was|to|at)?\\s*(${LOCAL_NUMBER_PATTERN})\\b`,
+      'i'
+    )
+  )
+  if (interceptNumberMatch) {
+    return buildStepPair(`${interceptType}-intercept of y = ${expression}`, interceptNumberMatch[1])
+  }
+
+  return null
+}
+
+function buildLocalGraphInterceptBoardInputFromStepPair(stepPair: StudentStepPair) {
+  const interceptType = extractGraphInterceptType(stepPair.previousStep)
+  const expression = extractFunctionExpressionForInterceptAttempt(stepPair.previousStep)
+  if (!interceptType || !expression) return null
+
+  return {
+    expression,
+    domainStart: -5,
+    domainEnd: 5,
+    graphType: 'cartesian',
+    title: `Graph of y = ${expression}`,
+    showXIntercepts: interceptType === 'x',
+    showYIntercept: interceptType === 'y',
+  }
 }
 
 function extractLocalRectangleDimensions(text: string) {
@@ -1304,6 +1378,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const decimalRoundingAttempt = extractDecimalRoundingAttempt(normalized)
   if (decimalRoundingAttempt) return decimalRoundingAttempt
 
+  const graphInterceptAttempt = extractGraphInterceptAttempt(normalized)
+  if (graphInterceptAttempt) return graphInterceptAttempt
+
   const slopeAttempt = extractSlopeAttempt(normalized)
   if (slopeAttempt) return slopeAttempt
 
@@ -1357,7 +1434,7 @@ function inferLocalTopic(text: string) {
   if (/\bequation|variable|solve for x|\bx\b/.test(lower)) return 'equations'
   if (/\bnegative|positive|integer|signed|minus\b|-\d/.test(lower)) return 'integers'
   if (/\barea|perimeter|angle|geometry|rectangle|triangle|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?\b/.test(lower)) return 'geometry'
-  if (/\bgraph|coordinate|slope|point|axis|distance\b/.test(lower)) return 'graphing'
+  if (/\bgraph|coordinate|slope|point|axis|distance|intercept\b/.test(lower)) return 'graphing'
   if (/\bmean|median|mode|probability|chance|data\b/.test(lower)) return 'data'
   return text.slice(0, 120)
 }
@@ -1384,7 +1461,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|coordinate|distance|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?)\b/.test(lower)
+    /\b(graph|plot|parabola|function|coordinate|distance|intercept|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?)\b/.test(lower)
   const asksForMistakeHelp =
     /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|check this|is this right|is that right|am i right|is my step right|correct)\b/.test(lower)
   const needsSafetyBoundary =
@@ -1581,6 +1658,13 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
         plans.push({
           toolName: 'angle_diagram',
           input: angleDiagramInput,
+        })
+      }
+      const graphInterceptBoardInput = buildLocalGraphInterceptBoardInputFromStepPair(studentStepPair)
+      if (graphInterceptBoardInput) {
+        plans.push({
+          toolName: 'graph_function',
+          input: graphInterceptBoardInput,
         })
       }
     }

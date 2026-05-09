@@ -250,6 +250,14 @@ async function main() {
     { previousStep: 'slope from (1, 2) to (5, 6)', nextStep: '4' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-slope-step-check' }
   )
+  const validYInterceptStep = await tools.math_check_step.execute(
+    { previousStep: 'y-intercept of y = 2x + 4', nextStep: '(0, 4)' },
+    { ctx: {} as never, toolCallId: 'smoke-y-intercept-step-check' }
+  )
+  const invalidXInterceptStep = await tools.math_check_step.execute(
+    { previousStep: 'x-intercept of y = 2x + 4', nextStep: '(4, 0)' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-x-intercept-step-check' }
+  )
   const invalidNumericEqualityStep = await tools.math_check_step.execute(
     { previousStep: '3/4 = 6/8', nextStep: '3/4 = 7/8' },
     { ctx: {} as never, toolCallId: 'smoke-numeric-equality-step-check' }
@@ -744,6 +752,20 @@ async function main() {
     !JSON.stringify(invalidSlopeStep).includes('rise over run')
   ) {
     throw new Error(`math_check_step did not reject an invalid slope claim: ${JSON.stringify(invalidSlopeStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validYInterceptStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validYInterceptStep).includes('y-intercept')
+  ) {
+    throw new Error(`math_check_step did not accept a valid y-intercept claim: ${JSON.stringify(validYInterceptStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidXInterceptStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidXInterceptStep).includes('x-intercept')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid x-intercept claim: ${JSON.stringify(invalidXInterceptStep)}`)
   }
 
   if (!JSON.stringify(invalidNumericEqualityStep).includes('"verdict":"invalid"')) {

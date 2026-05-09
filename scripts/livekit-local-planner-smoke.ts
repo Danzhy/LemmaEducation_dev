@@ -294,6 +294,19 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks graph intercept claims before classifying the mistake',
+    prompt: 'The x-intercept of y = 2x + 4 is (4, 0). Is that right?',
+    expectedTools: ['math_check_step', 'graph_function', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'x-intercept of y = 2x + 4')
+      assert.equal(input.nextStep, '(4, 0)')
+      assert.equal(plans[1].toolName, 'graph_function')
+      assert.equal(plans[1].input.expression, '2x + 4')
+      assert.equal(plans[1].input.showXIntercepts, true)
+      assert.equal(plans[1].input.showYIntercept, false)
+    },
+  },
+  {
     name: 'checks rectangle area attempts before classifying the mistake',
     prompt: 'I got the area of a 7 by 4 rectangle as 22. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],

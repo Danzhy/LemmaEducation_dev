@@ -606,6 +606,20 @@ assert(
   'math_check_step should validate undefined slope for vertical lines.'
 )
 
+const validYInterceptStep = mathCheckStep('y-intercept of y = 2x + 4', '(0, 4)')
+assert(
+  validYInterceptStep.verdict === 'valid' &&
+    validYInterceptStep.hintTarget.includes('y-intercept'),
+  'math_check_step should validate y-intercept claims.'
+)
+
+const invalidXInterceptStep = mathCheckStep('x-intercept of y = 2x + 4', '(4, 0)')
+assert(
+  invalidXInterceptStep.verdict === 'invalid' &&
+    invalidXInterceptStep.hintTarget.includes('x-intercept'),
+  'math_check_step should catch x-intercept claims that use the wrong axis condition.'
+)
+
 const validNumericEqualityStep = mathCheckStep('3/4 = 6/8', '0.75 = 0.75')
 assert(
   validNumericEqualityStep.verdict === 'valid',

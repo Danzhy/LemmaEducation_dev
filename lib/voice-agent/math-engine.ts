@@ -484,6 +484,154 @@ function checkSlopeStep(previousStep: string, nextStep: string): MathStepCheckRe
   }
 }
 
+type GraphInterceptType = 'x' | 'y'
+
+type GraphInterceptClaim =
+  | {
+      kind: 'none'
+    }
+  | {
+      kind: 'coordinate'
+      x: number
+      y: number
+    }
+  | {
+      kind: 'value'
+      value: number
+    }
+
+function extractGraphInterceptType(text: string): GraphInterceptType | null {
+  if (/\b(?:x\s*[- ]?intercepts?|roots?|zeros?|cross(?:es|ing)?\s+the\s+x-axis|x-axis)\b/i.test(text)) {
+    return 'x'
+  }
+
+  if (/\b(?:y\s*[- ]?intercepts?|cross(?:es|ing)?\s+the\s+y-axis|y-axis|where\s+it\s+starts)\b/i.test(text)) {
+    return 'y'
+  }
+
+  return null
+}
+
+function parseGraphInterceptClaim(text: string): GraphInterceptClaim | null {
+  if (/\b(?:no|none|neither|does\s+not|doesn't|never)\b/i.test(text) && /\bintercept|root|zero|cross/i.test(text)) {
+    return { kind: 'none' }
+  }
+
+  const point = parseCoordinatePoint(text)
+  if (point) {
+    return {
+      kind: 'coordinate',
+      x: point.x,
+      y: point.y,
+    }
+  }
+
+  const value = parseDistanceValue(text)
+  if (value !== null) {
+    return {
+      kind: 'value',
+      value,
+    }
+  }
+
+  return null
+}
+
+function formatGraphInterceptClaim(claim: GraphInterceptClaim) {
+  if (claim.kind === 'none') return 'no intercept'
+  if (claim.kind === 'coordinate') return `(${formatNumber(claim.x, 4)}, ${formatNumber(claim.y, 4)})`
+  return formatNumber(claim.value, 4)
+}
+
+function checkGraphInterceptStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\b(intercept|root|zero|x-axis|y-axis)\b/i.test(combined)) return null
+
+  const interceptType = extractGraphInterceptType(combined)
+  if (!interceptType) return null
+
+  const expression = extractFunctionExpressionForPointCheck(previousStep) ?? extractFunctionExpressionForPointCheck(combined)
+  const claim = parseGraphInterceptClaim(nextStep)
+  if (!expression || !claim) return null
+
+  try {
+    const { coefficient, intercept } = extractLinearCoefficients(expression)
+
+    if (interceptType === 'y') {
+      if (claim.kind === 'none') {
+        return {
+          verdict: 'invalid',
+          reason: `The y-intercept is where x = 0. Substituting x = 0 gives y = ${formatNumber(intercept, 4)}.`,
+          hintTarget: 'substitute x = 0 before finding the y-intercept',
+        }
+      }
+
+      const claimedY = claim.kind === 'coordinate' ? claim.y : claim.value
+      const axisMatches = claim.kind !== 'coordinate' || isNearlyEqual(claim.x, 0, 0.01)
+      const valueMatches = axisMatches && isNearlyEqual(claimedY, intercept, 0.01)
+
+      return {
+        verdict: valueMatches ? 'valid' : 'invalid',
+        reason: valueMatches
+          ? `The y-intercept is where x = 0. Substituting x = 0 gives y = ${formatNumber(intercept, 4)}.`
+          : claim.kind === 'coordinate' && !axisMatches
+            ? `A y-intercept must have x = 0, but ${formatGraphInterceptClaim(claim)} has x = ${formatNumber(claim.x, 4)}. Substituting x = 0 gives y = ${formatNumber(intercept, 4)}.`
+            : `The y-intercept is where x = 0. Substituting x = 0 gives y = ${formatNumber(intercept, 4)}, not ${formatGraphInterceptClaim(claim)}.`,
+        hintTarget: valueMatches
+          ? 'explain why x = 0 at a y-intercept'
+          : 'substitute x = 0 before finding the y-intercept',
+      }
+    }
+
+    const horizontalLine = isNearlyEqual(coefficient, 0)
+    if (horizontalLine) {
+      if (isNearlyEqual(intercept, 0)) {
+        return {
+          verdict: 'unclear',
+          reason: 'This graph is y = 0, so every point on the line lies on the x-axis. Name a specific point if the problem asks for one.',
+          hintTarget: 'clarify which x-intercept point the problem wants',
+        }
+      }
+
+      return {
+        verdict: claim.kind === 'none' ? 'valid' : 'invalid',
+        reason: `This horizontal line has y = ${formatNumber(intercept, 4)}, so it never reaches y = 0 and has no x-intercept.`,
+        hintTarget: claim.kind === 'none'
+          ? 'explain why the line never crosses the x-axis'
+          : 'set y = 0 before finding the x-intercept',
+      }
+    }
+
+    if (claim.kind === 'none') {
+      const expectedX = -intercept / coefficient
+      return {
+        verdict: 'invalid',
+        reason: `The x-intercept is where y = 0. Solving ${expression} = 0 gives x = ${formatNumber(expectedX, 4)}.`,
+        hintTarget: 'set y = 0 before finding the x-intercept',
+      }
+    }
+
+    const expectedX = -intercept / coefficient
+    const claimedX = claim.kind === 'coordinate' ? claim.x : claim.value
+    const axisMatches = claim.kind !== 'coordinate' || isNearlyEqual(claim.y, 0, 0.01)
+    const valueMatches = axisMatches && isNearlyEqual(claimedX, expectedX, 0.01)
+
+    return {
+      verdict: valueMatches ? 'valid' : 'invalid',
+      reason: valueMatches
+        ? `The x-intercept is where y = 0. Solving ${expression} = 0 gives x = ${formatNumber(expectedX, 4)}.`
+        : claim.kind === 'coordinate' && !axisMatches
+          ? `An x-intercept must have y = 0, but ${formatGraphInterceptClaim(claim)} has y = ${formatNumber(claim.y, 4)}. Solving ${expression} = 0 gives x = ${formatNumber(expectedX, 4)}.`
+          : `The x-intercept is where y = 0. Solving ${expression} = 0 gives x = ${formatNumber(expectedX, 4)}, not ${formatGraphInterceptClaim(claim)}.`,
+      hintTarget: valueMatches
+        ? 'explain why y = 0 at an x-intercept'
+        : 'set y = 0 before finding the x-intercept',
+    }
+  } catch {
+    return null
+  }
+}
+
 const PLAIN_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
 
 function parsePlainNumber(token: string) {
@@ -1597,6 +1745,9 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
   const combined = `${previousStep} ${nextStep}`
   const compactCombined = normalizeExpression(combined)
   return {
+    hasGraphInterceptWork:
+      /\b(intercept|root|zero|x-axis|y-axis)\b/i.test(combined) &&
+      /\by\s*=/.test(combined),
     hasCoordinateDistanceWork:
       /\bdistance|length\b/i.test(combined) &&
       /\(\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*\)/.test(combined),
@@ -1653,6 +1804,9 @@ function hasOrderOfOperationsFocus(features: ReturnType<typeof detectStepFeature
 }
 
 function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures>) {
+  if (features.hasGraphInterceptWork) {
+    return 'use the axis condition for the requested intercept'
+  }
   if (features.hasCoordinateDistanceWork) {
     return 'use horizontal and vertical changes before deciding the distance'
   }
@@ -3417,6 +3571,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
       reason: 'The two steps are algebraically the same.',
       hintTarget: 'keep going from the same equation',
     }
+  }
+
+  const graphInterceptStep = checkGraphInterceptStep(previousStep, nextStep)
+  if (graphInterceptStep) {
+    return graphInterceptStep
   }
 
   const coordinatePointStep = checkCoordinatePointStep(previousStep, nextStep)
