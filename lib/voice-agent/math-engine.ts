@@ -74,8 +74,34 @@ function safeEvaluate(expression: string, scope?: Record<string, number>) {
   return evaluate(expression, scope ?? {})
 }
 
+function hasMixedNumber(text: string) {
+  return /(^|[^A-Za-z0-9_.])-?\d+\s+\d+\s*\/\s*\d+(?=$|[^A-Za-z0-9_.])/.test(text)
+}
+
+function normalizeMixedNumbers(expression: string) {
+  return expression.replace(
+    /(^|[^A-Za-z0-9_.])(-?\d+)\s+(\d+)\s*\/\s*(\d+)(?=$|[^A-Za-z0-9_.])/g,
+    (match, prefix: string, wholeRaw: string, numeratorRaw: string, denominatorRaw: string) => {
+      const whole = Number(wholeRaw)
+      const numerator = Number(numeratorRaw)
+      const denominator = Number(denominatorRaw)
+      if (
+        !Number.isFinite(whole) ||
+        !Number.isFinite(numerator) ||
+        !Number.isFinite(denominator) ||
+        denominator === 0
+      ) {
+        return match
+      }
+
+      const sign = whole < 0 ? '-' : ''
+      return `${prefix}${sign}(${Math.abs(whole)}+${numerator}/${denominator})`
+    }
+  )
+}
+
 function normalizeExpression(expression: string) {
-  return expression
+  return normalizeMixedNumbers(expression)
     .replace(/\bof\b/gi, '*')
     .replace(/\s+/g, '')
     .replace(/×/g, '*')
@@ -227,8 +253,10 @@ function parseSimpleRatio(expression: string) {
 }
 
 function parseUnitQuantity(expression: string): ParsedUnitQuantity | null {
-  const compact = expression.replace(/,/g, '').replace(/\s+/g, '')
-  const match = compact.match(/^(-?(?:\d+(?:\.\d+)?|\.\d+)(?:\/(?:\d+(?:\.\d+)?|\.\d+))?)([a-zA-Z]+)$/)
+  const compact = expression.replace(/,/g, '').trim()
+  const match = compact.match(
+    /^(-?(?:\d+(?:\.\d+)?|\.\d+)(?:\s+\d+\s*\/\s*\d+|\s*\/\s*(?:\d+(?:\.\d+)?|\.\d+))?)\s*([a-zA-Z]+)$/
+  )
   if (!match) {
     return null
   }
@@ -238,7 +266,7 @@ function parseUnitQuantity(expression: string): ParsedUnitQuantity | null {
     return null
   }
 
-  const value = coerceFiniteNumber(safeEvaluate(match[1]))
+  const value = coerceFiniteNumber(safeEvaluate(normalizeExpression(match[1])))
   const factors = UNIT_FACTORS[unitAlias.measurementType] as unknown as Record<string, number>
   const factor = factors[unitAlias.unit]
   if (!Number.isFinite(factor)) {
@@ -255,7 +283,7 @@ function parseUnitQuantity(expression: string): ParsedUnitQuantity | null {
 
 function hasKnownUnitQuantity(text: string) {
   const matches = text.matchAll(
-    /-?(?:\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*(?:\d+(?:\.\d+)?|\.\d+))?\s*([a-zA-Z]+)/g
+    /-?(?:\d+(?:\.\d+)?|\.\d+)(?:\s+\d+\s*\/\s*\d+|\s*\/\s*(?:\d+(?:\.\d+)?|\.\d+))?\s*([a-zA-Z]+)/g
   )
   for (const match of matches) {
     if (UNIT_ALIASES[match[1].toLowerCase()]) return true
@@ -504,6 +532,7 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
       /\b(slope|rate of change|rise|run)\b/i.test(combined) &&
       /\(\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*\)/.test(combined),
     hasUnitConversionWork: hasKnownUnitQuantity(combined),
+    hasMixedNumberWork: hasMixedNumber(previousStep) || hasMixedNumber(nextStep),
     hasFractionWork: /\d+\s*\/\s*\d+/.test(combined),
     hasPercentWork: /%|\bpercent\b/i.test(combined),
     hasRatioWork: /-?\d+(?:\.\d+)?\s*:\s*-?\d+(?:\.\d+)?/.test(combined),
@@ -521,6 +550,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasUnitConversionWork) {
     return 'use the conversion factor and keep the measurement type the same'
+  }
+  if (features.hasMixedNumberWork) {
+    return 'convert mixed numbers to improper fractions or combine whole and fraction parts carefully'
   }
   if (features.hasFractionWork) {
     return 'recheck the common denominator or fraction operation'
@@ -2288,15 +2320,21 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
             ? 'Both measurements are the same amount after converting units.'
             : comparesRatios
             ? `Both ratios have the same quotient, ${formatNumber(prevValue, 4)}.`
+            : stepFeatures.hasMixedNumberWork
+            ? `Both mixed-number expressions have the same value, ${formatNumber(prevValue, 4)}.`
             : `Both expressions have the same value, ${formatNumber(prevValue, 4)}.`
           : comparesUnits
             ? `The measurement changed after converting units, from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)} in base units.`
+            : stepFeatures.hasMixedNumberWork
+            ? `The mixed-number value changed from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)}.`
             : `The value changed from ${formatNumber(prevValue, 4)} to ${formatNumber(nextValue, 4)}.`,
         hintTarget: valuesMatch
           ? comparesUnits
             ? 'explain the conversion factor that kept the measurement equivalent'
             : comparesRatios
             ? 'explain the scale factor that kept the ratio equivalent'
+            : stepFeatures.hasMixedNumberWork
+            ? 'explain how the mixed numbers were converted or combined'
             : 'explain why the value stayed the same'
           : expressionStepHintTarget(stepFeatures),
       }

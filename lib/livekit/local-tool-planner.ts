@@ -340,6 +340,44 @@ function extractLinearEquationAttempt(text: string): StudentStepPair | null {
   return buildStepPair(equations[0], equations[1])
 }
 
+function extractMixedNumberOperationAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const valuePattern = String.raw`-?(?:\d+\s+\d+\s*\/\s*\d+|\d+\s*\/\s*-?\d+|\d+(?:\.\d+)?|\.\d+)`
+  const answerVerb = String.raw`(?:got|gets|equals?|is|=)`
+
+  const additionMatch = normalized.match(
+    new RegExp(
+      `\\b(?:i\\s+)?(?:added|add)\\s+(${valuePattern})\\s+(?:and|plus|\\+)\\s+(${valuePattern})\\s+(?:and\\s+)?${answerVerb}\\s+(${valuePattern})`,
+      'i'
+    )
+  )
+  if (additionMatch) {
+    return buildStepPair(`${additionMatch[1]} + ${additionMatch[2]}`, additionMatch[3])
+  }
+
+  const subtractFromMatch = normalized.match(
+    new RegExp(
+      `\\b(?:i\\s+)?(?:subtracted|subtract)\\s+(${valuePattern})\\s+from\\s+(${valuePattern})\\s+(?:and\\s+)?${answerVerb}\\s+(${valuePattern})`,
+      'i'
+    )
+  )
+  if (subtractFromMatch) {
+    return buildStepPair(`${subtractFromMatch[2]} - ${subtractFromMatch[1]}`, subtractFromMatch[3])
+  }
+
+  const minusMatch = normalized.match(
+    new RegExp(
+      `\\b(${valuePattern})\\s+(?:minus|-)\\s+(${valuePattern})\\s+(?:and\\s+)?${answerVerb}\\s+(${valuePattern})`,
+      'i'
+    )
+  )
+  if (minusMatch) {
+    return buildStepPair(`${minusMatch[1]} - ${minusMatch[2]}`, minusMatch[3])
+  }
+
+  return null
+}
+
 function extractStudentStepPair(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
@@ -352,6 +390,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
 
   const linearEquationAttempt = extractLinearEquationAttempt(normalized)
   if (linearEquationAttempt) return linearEquationAttempt
+
+  const mixedNumberOperationAttempt = extractMixedNumberOperationAttempt(normalized)
+  if (mixedNumberOperationAttempt) return mixedNumberOperationAttempt
 
   const slopeAttempt = extractSlopeAttempt(normalized)
   if (slopeAttempt) return slopeAttempt
@@ -406,6 +447,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(lower)
   const hasStudentAttempt =
     /\b(i tried|i got|i found|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
+    /\b(i added|i subtracted|i calculated|and got)\b/.test(lower) ||
     prompt.includes('=')
   const asksForCurriculumContext =
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)

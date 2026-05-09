@@ -90,6 +90,24 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks natural mixed-number addition before classifying the mistake',
+    prompt: 'I added 1 1/2 and 2 1/4 and got 3 2/4. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '1 1/2 + 2 1/4')
+      assert.equal(input.nextStep, '3 2/4')
+    },
+  },
+  {
+    name: 'checks natural mixed-number subtraction before classifying the mistake',
+    prompt: 'I subtracted 1 1/4 from 3 1/2 and got 2 3/4. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '3 1/2 - 1 1/4')
+      assert.equal(input.nextStep, '2 3/4')
+    },
+  },
+  {
     name: 'checks explicit algebra rewrite before classifying the step',
     prompt: 'I changed 2x + 3 = 11 to 2x = 8. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],

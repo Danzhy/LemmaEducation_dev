@@ -208,6 +208,20 @@ assert(
   'math_check_step should catch invalid fraction expression steps.'
 )
 
+const validMixedNumberStep = mathCheckStep('1 1/2 + 2 1/4', '3 3/4')
+assert(
+  validMixedNumberStep.verdict === 'valid' &&
+    validMixedNumberStep.hintTarget.includes('mixed numbers'),
+  'math_check_step should validate equivalent mixed-number addition steps.'
+)
+
+const invalidMixedNumberStep = mathCheckStep('3 1/2 - 1 1/4', '2 3/4')
+assert(
+  invalidMixedNumberStep.verdict === 'invalid' &&
+    invalidMixedNumberStep.hintTarget.includes('mixed numbers'),
+  'math_check_step should catch mixed-number subtraction mistakes.'
+)
+
 const validArithmeticStep = mathCheckStep('3 + 4 * 2', '11')
 assert(validArithmeticStep.verdict === 'valid', 'math_check_step should validate equivalent arithmetic steps.')
 

@@ -60,6 +60,14 @@ async function main() {
     { previousStep: '1/2 + 1/3', nextStep: '2/5' },
     { ctx: {} as never, toolCallId: 'smoke-fraction-step-check' }
   )
+  const validMixedNumberStep = await tools.math_check_step.execute(
+    { previousStep: '1 1/2 + 2 1/4', nextStep: '3 3/4' },
+    { ctx: {} as never, toolCallId: 'smoke-mixed-number-step-check' }
+  )
+  const invalidMixedNumberStep = await tools.math_check_step.execute(
+    { previousStep: '3 1/2 - 1 1/4', nextStep: '2 3/4' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-mixed-number-step-check' }
+  )
   const validLinearStep = await tools.math_check_step.execute(
     { previousStep: '2x + 3 = 11', nextStep: '2x = 8' },
     { ctx: {} as never, toolCallId: 'smoke-linear-step-check' }
@@ -278,6 +286,17 @@ async function main() {
 
   if (!JSON.stringify(invalidFractionStep).includes('"verdict":"invalid"')) {
     throw new Error(`math_check_step did not reject an invalid fraction step: ${JSON.stringify(invalidFractionStep)}`)
+  }
+
+  if (!JSON.stringify(validMixedNumberStep).includes('"verdict":"valid"')) {
+    throw new Error(`math_check_step did not accept an equivalent mixed-number step: ${JSON.stringify(validMixedNumberStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidMixedNumberStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidMixedNumberStep).includes('mixed numbers')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid mixed-number step: ${JSON.stringify(invalidMixedNumberStep)}`)
   }
 
   if (!JSON.stringify(validLinearStep).includes('"verdict":"valid"')) {
