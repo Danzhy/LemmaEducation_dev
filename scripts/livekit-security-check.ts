@@ -50,7 +50,12 @@ function main() {
   assertIncludes('lib/livekit/tool-runner.ts', 'assertAllowedToolInputProperties')
   assertIncludes('lib/livekit/tool-runner.ts', 'assertAllowedSchemaProperties')
   assertIncludes('lib/livekit/tool-runner.ts', 'schema.additionalProperties === false')
+  assertIncludes('lib/livekit/tool-runner.ts', 'MAX_SCHEMA_ARRAY_ITEMS')
+  assertIncludes('lib/livekit/tool-runner.ts', 'Number.isFinite')
+  assertIncludes('lib/livekit/tool-runner.ts', 'schema.enum')
   assertIncludes('scripts/livekit-agent-smoke.ts', 'start: { x: 20, y: 40, hiddenInstruction')
+  assertIncludes('scripts/livekit-agent-smoke.ts', "start: { x: '20', y: 40 }")
+  assertIncludes('scripts/livekit-agent-smoke.ts', 'Array.from({ length: 65 }')
   assertIncludes('workers/livekit-tutor-agent.ts', 'AutoSubscribe.AUDIO_ONLY')
   assertIncludes('workers/livekit-tutor-agent.ts', 'maxToolSteps: 6')
   assertIncludes('lib/livekit/worker-tools.ts', 'DEFAULT_MAX_TOOL_CALLS_PER_SESSION')
@@ -66,7 +71,7 @@ function main() {
       {
         ok: true,
         checkedClientFiles: clientFiles.length,
-        checkedServerGuards: 26,
+        checkedServerGuards: 31,
       },
       null,
       2

@@ -14,6 +14,7 @@ import {
 } from '@/lib/tutor/learner-context'
 
 const MAX_TOOL_INPUT_BYTES = 12_000
+const MAX_SCHEMA_ARRAY_ITEMS = 64
 
 type ToolWithInvoke = Tool & {
   invoke?: (context: unknown, input: string) => Promise<string>
@@ -29,6 +30,7 @@ let toolRegistry: Map<string, ToolWithInvoke> | null = null
 
 type JsonSchemaObject = {
   type?: unknown
+  enum?: unknown
   additionalProperties?: unknown
   properties?: Record<string, JsonSchemaObject | boolean>
   items?: JsonSchemaObject | boolean | Array<JsonSchemaObject | boolean>
@@ -62,6 +64,34 @@ function schemaTypeIncludes(schema: JsonSchemaObject, expectedType: string) {
   return schema.type === expectedType || (Array.isArray(schema.type) && schema.type.includes(expectedType))
 }
 
+function getSchemaTypes(schema: JsonSchemaObject) {
+  if (typeof schema.type === 'string') return [schema.type]
+  if (Array.isArray(schema.type)) return schema.type.filter((type): type is string => typeof type === 'string')
+  return []
+}
+
+function valueMatchesSchemaType(value: unknown, type: string) {
+  if (type === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value)
+  if (type === 'array') return Array.isArray(value)
+  if (type === 'string') return typeof value === 'string'
+  if (type === 'number') return typeof value === 'number' && Number.isFinite(value)
+  if (type === 'integer') return Number.isInteger(value)
+  if (type === 'boolean') return typeof value === 'boolean'
+  if (type === 'null') return value === null
+  return true
+}
+
+function formatExpectedSchemaTypes(types: string[]) {
+  if (types.includes('number')) return 'a finite number'
+  if (types.includes('integer')) return 'an integer'
+  if (types.includes('array')) return 'an array'
+  if (types.includes('object')) return 'a JSON object'
+  if (types.includes('string')) return 'a string'
+  if (types.includes('boolean')) return 'a boolean'
+  if (types.includes('null')) return 'null'
+  return `one of: ${types.join(', ')}`
+}
+
 function formatToolInputPath(path: Array<string | number>) {
   if (path.length === 0) return ''
   return path
@@ -72,6 +102,39 @@ function formatToolInputPath(path: Array<string | number>) {
     .join('')
 }
 
+function formatToolInputField(path: Array<string | number>) {
+  const formattedPath = formatToolInputPath(path)
+  return formattedPath ? ` field${formattedPath}` : ''
+}
+
+function formatEnumValues(values: unknown) {
+  return Array.isArray(values)
+    ? values
+        .map((value) => (typeof value === 'string' ? value : JSON.stringify(value)))
+        .join(', ')
+    : ''
+}
+
+function assertSchemaVariants(
+  label: 'anyOf' | 'oneOf',
+  schemas: Array<JsonSchemaObject | boolean> | undefined,
+  value: unknown,
+  path: Array<string | number>
+) {
+  if (!schemas?.length) return
+  const errors: Error[] = []
+  for (const variant of schemas) {
+    try {
+      assertAllowedSchemaProperties(variant, value, path)
+      return
+    } catch (error) {
+      errors.push(error instanceof Error ? error : new Error('Schema variant did not match.'))
+    }
+  }
+
+  throw errors[0] ?? new Error(`Tool input${formatToolInputField(path)} does not match an allowed ${label} schema.`)
+}
+
 function assertAllowedSchemaProperties(
   schema: JsonSchemaObject | boolean | undefined,
   value: unknown,
@@ -79,9 +142,23 @@ function assertAllowedSchemaProperties(
 ) {
   if (!schema || typeof schema === 'boolean') return
 
-  const variants = [...(schema.anyOf ?? []), ...(schema.oneOf ?? []), ...(schema.allOf ?? [])]
-  for (const variant of variants) {
+  assertSchemaVariants('anyOf', schema.anyOf, value, path)
+  assertSchemaVariants('oneOf', schema.oneOf, value, path)
+  for (const variant of schema.allOf ?? []) {
     assertAllowedSchemaProperties(variant, value, path)
+  }
+
+  const types = getSchemaTypes(schema)
+  if (types.length > 0 && !types.some((type) => valueMatchesSchemaType(value, type))) {
+    throw new Error(
+      `Tool input${formatToolInputField(path)} must be ${formatExpectedSchemaTypes(types)}.`
+    )
+  }
+
+  if (Array.isArray(schema.enum) && !schema.enum.some((option) => Object.is(option, value))) {
+    throw new Error(
+      `Tool input${formatToolInputField(path)} must be one of: ${formatEnumValues(schema.enum)}.`
+    )
   }
 
   if (schemaTypeIncludes(schema, 'object')) {
@@ -112,6 +189,12 @@ function assertAllowedSchemaProperties(
   }
 
   if (schemaTypeIncludes(schema, 'array') && Array.isArray(value)) {
+    if (value.length > MAX_SCHEMA_ARRAY_ITEMS) {
+      throw new Error(
+        `Tool input${formatToolInputField(path)} has too many items (${value.length} > ${MAX_SCHEMA_ARRAY_ITEMS}).`
+      )
+    }
+
     const itemSchemas = Array.isArray(schema.items) ? schema.items : schema.items ? [schema.items] : []
     if (itemSchemas.length === 0) return
 

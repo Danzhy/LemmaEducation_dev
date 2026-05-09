@@ -102,6 +102,50 @@ async function main() {
     nestedUnknownToolFieldRejected =
       error instanceof Error && /start\.hiddenInstruction/i.test(error.message)
   }
+  let malformedCanvasNumberRejected = false
+  try {
+    await runLiveKitTutorTool(
+      'canvas_action',
+      {
+        actionType: 'draw_line_segment',
+        start: { x: '20', y: 40 },
+        end: { x: 160, y: 40 },
+        label: 'base',
+      }
+    )
+  } catch (error) {
+    malformedCanvasNumberRejected =
+      error instanceof Error && /start\.x.*finite number/i.test(error.message)
+  }
+  let malformedCanvasEnumRejected = false
+  try {
+    await runLiveKitTutorTool(
+      'canvas_action',
+      {
+        actionType: 'place_text_label',
+        x: 20,
+        y: 40,
+        text: 'Check this step',
+        color: 'hidden',
+      }
+    )
+  } catch (error) {
+    malformedCanvasEnumRejected =
+      error instanceof Error && /field\.color.*one of/i.test(error.message)
+  }
+  let oversizedCanvasArrayRejected = false
+  try {
+    await runLiveKitTutorTool(
+      'canvas_action',
+      {
+        actionType: 'plot_polyline',
+        points: Array.from({ length: 65 }, (_, index) => ({ x: index, y: index })),
+      }
+    )
+  } catch (error) {
+    oversizedCanvasArrayRejected =
+      error instanceof Error && /field\.points.*too many items/i.test(error.message)
+  }
   const validMixedNumberStep = await tools.math_check_step.execute(
     { previousStep: '1 1/2 + 2 1/4', nextStep: '3 3/4' },
     { ctx: {} as never, toolCallId: 'smoke-mixed-number-step-check' }
@@ -698,6 +742,18 @@ async function main() {
 
   if (!nestedUnknownToolFieldRejected) {
     throw new Error('LiveKit tool runner did not reject an unsupported nested input field.')
+  }
+
+  if (!malformedCanvasNumberRejected) {
+    throw new Error('LiveKit tool runner did not reject a malformed structured canvas point.')
+  }
+
+  if (!malformedCanvasEnumRejected) {
+    throw new Error('LiveKit tool runner did not reject a malformed structured canvas enum.')
+  }
+
+  if (!oversizedCanvasArrayRejected) {
+    throw new Error('LiveKit tool runner did not reject an oversized structured canvas array.')
   }
 
   if (!JSON.stringify(validMixedNumberStep).includes('"verdict":"valid"')) {
