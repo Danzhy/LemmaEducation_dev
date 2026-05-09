@@ -914,6 +914,18 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks graph vertex claims before classifying the mistake',
+    prompt: 'The vertex of y = x^2 - 4x + 3 is (4, 3). Is that right?',
+    expectedTools: ['math_check_step', 'graph_function', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'vertex of y = x^2 - 4x + 3')
+      assert.equal(input.nextStep, '(4, 3)')
+      assert.equal(plans[1].toolName, 'graph_function')
+      assert.equal(plans[1].input.expression, 'x^2 - 4x + 3')
+      assert.equal(plans[1].input.showVertex, true)
+    },
+  },
+  {
     name: 'checks table-of-values rows before classifying the mistake',
     prompt: 'For y = 2x + 1, my table is (0, 1), (1, 3), (2, 4). Is that right?',
     expectedTools: ['math_check_step', 'table_of_values', 'mistake_pattern_classifier'],

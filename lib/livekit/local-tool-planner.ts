@@ -1001,7 +1001,7 @@ function cleanStepText(value: string) {
 }
 
 function hasMathToken(value: string) {
-  return /[0-9xX]/.test(value) || /\b(undefined|no\s+slope|vertical)\b/i.test(value)
+  return /[0-9xX]/.test(value) || /\b(undefined|no\s+slope|no\s+vertex|vertical|vertex)\b/i.test(value)
 }
 
 function hasMathStructure(value: string) {
@@ -1012,6 +1012,7 @@ function hasMathStructure(value: string) {
     /\b(angle|degrees?|complementary|complement|supplementary|supplement|linear\s+pair|straight\s+line)\b/i.test(value) ||
     /\b(probability|chance|outcomes?|favorable|out\s+of)\b/i.test(value) ||
     /\b(intercept|root|zero|x-axis|y-axis)\b/i.test(value) ||
+    /\b(vertex|turning\s+point|minimum|maximum|lowest|highest)\b/i.test(value) ||
     /\b(unit rate|rate|per|speed|cost)\b/i.test(value) ||
     hasKnownUnitQuantity(value)
   )
@@ -2080,6 +2081,40 @@ function extractGraphInterceptAttempt(text: string): StudentStepPair | null {
   return null
 }
 
+function extractFunctionExpressionForVertexAttempt(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const match = normalized.match(
+    /\by\s*=\s*(.+?)(?=\s+(?:is|equals?|was|to|has|have|with|where|crosses?|intercepts?|vertex|turning|minimum|maximum|lowest|highest|and|i\s+got|i\s+found|my\s+answer)\b|\s*,\s*(?:my|the|vertex|turning|\(?-?\d|x\s*=)|[?!.;]|$)/i
+  )
+  return match?.[1]?.trim().replace(/\s+$/g, '') || ''
+}
+
+function extractGraphVertexAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(vertex|turning\s+point|minimum|maximum|lowest|highest)\b/i.test(normalized)) return null
+
+  const expression = extractFunctionExpressionForVertexAttempt(normalized)
+  if (!expression) return null
+
+  const points = extractCoordinatePoints(normalized)
+  if (points.length > 0) {
+    return buildStepPair(`vertex of y = ${expression}`, points[0].raw)
+  }
+
+  const xyMatch = normalized.match(
+    new RegExp(`\\bx\\s*=\\s*(${LOCAL_NUMBER_PATTERN})\\s*,?\\s*\\by\\s*=\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (xyMatch) {
+    return buildStepPair(`vertex of y = ${expression}`, `x = ${xyMatch[1]}, y = ${xyMatch[2]}`)
+  }
+
+  if (/\b(?:no|none|neither|does\s+not|doesn't|never)\b/i.test(normalized)) {
+    return buildStepPair(`vertex of y = ${expression}`, 'no vertex')
+  }
+
+  return null
+}
+
 function buildLocalGraphInterceptBoardInputFromStepPair(stepPair: StudentStepPair) {
   const interceptType = extractGraphInterceptType(stepPair.previousStep)
   const expression = extractFunctionExpressionForInterceptAttempt(stepPair.previousStep)
@@ -2093,6 +2128,22 @@ function buildLocalGraphInterceptBoardInputFromStepPair(stepPair: StudentStepPai
     title: `Graph of y = ${expression}`,
     showXIntercepts: interceptType === 'x',
     showYIntercept: interceptType === 'y',
+  }
+}
+
+function buildLocalGraphVertexBoardInputFromStepPair(stepPair: StudentStepPair) {
+  if (!/\b(vertex|turning\s+point|minimum|maximum|lowest|highest)\b/i.test(stepPair.previousStep)) return null
+
+  const expression = extractFunctionExpressionForVertexAttempt(stepPair.previousStep)
+  if (!expression) return null
+
+  return {
+    expression,
+    domainStart: -5,
+    domainEnd: 5,
+    graphType: 'cartesian',
+    title: `Graph of y = ${expression}`,
+    showVertex: true,
   }
 }
 
@@ -3367,6 +3418,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const graphInterceptAttempt = extractGraphInterceptAttempt(normalized)
   if (graphInterceptAttempt) return graphInterceptAttempt
 
+  const graphVertexAttempt = extractGraphVertexAttempt(normalized)
+  if (graphVertexAttempt) return graphVertexAttempt
+
   const slopeAttempt = extractSlopeAttempt(normalized)
   if (slopeAttempt) return slopeAttempt
 
@@ -3423,7 +3477,7 @@ function inferLocalTopic(text: string) {
   if (/\bequation|variable|solve for x|\bx\b/.test(lower)) return 'equations'
   if (/\bnegative|positive|integer|signed|minus\b|-\d/.test(lower)) return 'integers'
   if (/\barea|perimeter|angle|geometry|rectangle|triangle|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?\b/.test(lower)) return 'geometry'
-  if (/\bgraph|coordinate|slope|point|axis|distance|intercept|table of values|value table\b/.test(lower)) return 'graphing'
+  if (/\bgraph|coordinate|slope|point|axis|distance|intercept|vertex|turning\s+point|table of values|value table\b/.test(lower)) return 'graphing'
   if (/\bmean|median|mode|probability|chance|data|bar\s+chart|line\s+plot|line\s+graph\b/.test(lower)) return 'data'
   return text.slice(0, 120)
 }
@@ -3544,7 +3598,7 @@ export function planLocalToolTurn(
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|proportion|proportional|area|perimeter|rectangle|triangle|base|height|word problem|plan|tape|bar\s+model|bar\s+chart|line\s+plot|line\s+graph|data\s+display|part[- ]?whole|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
+    /\b(graph|plot|parabola|function|coordinate|distance|intercept|vertex|turning\s+point|minimum|maximum|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|proportion|proportional|area|perimeter|rectangle|triangle|base|height|word problem|plan|tape|bar\s+model|bar\s+chart|line\s+plot|line\s+graph|data\s+display|part[- ]?whole|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
   const referencesVisibleBoard =
     /\b(this diagram|the diagram|my diagram|this drawing|my drawing|on the board|the board|whiteboard|canvas|visible work|what i drew|the picture|this figure|the figure)\b/.test(
       lower
@@ -3817,6 +3871,13 @@ export function planLocalToolTurn(
         plans.push({
           toolName: 'graph_function',
           input: graphInterceptBoardInput,
+        })
+      }
+      const graphVertexBoardInput = buildLocalGraphVertexBoardInputFromStepPair(studentStepPair)
+      if (graphVertexBoardInput) {
+        plans.push({
+          toolName: 'graph_function',
+          input: graphVertexBoardInput,
         })
       }
       const tableOfValuesInput = buildLocalTableOfValuesInputFromStepPair(studentStepPair)

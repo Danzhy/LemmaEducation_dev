@@ -797,6 +797,22 @@ assert(
   'math_check_step should catch x-intercept claims that use the wrong axis condition.'
 )
 
+const validVertexStep = mathCheckStep('vertex of y = x^2 - 4x + 3', '(2, -1)')
+assert(
+  validVertexStep.verdict === 'valid' &&
+    validVertexStep.hintTarget.includes('axis of symmetry'),
+  'math_check_step should validate quadratic vertex claims.'
+)
+
+const invalidVertexStep = mathCheckStep('vertex of y = x^2 - 4x + 3', '(4, 3)')
+assert(
+  invalidVertexStep.verdict === 'invalid' &&
+    invalidVertexStep.hintTarget.includes('axis of symmetry') &&
+    invalidVertexStep.reason.includes('x = 2') &&
+    invalidVertexStep.reason.includes('y = -1'),
+  'math_check_step should catch quadratic vertex claims that use a non-vertex point.'
+)
+
 const validValueTableStep = mathCheckStep('table for y = 2x + 1', '(0, 1), (1, 3), (2, 5)')
 assert(
   validValueTableStep.verdict === 'valid' &&

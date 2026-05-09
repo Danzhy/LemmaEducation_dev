@@ -832,6 +832,95 @@ function parseGraphInterceptClaim(text: string): GraphInterceptClaim | null {
   return null
 }
 
+type GraphVertexClaim =
+  | {
+      kind: 'none'
+    }
+  | {
+      kind: 'coordinate'
+      x: number
+      y: number
+    }
+
+function parseGraphVertexClaim(text: string): GraphVertexClaim | null {
+  if (
+    /\b(?:no|none|neither|does\s+not|doesn't|never)\b/i.test(text) &&
+    /\b(vertex|turning\s+point|minimum|maximum|lowest|highest)\b/i.test(text)
+  ) {
+    return { kind: 'none' }
+  }
+
+  const point = parseCoordinatePoint(text)
+  if (point) {
+    return {
+      kind: 'coordinate',
+      x: point.x,
+      y: point.y,
+    }
+  }
+
+  return null
+}
+
+function formatGraphVertexClaim(claim: GraphVertexClaim) {
+  if (claim.kind === 'none') return 'no vertex'
+  return `(${formatNumber(claim.x, 4)}, ${formatNumber(claim.y, 4)})`
+}
+
+function checkGraphVertexStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\b(vertex|turning\s+point|minimum|maximum|lowest|highest)\b/i.test(combined)) return null
+
+  const expression =
+    extractFunctionExpressionForPointCheck(previousStep) ??
+    extractFunctionExpressionForPointCheck(combined)
+  const claim = parseGraphVertexClaim(nextStep)
+  if (!expression || !claim) return null
+
+  try {
+    const quadratic = extractQuadraticCoefficients(expression)
+    const vertexX = -quadratic.b / (2 * quadratic.a)
+    const vertexY = quadratic.a * vertexX ** 2 + quadratic.b * vertexX + quadratic.c
+    const vertexKind = quadratic.a > 0 ? 'lowest' : 'highest'
+    const vertexText = `(${formatNumber(vertexX, 4)}, ${formatNumber(vertexY, 4)})`
+
+    if (claim.kind === 'none') {
+      return {
+        verdict: 'invalid',
+        reason: `This parabola has a ${vertexKind} point at ${vertexText}.`,
+        hintTarget: 'find the axis of symmetry first, then evaluate y at that x',
+      }
+    }
+
+    const xMatches = isNearlyEqual(claim.x, vertexX, 0.01)
+    const yMatches = isNearlyEqual(claim.y, vertexY, 0.01)
+    const vertexMatches = xMatches && yMatches
+
+    return {
+      verdict: vertexMatches ? 'valid' : 'invalid',
+      reason: vertexMatches
+        ? `The parabola's axis of symmetry is x = ${formatNumber(vertexX, 4)}, and substituting that x-value gives y = ${formatNumber(vertexY, 4)}.`
+        : `The parabola's axis of symmetry is x = ${formatNumber(vertexX, 4)}, and substituting that x-value gives y = ${formatNumber(vertexY, 4)}, not ${formatGraphVertexClaim(claim)}.`,
+      hintTarget: vertexMatches
+        ? 'explain why the vertex sits on the axis of symmetry'
+        : 'find the axis of symmetry first, then evaluate y at that x',
+    }
+  } catch {
+    try {
+      extractLinearCoefficients(expression)
+      return {
+        verdict: claim.kind === 'none' ? 'valid' : 'invalid',
+        reason: 'This graph is linear, so it does not have a turning point or vertex.',
+        hintTarget: claim.kind === 'none'
+          ? 'explain why a line has no turning point'
+          : 'check whether the graph is linear or quadratic before naming a vertex',
+      }
+    } catch {
+      return null
+    }
+  }
+}
+
 function formatGraphInterceptClaim(claim: GraphInterceptClaim) {
   if (claim.kind === 'none') return 'no intercept'
   if (claim.kind === 'coordinate') return `(${formatNumber(claim.x, 4)}, ${formatNumber(claim.y, 4)})`
@@ -3282,6 +3371,9 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasGraphInterceptWork:
       /\b(intercept|root|zero|x-axis|y-axis)\b/i.test(combined) &&
       /\by\s*=/.test(combined),
+    hasGraphVertexWork:
+      /\b(vertex|turning\s+point|minimum|maximum|lowest|highest)\b/i.test(combined) &&
+      /\by\s*=/.test(combined),
     hasCoordinateDistanceWork:
       /\bdistance|length\b/i.test(combined) &&
       /\(\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*\)/.test(combined),
@@ -3353,6 +3445,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasGraphInterceptWork) {
     return 'use the axis condition for the requested intercept'
+  }
+  if (features.hasGraphVertexWork) {
+    return 'find the axis of symmetry first, then evaluate y at that x'
   }
   if (features.hasCoordinateDistanceWork) {
     return 'use horizontal and vertical changes before deciding the distance'
@@ -5148,6 +5243,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const graphInterceptStep = checkGraphInterceptStep(previousStep, nextStep)
   if (graphInterceptStep) {
     return graphInterceptStep
+  }
+
+  const graphVertexStep = checkGraphVertexStep(previousStep, nextStep)
+  if (graphVertexStep) {
+    return graphVertexStep
   }
 
   const tableOfValuesStep = checkTableOfValuesStep(previousStep, nextStep)
