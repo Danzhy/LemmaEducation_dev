@@ -6,6 +6,12 @@ import type { RealtimeItem } from '@openai/agents/realtime'
 import type { TutorState } from '@/components/TutorAvatar'
 import { assignCanvasArtifactIds, normalizeCanvasArtifactId } from '@/lib/tutor/canvas-action-artifacts'
 import { TUTOR_INACTIVITY_PAUSE_SECONDS } from '@/lib/tutor/constants'
+import {
+  TUTOR_SILENT_BOARD_CONTEXT_MARKER,
+  buildSilentTutorBoardContext,
+  extractTutorVisibleMessageText,
+  stripSilentTutorBoardContextParts,
+} from '@/lib/tutor/silent-board-context'
 import type {
   TutorConnectOptions,
   TutorCanvasAction,
@@ -14,6 +20,7 @@ import type {
   TutorCanvasLabelPosition,
   TutorCanvasSize,
   TutorChatMessage,
+  TutorSendTextOptions,
   TutorSessionAdapter,
   TutorToolEvent,
 } from '@/lib/tutor/session-adapter'
@@ -23,7 +30,6 @@ type UseVoiceAgentTutorOptions = {
   onError?: (userMessage: string, rawError?: string) => void
 }
 
-const CANVAS_CONTEXT_MARKER = 'LEMMA_CANVAS_CONTEXT'
 const MAX_TOOL_EVENTS = 80
 const MAX_PENDING_CANVAS_ACTIONS = 160
 const MAX_CANVAS_ACTIONS_PER_TOOL_RESULT = 80
@@ -74,38 +80,7 @@ function parseJsonSafely(value: string | null | undefined) {
 }
 
 function extractCompletedText(item: Record<string, any>) {
-  const content = Array.isArray(item.content) ? item.content : []
-  const textParts: string[] = []
-  let hasImage = false
-  let hasAudio = false
-
-  for (const part of content) {
-    if (part?.type === 'input_text' && typeof part.text === 'string') {
-      textParts.push(part.text)
-    }
-    if (part?.type === 'input_audio') {
-      hasAudio = true
-      if (typeof part.transcript === 'string' && part.transcript.trim()) {
-        textParts.push(part.transcript.trim())
-      }
-    }
-    if (part?.type === 'output_text' && typeof part.text === 'string') {
-      textParts.push(part.text)
-    }
-    if (part?.type === 'output_audio' && typeof part.transcript === 'string' && part.transcript.trim()) {
-      textParts.push(part.transcript.trim())
-    }
-    if (part?.type === 'input_image') {
-      hasImage = true
-    }
-  }
-
-  const joined = textParts.join('\n').trim()
-  return {
-    joined,
-    hasImage,
-    hasAudio,
-  }
+  return extractTutorVisibleMessageText(item.content)
 }
 
 function deriveUserSource(item: Record<string, any>, joined: string, hasImage: boolean, hasAudio: boolean) {
@@ -356,8 +331,8 @@ function deriveHistoryState(history: RealtimeItem[]) {
     if (item.type !== 'message') continue
     if (item.role === 'system') continue
 
-    const { joined, hasImage, hasAudio } = extractCompletedText(item)
-    if (joined.includes(CANVAS_CONTEXT_MARKER)) {
+    const { joined, hasImage, hasAudio, hasSilentContext } = extractCompletedText(item)
+    if (hasSilentContext && !joined) {
       continue
     }
 
@@ -1003,10 +978,27 @@ export function useVoiceAgentTutor({
   )
 
   const sendText = useCallback(
-    (text: string) => {
+    (text: string, options?: TutorSendTextOptions) => {
       if (pausedRef.current || !sessionRef.current) return
       registerLocalActivity(false)
-      sessionRef.current.sendMessage(text)
+      const boardContext = buildSilentTutorBoardContext(options?.boardDescription)
+      if (boardContext) {
+        sessionRef.current.updateHistory((history) =>
+          history
+            .map((item) => stripSilentTutorBoardContextParts(item as RealtimeItem & { content?: unknown }))
+            .filter((item): item is RealtimeItem => Boolean(item))
+        )
+        sessionRef.current.sendMessage({
+          type: 'message',
+          role: 'user',
+          content: [
+            { type: 'input_text', text: boardContext },
+            { type: 'input_text', text },
+          ],
+        })
+      } else {
+        sessionRef.current.sendMessage(text)
+      }
       setState('thinking')
     },
     [registerLocalActivity]
@@ -1044,11 +1036,13 @@ export function useVoiceAgentTutor({
       if (pausedRef.current || !sessionRef.current) return
       registerLocalActivity(false)
       sessionRef.current.updateHistory((history) =>
-        history.filter((item) => {
-          if ((item as Record<string, any>).type !== 'message') return true
-          const { joined } = extractCompletedText(item as Record<string, any>)
-          return !joined.includes(CANVAS_CONTEXT_MARKER)
-        })
+        history
+          .map((item) =>
+            stripSilentTutorBoardContextParts(item as RealtimeItem & { content?: unknown }, {
+              preserveVisibleMessages: true,
+            })
+          )
+          .filter((item): item is RealtimeItem => Boolean(item))
       )
 
       const transport = sessionRef.current.transport as {
@@ -1070,7 +1064,7 @@ export function useVoiceAgentTutor({
           content: [
             {
               type: 'input_text',
-              text: `${CANVAS_CONTEXT_MARKER}: Latest board context. Use this image only as silent tutoring context unless the student explicitly asks about the board.`,
+              text: `${TUTOR_SILENT_BOARD_CONTEXT_MARKER}: Latest board context. Use this image only as silent tutoring context unless the student explicitly asks about the board.`,
             },
             {
               type: 'input_image',

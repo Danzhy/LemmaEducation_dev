@@ -8,6 +8,12 @@ import {
   serializeTutorBoardState,
   type BoardStateReader,
 } from '@/lib/tutor/board-state-serialization'
+import {
+  buildSilentTutorBoardContext,
+  extractTutorVisibleMessageText,
+  isSilentTutorBoardContextText,
+  stripSilentTutorBoardContextParts,
+} from '@/lib/tutor/silent-board-context'
 
 type PlannerCase = {
   name: string
@@ -843,6 +849,56 @@ const serializedBoardState = serializeTutorBoardState(mockBoardReader)
 assert.match(serializedBoardState, /geometry figure/)
 assert.match(serializedBoardState, /Base 8 cm/)
 assert.match(serializedBoardState, /A=\\frac\{1\}\{2\}bh/)
+
+const silentBoardContext = buildSilentTutorBoardContext(serializedBoardState)
+assert.ok(isSilentTutorBoardContextText(silentBoardContext))
+assert.match(silentBoardContext, /Latest structured board summary/)
+assert.match(silentBoardContext, /Base 8 cm/)
+
+const visibleMessageText = extractTutorVisibleMessageText([
+  { type: 'input_text', text: silentBoardContext },
+  { type: 'input_text', text: 'How do I find the area from this diagram?' },
+])
+assert.equal(visibleMessageText.hasSilentContext, true)
+assert.equal(visibleMessageText.joined, 'How do I find the area from this diagram?')
+
+const strippedVisibleMessage = stripSilentTutorBoardContextParts({
+  type: 'message',
+  role: 'user',
+  content: [
+    { type: 'input_text', text: silentBoardContext },
+    { type: 'input_text', text: 'How do I find the area from this diagram?' },
+  ],
+})
+assert.deepEqual(strippedVisibleMessage?.content, [
+  { type: 'input_text', text: 'How do I find the area from this diagram?' },
+])
+
+const preservedVisibleMessage = stripSilentTutorBoardContextParts(
+  {
+    type: 'message',
+    role: 'user',
+    content: [
+      { type: 'input_text', text: silentBoardContext },
+      { type: 'input_text', text: 'How do I find the area from this diagram?' },
+    ],
+  },
+  { preserveVisibleMessages: true }
+)
+assert.deepEqual(preservedVisibleMessage?.content, [
+  { type: 'input_text', text: silentBoardContext },
+  { type: 'input_text', text: 'How do I find the area from this diagram?' },
+])
+
+const strippedSilentImageContext = stripSilentTutorBoardContextParts({
+  type: 'message',
+  role: 'user',
+  content: [
+    { type: 'input_text', text: silentBoardContext },
+    { type: 'input_image', image: 'data:image/jpeg;base64,abc' },
+  ],
+})
+assert.equal(strippedSilentImageContext, null)
 
 const boardAwarePlans = planLocalToolTurn('How do I find the area from this diagram?', '6', {
   boardDescription: serializedBoardState,
