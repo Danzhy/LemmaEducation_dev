@@ -9671,7 +9671,9 @@ export function answerDisclosureGate(input: {
   const hasStudentAttempt = Boolean(input.hasStudentAttempt) || attemptCount > 0
   const askedForFullSolution =
     Boolean(input.askedForFullSolution) ||
-    /\b(answer|solve it|full solution|show me the solution|just tell me)\b/.test(request)
+    /\b(answer|solve(?: it)?|calculate|compute|evaluate|full solution|show me the solution|just tell me|final answer)\b/.test(
+      request
+    )
 
   if (askedForFullSolution && (hasStudentAttempt || input.isCheckingAnswer)) {
     return {

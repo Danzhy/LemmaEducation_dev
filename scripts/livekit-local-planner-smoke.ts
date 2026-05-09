@@ -23,6 +23,34 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes direct equation solving through disclosure gate before an attempt',
+    prompt: 'Can you solve 2x + 3 = 11 for me?',
+    expectedTools: ['answer_disclosure_gate'],
+    inspect: (input) => {
+      assert.equal(input.hasStudentAttempt, false)
+      assert.equal(input.askedForFullSolution, true)
+    },
+  },
+  {
+    name: 'routes topic-specific final-answer requests through disclosure gate',
+    prompt: 'What is the final answer for 25% of 80?',
+    expectedTools: ['answer_disclosure_gate'],
+    inspect: (input) => {
+      assert.equal(input.hasStudentAttempt, false)
+      assert.equal(input.askedForFullSolution, true)
+    },
+  },
+  {
+    name: 'keeps disclosure gate first after a student attempt asks for a full solve',
+    prompt: 'I tried 2x + 3 = 11 and got x = 4. Can you solve 2x + 3 = 11 fully?',
+    expectedTools: ['answer_disclosure_gate', 'solve_linear_on_canvas'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.equal(plans[1].input.problem, '2x + 3 = 11')
+    },
+  },
+  {
     name: 'routes explicit next-move planning to tutor response planner',
     prompt: 'I got 1/2 + 1/3 = 2/5. What should we do next?',
     expectedTools: ['tutor_response_planner'],

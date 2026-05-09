@@ -44,6 +44,19 @@ const CASES: TutorExperienceCase[] = [
     expectedSubstrings: ['hint_only', 'requiredPause', 'preserve productive struggle'],
   },
   {
+    id: 'topic-answer-disclosure-guardrail',
+    title: 'Gate topic-specific solve requests before a student attempt',
+    gradeBand: 'grades 6-7',
+    toolName: 'answer_disclosure_gate',
+    input: {
+      studentRequest: 'Can you solve 2x + 3 = 11?',
+      hasStudentAttempt: false,
+      attemptCount: 0,
+      isCheckingAnswer: false,
+    },
+    expectedSubstrings: ['hint_only', 'requiredPause', 'preserve productive struggle'],
+  },
+  {
     id: 'next-step-coach-stuck-work',
     title: 'Choose the next human tutor move from stuck student work',
     gradeBand: 'grades 4-6',

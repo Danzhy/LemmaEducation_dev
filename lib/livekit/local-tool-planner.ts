@@ -1647,6 +1647,35 @@ function inferLocalTopic(text: string) {
   return text.slice(0, 120)
 }
 
+function isLocalAnswerDisclosureRequest(prompt: string) {
+  const lower = prompt.toLowerCase()
+  if (
+    /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me|what(?:'s| is) the answer|answer to|final answer)\b/.test(
+      lower
+    )
+  ) {
+    return true
+  }
+
+  if (/\b(show|draw|graph|plot|model|diagram|table|visual|explain|hint|help me start)\b/.test(lower)) {
+    return false
+  }
+
+  if (/\b(solve|calculate|compute|evaluate)\b/.test(lower) && /[-+*/÷×^=]|\d/.test(prompt)) {
+    return true
+  }
+
+  if (
+    /\b(find)\b/.test(lower) &&
+    /\b(answer|final answer|value of|find\s+x|find\s+the\s+value)\b/.test(lower) &&
+    /\d/.test(prompt)
+  ) {
+    return true
+  }
+
+  return false
+}
+
 export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalToolPlan[] {
   const lower = prompt.toLowerCase()
   const fractions = extractFractions(prompt)
@@ -1659,17 +1688,16 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const probabilityModelRequest = extractProbabilityModelRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
   const plans: LocalToolPlan[] = []
-  const asksForFullSolution =
-    /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(lower)
-  const hasStudentAttempt =
+  const asksForFullSolution = isLocalAnswerDisclosureRequest(prompt)
+  const hasExplicitStudentAttempt =
     /\b(i tried|i got|i found|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
     /\b(my table|my row|my values?|my ordered pairs?)\b/.test(lower) ||
     /\b(i added|i subtracted|i multiplied|i divided|i calculated|i evaluated|i did|i worked out|i simplified|i rounded|rounded|and got)\b/.test(lower) ||
     /\b(went from|changed from|increased from|decreased from|percent change)\b/.test(lower) ||
     /\b(percent error|actual value|accepted value|measured value|estimate)\b/.test(lower) ||
     /\b(mean|average|median|mode|range)\b.{0,120}\b(is|was|equals?|got)\b/.test(lower) ||
-    /\b(probability|chance)\b.{0,140}\b(is|was|equals?|got|as)\b/.test(lower) ||
-    prompt.includes('=')
+    /\b(probability|chance)\b.{0,140}\b(is|was|equals?|got|as)\b/.test(lower)
+  const hasStudentAttempt = hasExplicitStudentAttempt || Boolean(studentStepPair)
   const asksForCurriculumContext =
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
   const asksForLearnerContext =

@@ -970,6 +970,28 @@ assert(
   'answer_disclosure_gate should preserve student thinking before any attempt.'
 )
 
+const directSolveGate = answerDisclosureGate({
+  studentRequest: 'Can you solve 2x + 3 = 11?',
+  hasStudentAttempt: false,
+  attemptCount: 0,
+  isCheckingAnswer: false,
+})
+assert(
+  directSolveGate.decision === 'hint_only' && directSolveGate.requiredPause === true,
+  'answer_disclosure_gate should treat direct equation solving as a full-answer request before any attempt.'
+)
+
+const attemptedSolveGate = answerDisclosureGate({
+  studentRequest: 'Can you solve 2x + 3 = 11?',
+  hasStudentAttempt: true,
+  attemptCount: 1,
+  isCheckingAnswer: false,
+})
+assert(
+  attemptedSolveGate.decision === 'solution_allowed' && attemptedSolveGate.requiredPause === false,
+  'answer_disclosure_gate should allow a concise solution after the student has tried and explicitly asks.'
+)
+
 const animationPlan = boardAnimationPlan({
   concept: 'Explain equivalent fractions with a staged bar model',
   visualType: 'part-whole visual reveal',
