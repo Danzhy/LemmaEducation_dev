@@ -695,6 +695,166 @@ function extractPlainNumbers(text: string) {
     .filter((value): value is number => value !== null)
 }
 
+type StatisticsKind = 'mean' | 'median' | 'mode' | 'range'
+
+type ComputedStatistics = {
+  sorted: number[]
+  sum: number
+  mean: number
+  median: number
+  modes: number[]
+  range: number
+}
+
+function computeStatistics(values: number[]): ComputedStatistics {
+  const sorted = [...values].sort((a, b) => a - b)
+  const sum = values.reduce((total, value) => total + value, 0)
+  const mean = sum / values.length
+  const median =
+    sorted.length % 2 === 1
+      ? sorted[(sorted.length - 1) / 2]
+      : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+  const counts = new Map<number, number>()
+  sorted.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1))
+  const maxCount = Math.max(...counts.values())
+  const modes = [...counts.entries()]
+    .filter(([, count]) => count === maxCount && maxCount > 1)
+    .map(([value]) => value)
+  const range = sorted[sorted.length - 1] - sorted[0]
+
+  return {
+    sorted,
+    sum,
+    mean,
+    median,
+    modes,
+    range,
+  }
+}
+
+function extractStatisticsKind(text: string): StatisticsKind | null {
+  if (/\b(mean|average)\b/i.test(text)) return 'mean'
+  if (/\bmedian\b/i.test(text)) return 'median'
+  if (/\bmode\b/i.test(text)) return 'mode'
+  if (/\brange\b/i.test(text)) return 'range'
+  return null
+}
+
+function formatDataValues(values: number[], limit = 8) {
+  const shown = values.slice(0, limit).map((value) => formatNumber(value, 4))
+  const suffix = values.length > limit ? ', ...' : ''
+  return `${shown.join(', ')}${suffix}`
+}
+
+function sameNumberSet(left: number[], right: number[]) {
+  if (left.length !== right.length) return false
+  const leftSorted = [...left].sort((a, b) => a - b)
+  const rightSorted = [...right].sort((a, b) => a - b)
+  return leftSorted.every((value, index) => isNearlyEqual(value, rightSorted[index], 0.01))
+}
+
+function uniqueNumbers(values: number[]) {
+  const unique: number[] = []
+  values.forEach((value) => {
+    if (!unique.some((existing) => isNearlyEqual(existing, value, 0.01))) {
+      unique.push(value)
+    }
+  })
+  return unique
+}
+
+function checkStatisticsSummaryStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\b(mean|average|median|mode|range|data|statistics)\b/i.test(combined)) return null
+
+  const kind = extractStatisticsKind(previousStep) ?? extractStatisticsKind(combined)
+  if (!kind) return null
+
+  const values = extractPlainNumbers(previousStep).slice(0, 24)
+  if (values.length < 2) return null
+
+  const stats = computeStatistics(values)
+  const dataSummary = formatDataValues(values)
+
+  if (kind === 'mean') {
+    const studentMean = parseLastPlainNumber(nextStep)
+    if (studentMean === null) return null
+
+    const meanMatches = isNearlyEqual(stats.mean, studentMean, 0.01)
+    return {
+      verdict: meanMatches ? 'valid' : 'invalid',
+      reason: meanMatches
+        ? `The mean of ${dataSummary} is total ${formatNumber(stats.sum, 4)} divided by ${values.length}, which is ${formatNumber(stats.mean, 4)}.`
+        : `The mean of ${dataSummary} is total ${formatNumber(stats.sum, 4)} divided by ${values.length}, which is ${formatNumber(stats.mean, 4)}, not ${formatNumber(studentMean, 4)}.`,
+      hintTarget: meanMatches
+        ? 'explain mean as the total shared equally'
+        : 'add all data values, then divide by how many values',
+    }
+  }
+
+  if (kind === 'median') {
+    const studentMedian = parseLastPlainNumber(nextStep)
+    if (studentMedian === null) return null
+
+    const medianMatches = isNearlyEqual(stats.median, studentMedian, 0.01)
+    return {
+      verdict: medianMatches ? 'valid' : 'invalid',
+      reason: medianMatches
+        ? `Ordered data: ${formatDataValues(stats.sorted)}. The median is ${formatNumber(stats.median, 4)}.`
+        : `Ordered data: ${formatDataValues(stats.sorted)}. The median is ${formatNumber(stats.median, 4)}, not ${formatNumber(studentMedian, 4)}.`,
+      hintTarget: medianMatches
+        ? 'explain why the middle value represents the median'
+        : 'order the data before finding the middle value',
+    }
+  }
+
+  if (kind === 'mode') {
+    const claimedNoMode = /\b(no\s+mode|none|no\s+repeats?|no\s+repeated\s+values?)\b/i.test(nextStep)
+    const claimedModes = uniqueNumbers(extractPlainNumbers(nextStep))
+
+    if (stats.modes.length === 0) {
+      return {
+        verdict: claimedNoMode ? 'valid' : 'invalid',
+        reason: claimedNoMode
+          ? `No value repeats in ${dataSummary}, so this data set has no mode.`
+          : `No value repeats in ${dataSummary}, so this data set has no mode.`,
+        hintTarget: claimedNoMode
+          ? 'explain why a mode needs a repeated value'
+          : 'look for repeated values before naming a mode',
+      }
+    }
+
+    if (claimedModes.length === 0) return null
+
+    const modeMatches = sameNumberSet(stats.modes, claimedModes)
+    const expectedModes = stats.modes.map((value) => formatNumber(value, 4)).join(', ')
+    const studentModes = claimedModes.map((value) => formatNumber(value, 4)).join(', ')
+    return {
+      verdict: modeMatches ? 'valid' : 'invalid',
+      reason: modeMatches
+        ? `${expectedModes} appears most often in ${dataSummary}, so the mode is ${expectedModes}.`
+        : `${expectedModes} appears most often in ${dataSummary}, so the mode is ${expectedModes}, not ${studentModes}.`,
+      hintTarget: modeMatches
+        ? 'explain why the mode is the most frequent value'
+        : 'count how often each value appears before choosing the mode',
+    }
+  }
+
+  const studentRange = parseLastPlainNumber(nextStep)
+  if (studentRange === null) return null
+
+  const rangeMatches = isNearlyEqual(stats.range, studentRange, 0.01)
+  return {
+    verdict: rangeMatches ? 'valid' : 'invalid',
+    reason: rangeMatches
+      ? `The range is the maximum minus the minimum: ${formatNumber(stats.sorted[stats.sorted.length - 1], 4)} - ${formatNumber(stats.sorted[0], 4)} = ${formatNumber(stats.range, 4)}.`
+      : `The range is the maximum minus the minimum: ${formatNumber(stats.sorted[stats.sorted.length - 1], 4)} - ${formatNumber(stats.sorted[0], 4)} = ${formatNumber(stats.range, 4)}, not ${formatNumber(studentRange, 4)}.`,
+    hintTarget: rangeMatches
+      ? 'explain why range compares the greatest and least values'
+      : 'subtract the smallest data value from the largest data value',
+  }
+}
+
 function parseLastPlainNumber(text: string) {
   const numbers = extractPlainNumbers(text)
   return numbers.length > 0 ? numbers[numbers.length - 1] : null
@@ -3637,6 +3797,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const tableOfValuesStep = checkTableOfValuesStep(previousStep, nextStep)
   if (tableOfValuesStep) {
     return tableOfValuesStep
+  }
+
+  const statisticsSummaryStep = checkStatisticsSummaryStep(previousStep, nextStep)
+  if (statisticsSummaryStep) {
+    return statisticsSummaryStep
   }
 
   const coordinatePointStep = checkCoordinatePointStep(previousStep, nextStep)

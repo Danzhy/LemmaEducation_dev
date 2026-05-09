@@ -42,6 +42,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes statistics requests to a data summary board model',
+    prompt: 'Show the mean, median, mode, and range for 4, 7, 3, 7, 9.',
+    expectedTools: ['statistics_summary'],
+    inspect: (input) => {
+      assert.deepEqual(input.values, [4, 7, 3, 7, 9])
+      assert.equal(input.title, 'Statistics summary')
+    },
+  },
+  {
     name: 'routes staged explanation to animation and sequence planning',
     prompt: 'Write while explaining how to simplify fractions step by step',
     expectedTools: ['board_animation_plan', 'tutor_teaching_sequence'],
@@ -325,6 +334,17 @@ const cases: PlannerCase[] = [
       assert.equal(plans[1].toolName, 'table_of_values')
       assert.equal(plans[1].input.expression, '2x + 1')
       assert.deepEqual(plans[1].input.xValues, [0, 1, 2])
+    },
+  },
+  {
+    name: 'checks statistics claims before classifying the mistake',
+    prompt: 'The mean of 4, 7, 3, 7, 9 is 5. Is that right?',
+    expectedTools: ['math_check_step', 'statistics_summary', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'mean of 4, 7, 3, 7, 9')
+      assert.equal(input.nextStep, '5')
+      assert.equal(plans[1].toolName, 'statistics_summary')
+      assert.deepEqual(plans[1].input.values, [4, 7, 3, 7, 9])
     },
   },
   {
@@ -660,6 +680,14 @@ assert.match(
 )
 assert.match(
   buildLocalAssistantReply(
+    'is this mean right',
+    [{ toolName: 'math_check_step', input: {} }, { toolName: 'statistics_summary', input: {} }],
+    [{ verdict: 'invalid', reason: 'The mean is 6, not 5.', hintTarget: 'add all data values' }]
+  ),
+  /data summary/
+)
+assert.match(
+  buildLocalAssistantReply(
     'which 2',
     [{ toolName: 'math_check_step', input: {} }],
     [
@@ -695,6 +723,14 @@ assert.match(
     [{ summary: 'Built a value table for y = 2x + 1.' }]
   ),
   /value table/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'show statistics',
+    [{ toolName: 'statistics_summary', input: {} }],
+    [{ summary: 'Prepared statistics summary: mean 6, median 7, range 6.' }]
+  ),
+  /data summary/
 )
 assert.match(
   buildLocalAssistantReply(

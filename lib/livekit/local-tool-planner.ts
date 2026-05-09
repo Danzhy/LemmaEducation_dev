@@ -555,6 +555,68 @@ function buildLocalTableOfValuesInputFromStepPair(stepPair: StudentStepPair) {
   }
 }
 
+type LocalStatisticsKind = 'mean' | 'median' | 'mode' | 'range'
+
+function extractLocalStatisticsKind(text: string): { kind: LocalStatisticsKind; label: string; index: number } | null {
+  const match = text.match(/\b(mean|average|median|mode|range)\b/i)
+  if (!match || typeof match.index !== 'number') return null
+
+  const label = match[1].toLowerCase()
+  return {
+    kind: label === 'average' ? 'mean' : (label as LocalStatisticsKind),
+    label,
+    index: match.index,
+  }
+}
+
+function formatLocalDataValues(values: number[]) {
+  return values.map((value) => String(value)).join(', ')
+}
+
+function extractStatisticsAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const statistic = extractLocalStatisticsKind(normalized)
+  if (!statistic) return null
+
+  const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
+  const answerPattern = String.raw`(?:no\s+mode|none|${LOCAL_NUMBER_PATTERN}(?:\s*(?:,|and)\s*${LOCAL_NUMBER_PATTERN})*)`
+  const answerMatch = normalized.match(
+    new RegExp(`\\b(?:and\\s+)?(?:got|gets|equals?|is|was|as|=)\\s+(${answerPattern})${stopBeforeQuestion}`, 'i')
+  )
+  if (!answerMatch || typeof answerMatch.index !== 'number') return null
+
+  const dataSegment = normalized.slice(statistic.index + statistic.label.length, answerMatch.index)
+  const values = extractNumbers(dataSegment).slice(0, 24)
+  if (values.length < 2) return null
+
+  return buildStepPair(`${statistic.kind} of ${formatLocalDataValues(values)}`, answerMatch[1])
+}
+
+function extractStatisticsSummaryRequest(text: string) {
+  const statistic = extractLocalStatisticsKind(text)
+  if (!statistic) return null
+
+  const values = extractNumbers(text).slice(0, 24)
+  if (values.length < 2) return null
+
+  return {
+    values,
+    title: 'Statistics summary',
+  }
+}
+
+function buildLocalStatisticsSummaryInputFromStepPair(stepPair: StudentStepPair) {
+  if (!extractLocalStatisticsKind(stepPair.previousStep)) return null
+
+  const values = extractNumbers(stepPair.previousStep).slice(0, 24)
+  if (values.length < 2) return null
+
+  return {
+    values,
+    title: 'Statistics summary',
+  }
+}
+
 function extractFunctionExpressionForInterceptAttempt(text: string) {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const match = normalized.match(
@@ -1437,6 +1499,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const decimalRoundingAttempt = extractDecimalRoundingAttempt(normalized)
   if (decimalRoundingAttempt) return decimalRoundingAttempt
 
+  const statisticsAttempt = extractStatisticsAttempt(normalized)
+  if (statisticsAttempt) return statisticsAttempt
+
   const tableOfValuesAttempt = extractTableOfValuesAttempt(normalized)
   if (tableOfValuesAttempt) return tableOfValuesAttempt
 
@@ -1509,6 +1574,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const slopeRequest = extractSlopeRequest(prompt)
   const coordinateDistanceRequest = extractCoordinateDistanceRequest(prompt)
   const tableOfValuesRequest = extractTableOfValuesRequest(prompt)
+  const statisticsSummaryRequest = extractStatisticsSummaryRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
   const plans: LocalToolPlan[] = []
   const asksForFullSolution =
@@ -1519,13 +1585,14 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     /\b(i added|i subtracted|i multiplied|i divided|i calculated|i evaluated|i did|i worked out|i simplified|i rounded|rounded|and got)\b/.test(lower) ||
     /\b(went from|changed from|increased from|decreased from|percent change)\b/.test(lower) ||
     /\b(percent error|actual value|accepted value|measured value|estimate)\b/.test(lower) ||
+    /\b(mean|average|median|mode|range)\b.{0,120}\b(is|was|equals?|got)\b/.test(lower) ||
     prompt.includes('=')
   const asksForCurriculumContext =
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?)\b/.test(lower)
+    /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
   const asksForMistakeHelp =
     /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|check this|is this right|is that right|am i right|is my step right|correct)\b/.test(lower)
   const needsSafetyBoundary =
@@ -1738,6 +1805,13 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
           input: tableOfValuesInput,
         })
       }
+      const statisticsSummaryInput = buildLocalStatisticsSummaryInputFromStepPair(studentStepPair)
+      if (statisticsSummaryInput) {
+        plans.push({
+          toolName: 'statistics_summary',
+          input: statisticsSummaryInput,
+        })
+      }
     }
     plans.push({
       toolName: 'mistake_pattern_classifier',
@@ -1794,6 +1868,14 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     plans.push({
       toolName: 'table_of_values',
       input: tableOfValuesRequest,
+    })
+    return plans
+  }
+
+  if (statisticsSummaryRequest) {
+    plans.push({
+      toolName: 'statistics_summary',
+      input: statisticsSummaryRequest,
     })
     return plans
   }
@@ -2214,6 +2296,7 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     )
     const hasAngleDiagram = plans.some((plan) => plan.toolName === 'angle_diagram')
     const hasTableOfValues = plans.some((plan) => plan.toolName === 'table_of_values')
+    const hasStatisticsSummary = plans.some((plan) => plan.toolName === 'statistics_summary')
     const boardCue = hasPlaceValueChart
       ? ' I also highlighted the place-value chart so the target column is visible.'
       : hasCompositeAreaModel
@@ -2224,7 +2307,9 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
             ? ' I also put the angle relationship diagram on the board.'
             : hasTableOfValues
               ? ' I also put the value table on the board.'
-              : ''
+              : hasStatisticsSummary
+                ? ' I also put the data summary on the board.'
+                : ''
     if (checkedStep?.verdict === 'valid') {
       return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
     }
@@ -2296,6 +2381,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'table_of_values') {
     return 'I put the value table on the board. Pick one x-value and tell me how substituting it gives the matching y-value.'
+  }
+
+  if (firstTool === 'statistics_summary') {
+    return 'I put the data summary on the board. Start by checking the ordered data, then tell me which statistic you need.'
   }
 
   if (firstTool === 'angle_diagram') {

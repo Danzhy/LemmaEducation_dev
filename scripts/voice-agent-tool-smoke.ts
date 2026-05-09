@@ -634,6 +634,34 @@ assert(
   'math_check_step should catch table-of-values row mistakes.'
 )
 
+const validMeanStep = mathCheckStep('mean of 4, 7, 3, 7, 9', '6')
+assert(
+  validMeanStep.verdict === 'valid' &&
+    validMeanStep.hintTarget.includes('total shared equally'),
+  'math_check_step should validate mean claims.'
+)
+
+const invalidMedianStep = mathCheckStep('median of 4, 7, 3, 7, 9', '6')
+assert(
+  invalidMedianStep.verdict === 'invalid' &&
+    invalidMedianStep.hintTarget.includes('middle value'),
+  'math_check_step should catch median-ordering mistakes.'
+)
+
+const invalidModeStep = mathCheckStep('mode of 4, 7, 3, 7, 9', '4')
+assert(
+  invalidModeStep.verdict === 'invalid' &&
+    invalidModeStep.hintTarget.includes('mode'),
+  'math_check_step should catch mode frequency mistakes.'
+)
+
+const validRangeStep = mathCheckStep('range of 4, 7, 3, 7, 9', '6')
+assert(
+  validRangeStep.verdict === 'valid' &&
+    validRangeStep.hintTarget.includes('range'),
+  'math_check_step should validate range claims.'
+)
+
 const validNumericEqualityStep = mathCheckStep('3/4 = 6/8', '0.75 = 0.75')
 assert(
   validNumericEqualityStep.verdict === 'valid',

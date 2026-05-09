@@ -37,6 +37,8 @@ async function main() {
     'representation_bridge',
     'worked_example_fader',
     'graph_function',
+    'statistics_summary',
+    'table_of_values',
     'coordinate_distance',
     'slope_triangle',
     'angle_diagram',
@@ -265,6 +267,26 @@ async function main() {
   const invalidValueTableStep = await tools.math_check_step.execute(
     { previousStep: 'table for y = 2x + 1', nextStep: '(0, 1), (1, 3), (2, 4)' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-value-table-step-check' }
+  )
+  const validMeanStep = await tools.math_check_step.execute(
+    { previousStep: 'mean of 4, 7, 3, 7, 9', nextStep: '6' },
+    { ctx: {} as never, toolCallId: 'smoke-mean-step-check' }
+  )
+  const invalidMedianStep = await tools.math_check_step.execute(
+    { previousStep: 'median of 4, 7, 3, 7, 9', nextStep: '6' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-median-step-check' }
+  )
+  const invalidModeStep = await tools.math_check_step.execute(
+    { previousStep: 'mode of 4, 7, 3, 7, 9', nextStep: '4' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-mode-step-check' }
+  )
+  const validRangeStep = await tools.math_check_step.execute(
+    { previousStep: 'range of 4, 7, 3, 7, 9', nextStep: '6' },
+    { ctx: {} as never, toolCallId: 'smoke-range-step-check' }
+  )
+  const statisticsSummaryResult = await tools.statistics_summary.execute(
+    { values: [4, 7, 3, 7, 9], title: 'Statistics summary' },
+    { ctx: {} as never, toolCallId: 'smoke-statistics-summary' }
   )
   const invalidNumericEqualityStep = await tools.math_check_step.execute(
     { previousStep: '3/4 = 6/8', nextStep: '3/4 = 7/8' },
@@ -785,6 +807,32 @@ async function main() {
     !JSON.stringify(invalidValueTableStep).includes('table row')
   ) {
     throw new Error(`math_check_step did not reject an invalid table row: ${JSON.stringify(invalidValueTableStep)}`)
+  }
+
+  if (!JSON.stringify(validMeanStep).includes('"verdict":"valid"') || !JSON.stringify(validMeanStep).includes('total shared equally')) {
+    throw new Error(`math_check_step did not accept a valid mean claim: ${JSON.stringify(validMeanStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidMedianStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidMedianStep).includes('middle value')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid median claim: ${JSON.stringify(invalidMedianStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidModeStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidModeStep).includes('mode')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid mode claim: ${JSON.stringify(invalidModeStep)}`)
+  }
+
+  if (!JSON.stringify(validRangeStep).includes('"verdict":"valid"') || !JSON.stringify(validRangeStep).includes('range')) {
+    throw new Error(`math_check_step did not accept a valid range claim: ${JSON.stringify(validRangeStep)}`)
+  }
+
+  if (!JSON.stringify(statisticsSummaryResult).includes('mean 6') || !JSON.stringify(statisticsSummaryResult).includes('Median')) {
+    throw new Error('statistics_summary did not return a data summary board model.')
   }
 
   if (!JSON.stringify(invalidNumericEqualityStep).includes('"verdict":"invalid"')) {
