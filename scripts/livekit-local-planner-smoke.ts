@@ -162,6 +162,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks percent-error attempts before classifying the mistake',
+    prompt: 'The actual value was 50 and my estimate was 48, and I got 2% error. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'actual 50, measured 48')
+      assert.equal(input.nextStep, '2% error')
+    },
+  },
+  {
     name: 'checks decimal rounding attempts before classifying the mistake',
     prompt: 'I rounded 3.746 to the nearest hundredth and got 3.74. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],

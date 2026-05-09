@@ -442,6 +442,42 @@ function extractPercentChangeAttempt(text: string): StudentStepPair | null {
   )
 }
 
+function extractPercentErrorAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/%|\bpercent\b/i.test(normalized)) return null
+  if (!/\b(percent\s+error|error)\b/i.test(normalized)) return null
+
+  const actualMatch = normalized.match(
+    new RegExp(
+      `\\b(?:actual|accepted|exact|true|correct)\\s+(?:value\\s+)?(?:was|is|=|of)?\\s*\\$?\\s*(${LOCAL_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  const measuredMatch = normalized.match(
+    new RegExp(
+      `\\b(?:estimate|estimated|measured|measurement|experimental|observed|approximation|approximate|predicted)\\s+(?:value\\s+)?(?:was|is|=|of)?\\s*\\$?\\s*(${LOCAL_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  if (!actualMatch || !measuredMatch) return null
+
+  const actual = parseLocalPlainNumber(actualMatch[1])
+  const measured = parseLocalPlainNumber(measuredMatch[1])
+  if (actual === null || measured === null) return null
+
+  const percentMatches = [
+    ...normalized.matchAll(new RegExp(`(${LOCAL_NUMBER_PATTERN})\\s*(?:%|percent(?:age)?)`, 'gi')),
+  ]
+  const answerMatch = percentMatches.at(-1)
+  const percentValue = answerMatch ? parseLocalPlainNumber(answerMatch[1]) : null
+  if (percentValue === null) return null
+
+  return buildStepPair(
+    `actual ${actual}, measured ${measured}`,
+    `${percentValue}% error`
+  )
+}
+
 function extractDecimalRoundingAttempt(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   if (!/\b(round|rounded|nearest)\b/i.test(normalized)) return null
@@ -592,6 +628,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const arithmeticOperationAttempt = extractArithmeticOperationAttempt(normalized)
   if (arithmeticOperationAttempt) return arithmeticOperationAttempt
 
+  const percentErrorAttempt = extractPercentErrorAttempt(normalized)
+  if (percentErrorAttempt) return percentErrorAttempt
+
   const percentChangeAttempt = extractPercentChangeAttempt(normalized)
   if (percentChangeAttempt) return percentChangeAttempt
 
@@ -659,6 +698,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     /\b(i tried|i got|i found|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
     /\b(i added|i subtracted|i calculated|i evaluated|i did|i worked out|i simplified|i rounded|rounded|and got)\b/.test(lower) ||
     /\b(went from|changed from|increased from|decreased from|percent change)\b/.test(lower) ||
+    /\b(percent error|actual value|accepted value|measured value|estimate)\b/.test(lower) ||
     prompt.includes('=')
   const asksForCurriculumContext =
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)

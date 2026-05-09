@@ -277,6 +277,20 @@ assert(
   'math_check_step should catch percent-change base mistakes.'
 )
 
+const validPercentErrorStep = mathCheckStep('actual 50, measured 48', '4% error')
+assert(
+  validPercentErrorStep.verdict === 'valid' &&
+    validPercentErrorStep.hintTarget.includes('percent-error base'),
+  'math_check_step should validate percent-error steps.'
+)
+
+const invalidPercentErrorStep = mathCheckStep('actual 50, measured 48', '2% error')
+assert(
+  invalidPercentErrorStep.verdict === 'invalid' &&
+    invalidPercentErrorStep.hintTarget.includes('percent-error base'),
+  'math_check_step should catch percent-error base mistakes.'
+)
+
 const validDecimalRoundingStep = mathCheckStep('round 3.746 to nearest hundredths', '3.75')
 assert(
   validDecimalRoundingStep.verdict === 'valid' &&

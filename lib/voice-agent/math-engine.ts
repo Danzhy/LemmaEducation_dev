@@ -594,6 +594,84 @@ function checkPercentChangeStep(previousStep: string, nextStep: string): MathSte
   }
 }
 
+function extractPercentErrorAmounts(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const actualMatch = normalized.match(
+    new RegExp(
+      `\\b(?:actual|accepted|exact|true|correct)\\s+(?:value\\s+)?(?:was|is|=|of)?\\s*\\$?\\s*(${PLAIN_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  const measuredMatch = normalized.match(
+    new RegExp(
+      `\\b(?:estimate|estimated|measured|measurement|experimental|observed|approximation|approximate|predicted)\\s+(?:value\\s+)?(?:was|is|=|of)?\\s*\\$?\\s*(${PLAIN_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  if (!actualMatch || !measuredMatch) return null
+
+  const actual = parsePlainNumber(actualMatch[1])
+  const measured = parsePlainNumber(measuredMatch[1])
+  if (actual === null || measured === null) return null
+  return { actual, measured }
+}
+
+function parsePercentErrorAnswer(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const percentMatches = [
+    ...normalized.matchAll(new RegExp(`(${PLAIN_NUMBER_PATTERN})\\s*(?:%|percent(?:age)?)`, 'gi')),
+  ]
+  const valueMatch = percentMatches.at(-1)
+  const value = valueMatch ? parsePlainNumber(valueMatch[1]) : null
+  return value === null ? null : value
+}
+
+function checkPercentErrorStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/%|\bpercent\b/i.test(nextStep)) return null
+  if (!/\b(percent\s+error|error|actual|accepted|experimental|measured|estimate|estimated|observed)\b/i.test(combined)) {
+    return null
+  }
+
+  const amounts = extractPercentErrorAmounts(previousStep)
+  const studentPercent = parsePercentErrorAnswer(nextStep)
+  if (!amounts || studentPercent === null) return null
+
+  const { actual, measured } = amounts
+  if (isNearlyEqual(actual, 0)) {
+    return {
+      verdict: 'unclear',
+      reason: 'Percent error needs a nonzero actual value as the base.',
+      hintTarget: 'identify the actual value before finding percent error',
+    }
+  }
+
+  const errorAmount = Math.abs(measured - actual)
+  const actualBase = Math.abs(actual)
+  const expectedPercent = (errorAmount / actualBase) * 100
+  const valueMatches = isNearlyEqual(expectedPercent, studentPercent, 0.05)
+  const baseReason = `The difference between the measured value ${formatNumber(
+    measured,
+    4
+  )} and the actual value ${formatNumber(actual, 4)} is ${formatNumber(
+    errorAmount,
+    4
+  )}. Percent error uses the actual value ${formatNumber(actualBase, 4)} as the base, so ${formatNumber(
+    errorAmount,
+    4
+  )}/${formatNumber(actualBase, 4)} = ${formatPercent(expectedPercent)}.`
+
+  return {
+    verdict: valueMatches ? 'valid' : 'invalid',
+    reason: valueMatches
+      ? baseReason
+      : `${baseReason} The student percent is ${formatPercent(studentPercent)}.`,
+    hintTarget: valueMatches
+      ? 'explain why the actual value is the percent-error base'
+      : 'use the actual value as the percent-error base',
+  }
+}
+
 const PLACE_VALUE_PATTERN =
   String.raw`thousandths?|hundredths?|tenths?|thousands?|hundreds?|tens?|ones?|units?`
 
@@ -1033,6 +1111,9 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasMixedNumberWork: hasMixedNumber(previousStep) || hasMixedNumber(nextStep),
     hasFractionWork: /\d+\s*\/\s*\d+/.test(combined),
     hasPercentWork: /%|\bpercent\b/i.test(combined),
+    hasPercentErrorWork:
+      /%|\bpercent\b/i.test(nextStep) &&
+      /\b(percent\s+error|error|actual|accepted|experimental|measured|estimate|estimated|observed)\b/i.test(combined),
     hasPercentChangeWork:
       /%|\bpercent\b/i.test(nextStep) &&
       /\b(percent\s+change|increase|increased|decrease|decreased|from|to|original|new|old)\b/i.test(combined),
@@ -1082,6 +1163,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasPercentChangeWork) {
     return 'use the original amount as the percent-change base'
+  }
+  if (features.hasPercentErrorWork) {
+    return 'use the actual value as the percent-error base'
   }
   if (features.hasPercentWork) {
     return 'convert the percent to an equivalent decimal or fraction first'
@@ -2834,6 +2918,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const percentChangeStep = checkPercentChangeStep(previousStep, nextStep)
   if (percentChangeStep) {
     return percentChangeStep
+  }
+
+  const percentErrorStep = checkPercentErrorStep(previousStep, nextStep)
+  if (percentErrorStep) {
+    return percentErrorStep
   }
 
   const placeValueDigitStep = checkPlaceValueDigitStep(previousStep, nextStep)
