@@ -294,6 +294,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks composite area attempts before classifying the mistake',
+    prompt: 'I got the area of a shape made of 3 by 4 and 2 by 5 rectangles as 25. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'total area of composite rectangles 3 by 4 and 2 by 5')
+      assert.equal(input.nextStep, '25')
+    },
+  },
+  {
     name: 'checks triangle area attempts before classifying the mistake',
     prompt: 'I got the area of a triangle with base 10 and height 6 as 60. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
@@ -326,6 +335,18 @@ const cases: PlannerCase[] = [
     expectedTools: ['geometry_figure'],
     inspect: (input) => {
       assert.equal(input.figureType, 'triangle')
+    },
+  },
+  {
+    name: 'routes composite area requests to a composite area model',
+    prompt: 'A shape is made of 3 by 4 and 2 by 5 rectangles. What is the total area?',
+    expectedTools: ['composite_area_model'],
+    inspect: (input) => {
+      const rectangles = input.rectangles as Array<{ widthUnits: number; heightUnits: number; xUnits: number }>
+      assert.equal(rectangles.length, 2)
+      assert.equal(rectangles[0].widthUnits, 3)
+      assert.equal(rectangles[1].heightUnits, 5)
+      assert.equal(rectangles[1].xUnits, 3)
     },
   },
   {

@@ -14,6 +14,11 @@ type StudentStepPair = {
   nextStep: string
 }
 
+type LocalCompositeAreaPiece = {
+  width: number
+  height: number
+}
+
 const LOCAL_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
 const LOCAL_PLACE_VALUE_PATTERN =
   String.raw`thousandths?|hundredths?|tenths?|thousands?|hundreds?|tens?|ones?|units?`
@@ -539,6 +544,102 @@ function extractRectangleMeasurementAttempt(text: string): StudentStepPair | nul
   )
 }
 
+function hasLocalCompositeAreaCue(text: string) {
+  return (
+    /\barea\b/i.test(text) &&
+    /\b(composite|combined|decomposed|split|made\s+(?:up\s+)?of|made\s+from|attached|l[-\s]?shaped|rectangles|parts?)\b/i.test(
+      text
+    )
+  )
+}
+
+function extractLocalCompositeAreaPieces(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!hasLocalCompositeAreaCue(normalized)) return null
+
+  const matches = [
+    ...normalized.matchAll(new RegExp(`(${LOCAL_NUMBER_PATTERN})\\s*(?:by|x|×)\\s*(${LOCAL_NUMBER_PATTERN})`, 'gi')),
+  ]
+  const pieces = matches
+    .map((match) => ({
+      width: parseLocalPlainNumber(match[1]),
+      height: parseLocalPlainNumber(match[2]),
+      endIndex: (match.index ?? 0) + match[0].length,
+    }))
+    .filter((piece): piece is LocalCompositeAreaPiece & { endIndex: number } => {
+      return piece.width !== null && piece.height !== null && piece.width > 0 && piece.height > 0
+    })
+
+  if (pieces.length < 2) return null
+  return {
+    pieces: pieces.map(({ width, height }) => ({ width, height })),
+    endIndex: Math.max(...pieces.map((piece) => piece.endIndex)),
+  }
+}
+
+function extractCompositeAreaAnswer(text: string, piecesEndIndex: number) {
+  const beforeAreaMatch = text.match(
+    new RegExp(`\\b(?:got|found|calculated|answer(?:\\s+is)?|think)\\s+(${LOCAL_NUMBER_PATTERN})\\s+(?:square\\s+\\w+\\s+)?(?:for\\s+)?(?:the\\s+)?(?:total\\s+)?area\\b`, 'i')
+  )
+  if (beforeAreaMatch) {
+    const answer = parseLocalPlainNumber(beforeAreaMatch[1])
+    if (answer !== null) return answer
+  }
+
+  const afterPieces = text.slice(piecesEndIndex)
+  const afterPiecesMatch = afterPieces.match(
+    new RegExp(`\\b(?:as|is|was|equals?|=|got|answer(?:\\s+is)?)\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (afterPiecesMatch) {
+    const answer = parseLocalPlainNumber(afterPiecesMatch[1])
+    if (answer !== null) return answer
+  }
+
+  return null
+}
+
+function extractCompositeAreaAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const composite = extractLocalCompositeAreaPieces(normalized)
+  if (!composite) return null
+
+  const answer = extractCompositeAreaAnswer(normalized, composite.endIndex)
+  if (answer === null) return null
+
+  return buildStepPair(
+    `total area of composite rectangles ${composite.pieces.map((piece) => `${piece.width} by ${piece.height}`).join(' and ')}`,
+    String(answer)
+  )
+}
+
+function buildCompositeAreaBoardRectangles(pieces: LocalCompositeAreaPiece[]) {
+  let cursorX = 0
+  const rectangles = pieces.slice(0, 6).map((piece, index) => {
+    const widthUnits = Math.trunc(piece.width)
+    const heightUnits = Math.trunc(piece.height)
+    const rectangle = {
+      xUnits: cursorX,
+      yUnits: 0,
+      widthUnits,
+      heightUnits,
+      label: `Part ${index + 1}`,
+    }
+    cursorX += widthUnits
+    return rectangle
+  })
+
+  if (
+    rectangles.length < 2 ||
+    pieces.some((piece) => !Number.isInteger(piece.width) || !Number.isInteger(piece.height)) ||
+    cursorX > 20 ||
+    Math.max(...rectangles.map((rectangle) => rectangle.heightUnits)) > 16
+  ) {
+    return null
+  }
+
+  return rectangles
+}
+
 function extractLocalTriangleBaseHeight(text: string) {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   if (!/\b(triangle|triangular)\b/i.test(normalized) || !/\barea\b/i.test(normalized)) return null
@@ -981,6 +1082,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
 
   const angleRelationshipAttempt = extractAngleRelationshipAttempt(normalized)
   if (angleRelationshipAttempt) return angleRelationshipAttempt
+
+  const compositeAreaAttempt = extractCompositeAreaAttempt(normalized)
+  if (compositeAreaAttempt) return compositeAreaAttempt
 
   const triangleAreaAttempt = extractTriangleAreaAttempt(normalized)
   if (triangleAreaAttempt) return triangleAreaAttempt
@@ -1464,6 +1568,20 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
             : []),
         ],
         title: 'Double number line',
+      },
+    })
+    return plans
+  }
+
+  const compositeArea = extractLocalCompositeAreaPieces(prompt)
+  const compositeRectangles = compositeArea ? buildCompositeAreaBoardRectangles(compositeArea.pieces) : null
+  if (compositeRectangles) {
+    plans.push({
+      toolName: 'composite_area_model',
+      input: {
+        rectangles: compositeRectangles,
+        unitLabel: 'units',
+        title: 'Composite area',
       },
     })
     return plans

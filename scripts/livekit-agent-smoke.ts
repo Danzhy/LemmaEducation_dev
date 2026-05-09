@@ -185,6 +185,14 @@ async function main() {
     { previousStep: 'perimeter of rectangle 7 by 4', nextStep: '22' },
     { ctx: {} as never, toolCallId: 'smoke-rectangle-perimeter-step-check' }
   )
+  const validCompositeAreaStep = await tools.math_check_step.execute(
+    { previousStep: 'total area of composite rectangles 3 by 4 and 2 by 5', nextStep: '22' },
+    { ctx: {} as never, toolCallId: 'smoke-composite-area-step-check' }
+  )
+  const invalidCompositeAreaStep = await tools.math_check_step.execute(
+    { previousStep: 'total area of composite rectangles 3 by 4 and 2 by 5', nextStep: '25' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-composite-area-step-check' }
+  )
   const validTriangleAreaStep = await tools.math_check_step.execute(
     { previousStep: 'area of triangle with base 10 and height 6', nextStep: '30' },
     { ctx: {} as never, toolCallId: 'smoke-triangle-area-step-check' }
@@ -580,6 +588,20 @@ async function main() {
     !JSON.stringify(validRectanglePerimeterStep).includes('boundary')
   ) {
     throw new Error(`math_check_step did not accept a rectangle perimeter claim: ${JSON.stringify(validRectanglePerimeterStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validCompositeAreaStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validCompositeAreaStep).includes('decomposed rectangle areas')
+  ) {
+    throw new Error(`math_check_step did not accept a composite area claim: ${JSON.stringify(validCompositeAreaStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidCompositeAreaStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidCompositeAreaStep).includes('outside bounding rectangle')
+  ) {
+    throw new Error(`math_check_step did not reject a composite area bounding-box mistake: ${JSON.stringify(invalidCompositeAreaStep)}`)
   }
 
   if (

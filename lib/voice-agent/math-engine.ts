@@ -543,6 +543,76 @@ function extractRectangleMeasurementKind(previousStep: string, nextStep: string)
   return null
 }
 
+type CompositeAreaPiece = {
+  width: number
+  height: number
+}
+
+function hasCompositeAreaCue(text: string) {
+  return (
+    /\barea\b/i.test(text) &&
+    /\b(composite|combined|decomposed|split|made\s+(?:up\s+)?of|made\s+from|attached|l[-\s]?shaped|rectangles|parts?)\b/i.test(
+      text
+    )
+  )
+}
+
+function extractCompositeAreaPieces(text: string): CompositeAreaPiece[] | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!hasCompositeAreaCue(normalized)) return null
+
+  const matches = [
+    ...normalized.matchAll(new RegExp(`(${PLAIN_NUMBER_PATTERN})\\s*(?:by|x|×)\\s*(${PLAIN_NUMBER_PATTERN})`, 'gi')),
+  ]
+  const pieces = matches
+    .map((match) => ({
+      width: parsePlainNumber(match[1]),
+      height: parsePlainNumber(match[2]),
+    }))
+    .filter((piece): piece is CompositeAreaPiece => {
+      return piece.width !== null && piece.height !== null && piece.width > 0 && piece.height > 0
+    })
+
+  return pieces.length >= 2 ? pieces : null
+}
+
+function checkCompositeAreaStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const pieces = extractCompositeAreaPieces(previousStep)
+  const studentAnswer = parseLastPlainNumber(nextStep)
+  if (!pieces || studentAnswer === null) return null
+
+  const partAreas = pieces.map((piece) => piece.width * piece.height)
+  const totalArea = partAreas.reduce((sum, area) => sum + area, 0)
+  const partReasons = pieces
+    .map((piece, index) => {
+      return `${formatNumber(piece.width, 4)} x ${formatNumber(piece.height, 4)} = ${formatNumber(partAreas[index], 4)}`
+    })
+    .join(', ')
+  const totalExpression = partAreas.map((area) => formatNumber(area, 4)).join(' + ')
+  const baseReason = `The composite parts have areas ${partReasons}, so the total area is ${totalExpression} = ${formatNumber(
+    totalArea,
+    4
+  )} square units.`
+  const answerMatches = isNearlyEqual(totalArea, studentAnswer, 0.01)
+  const singlePartAnswer = partAreas.some((area) => isNearlyEqual(area, studentAnswer, 0.01))
+  const sideBySideBoundingArea = pieces.reduce((sum, piece) => sum + piece.width, 0) * Math.max(...pieces.map((piece) => piece.height))
+  const stackedBoundingArea = Math.max(...pieces.map((piece) => piece.width)) * pieces.reduce((sum, piece) => sum + piece.height, 0)
+  const boundingBoxAnswer =
+    isNearlyEqual(sideBySideBoundingArea, studentAnswer, 0.01) || isNearlyEqual(stackedBoundingArea, studentAnswer, 0.01)
+
+  return {
+    verdict: answerMatches ? 'valid' : 'invalid',
+    reason: answerMatches ? baseReason : `${baseReason} The student answer is ${formatNumber(studentAnswer, 4)}.`,
+    hintTarget: answerMatches
+      ? 'explain why decomposed rectangle areas add to the composite area'
+      : singlePartAnswer
+        ? 'include every rectangular part before giving the total area'
+        : boundingBoxAnswer
+          ? 'add the decomposed rectangle areas instead of using the outside bounding rectangle'
+          : 'multiply each rectangle part, then add the part areas',
+  }
+}
+
 function checkRectangleAreaPerimeterStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
   const kind = extractRectangleMeasurementKind(previousStep, nextStep)
   if (!kind) return null
@@ -1418,6 +1488,7 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasSlopeWork:
       /\b(slope|rate of change|rise|run)\b/i.test(combined) &&
       /\(\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*\)/.test(combined),
+    hasCompositeAreaWork: Boolean(extractCompositeAreaPieces(combined)),
     hasTriangleAreaWork:
       /\b(area|triangle|triangular|base|height|altitude)\b/i.test(combined) &&
       /\b(triangle|triangular)\b/i.test(combined) &&
@@ -1472,6 +1543,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasSlopeWork) {
     return 'compare rise over run instead of using only one coordinate change'
+  }
+  if (features.hasCompositeAreaWork) {
+    return 'decompose the shape into rectangles and add each part area'
   }
   if (features.hasTriangleAreaWork) {
     return 'use the triangle area formula and halve the base-times-height product'
@@ -3248,6 +3322,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const angleRelationshipStep = checkAngleRelationshipStep(previousStep, nextStep)
   if (angleRelationshipStep) {
     return angleRelationshipStep
+  }
+
+  const compositeAreaStep = checkCompositeAreaStep(previousStep, nextStep)
+  if (compositeAreaStep) {
+    return compositeAreaStep
   }
 
   const triangleAreaStep = checkTriangleAreaStep(previousStep, nextStep)

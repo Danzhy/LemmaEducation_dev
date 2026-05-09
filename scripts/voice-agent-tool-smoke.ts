@@ -409,6 +409,20 @@ assert(
   'math_check_step should validate rectangle perimeter claims.'
 )
 
+const validCompositeAreaStep = mathCheckStep('total area of composite rectangles 3 by 4 and 2 by 5', '22')
+assert(
+  validCompositeAreaStep.verdict === 'valid' &&
+    validCompositeAreaStep.hintTarget.includes('decomposed rectangle areas'),
+  'math_check_step should validate composite area claims.'
+)
+
+const invalidCompositeAreaStep = mathCheckStep('total area of composite rectangles 3 by 4 and 2 by 5', '25')
+assert(
+  invalidCompositeAreaStep.verdict === 'invalid' &&
+    invalidCompositeAreaStep.hintTarget.includes('outside bounding rectangle'),
+  'math_check_step should catch composite area bounding-box mistakes.'
+)
+
 const validTriangleAreaStep = mathCheckStep('area of triangle with base 10 and height 6', '30')
 assert(
   validTriangleAreaStep.verdict === 'valid' &&
