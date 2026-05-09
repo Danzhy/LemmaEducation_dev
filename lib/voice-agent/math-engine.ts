@@ -548,6 +548,11 @@ type CompositeAreaPiece = {
   height: number
 }
 
+type CompositeMissingPieceArea = {
+  outer: CompositeAreaPiece
+  missing: CompositeAreaPiece
+}
+
 function hasCompositeAreaCue(text: string) {
   return (
     /\barea\b/i.test(text) &&
@@ -576,7 +581,117 @@ function extractCompositeAreaPieces(text: string): CompositeAreaPiece[] | null {
   return pieces.length >= 2 ? pieces : null
 }
 
+function hasMissingPieceCompositeAreaCue(text: string) {
+  return (
+    /\barea\b/i.test(text) &&
+    /\b(rectangle|rectangular|shape|composite|l[-\s]?shaped)\b/i.test(text) &&
+    /\b(notch|cut\s*out|cutout|removed|missing|taken\s+out|hole|subtracted?)\b/i.test(text)
+  )
+}
+
+function extractCompositeMissingPieceArea(text: string): CompositeMissingPieceArea | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!hasMissingPieceCompositeAreaCue(normalized)) return null
+
+  const matches = [
+    ...normalized.matchAll(new RegExp(`(${PLAIN_NUMBER_PATTERN})\\s*(?:by|x|×)\\s*(${PLAIN_NUMBER_PATTERN})`, 'gi')),
+  ]
+  const dimensions = matches
+    .map((match) => ({
+      width: parsePlainNumber(match[1]),
+      height: parsePlainNumber(match[2]),
+      index: match.index ?? 0,
+      endIndex: (match.index ?? 0) + match[0].length,
+    }))
+    .filter((dimension): dimension is CompositeAreaPiece & { index: number; endIndex: number } => {
+      return dimension.width !== null && dimension.height !== null && dimension.width > 0 && dimension.height > 0
+    })
+
+  if (dimensions.length < 2) return null
+
+  const localContexts = dimensions.map((dimension, index) => {
+    const previousEnd = index === 0 ? 0 : dimensions[index - 1].endIndex
+    const nextStart = index === dimensions.length - 1 ? normalized.length : dimensions[index + 1].index
+    return `${normalized.slice(Math.max(previousEnd, dimension.index - 36), dimension.index)} ${normalized.slice(
+      dimension.endIndex,
+      Math.min(nextStart, dimension.endIndex + 48)
+    )}`
+  })
+  const missingCue = /\b(notch|cut\s*out|cutout|removed|missing|taken\s+out|hole|inner|small|subtracted?)\b/i
+  const outerCue = /\b(outer|whole|large|big|original|starting|main)\b/i
+  let missingIndex = localContexts.findIndex((context) => missingCue.test(context))
+  let outerIndex = localContexts.findIndex((context, index) => index !== missingIndex && outerCue.test(context))
+
+  if (missingIndex === -1 && outerIndex !== -1) {
+    missingIndex = outerIndex === 0 ? 1 : 0
+  }
+  if (missingIndex === -1) {
+    missingIndex = 1
+  }
+  if (outerIndex === -1 || outerIndex === missingIndex) {
+    outerIndex = missingIndex === 0 ? 1 : 0
+  }
+
+  const outer = dimensions[outerIndex]
+  const missing = dimensions[missingIndex]
+  if (!outer || !missing) return null
+
+  return {
+    outer: { width: outer.width, height: outer.height },
+    missing: { width: missing.width, height: missing.height },
+  }
+}
+
+function checkMissingPieceCompositeAreaStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const setup = extractCompositeMissingPieceArea(previousStep)
+  const studentAnswer = parseLastPlainNumber(nextStep)
+  if (!setup || studentAnswer === null) return null
+
+  const outerArea = setup.outer.width * setup.outer.height
+  const missingArea = setup.missing.width * setup.missing.height
+  if (missingArea >= outerArea) {
+    return {
+      verdict: 'unclear',
+      reason: `The missing piece area ${formatNumber(missingArea, 4)} is not smaller than the whole rectangle area ${formatNumber(
+        outerArea,
+        4
+      )}.`,
+      hintTarget: 'check the whole rectangle and missing-piece dimensions before subtracting',
+    }
+  }
+
+  const totalArea = outerArea - missingArea
+  const baseReason = `The whole rectangle area is ${formatNumber(setup.outer.width, 4)} x ${formatNumber(
+    setup.outer.height,
+    4
+  )} = ${formatNumber(outerArea, 4)}, and the missing piece is ${formatNumber(setup.missing.width, 4)} x ${formatNumber(
+    setup.missing.height,
+    4
+  )} = ${formatNumber(missingArea, 4)}, so the remaining area is ${formatNumber(outerArea, 4)} - ${formatNumber(
+    missingArea,
+    4
+  )} = ${formatNumber(totalArea, 4)} square units.`
+  const answerMatches = isNearlyEqual(totalArea, studentAnswer, 0.01)
+
+  return {
+    verdict: answerMatches ? 'valid' : 'invalid',
+    reason: answerMatches ? baseReason : `${baseReason} The student answer is ${formatNumber(studentAnswer, 4)}.`,
+    hintTarget: answerMatches
+      ? 'explain why missing-piece composite area subtracts the removed rectangle'
+      : isNearlyEqual(outerArea + missingArea, studentAnswer, 0.01)
+        ? 'subtract the cut-out piece instead of adding it'
+        : isNearlyEqual(outerArea, studentAnswer, 0.01)
+          ? 'subtract the missing rectangle from the whole area'
+          : isNearlyEqual(missingArea, studentAnswer, 0.01)
+            ? 'start with the whole rectangle before subtracting the notch'
+            : 'multiply the whole rectangle, multiply the missing rectangle, then subtract',
+  }
+}
+
 function checkCompositeAreaStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const missingPieceStep = checkMissingPieceCompositeAreaStep(previousStep, nextStep)
+  if (missingPieceStep) return missingPieceStep
+
   const pieces = extractCompositeAreaPieces(previousStep)
   const studentAnswer = parseLastPlainNumber(nextStep)
   if (!pieces || studentAnswer === null) return null
@@ -8614,6 +8729,7 @@ export function doubleNumberLineScene(input: {
 
 export function compositeAreaModelScene(input: {
   rectangles: Array<{ xUnits: number; yUnits: number; widthUnits: number; heightUnits: number; label?: string }>
+  removedRectangles?: Array<{ xUnits: number; yUnits: number; widthUnits: number; heightUnits: number; label?: string }>
   unitLabel?: string
   title?: string
 }): CanvasActionResult {
@@ -8627,16 +8743,28 @@ export function compositeAreaModelScene(input: {
       heightUnits: Math.trunc(piece.heightUnits),
       label: piece.label?.trim(),
     }))
+  const removedPieces = (input.removedRectangles ?? [])
+    .slice(0, 3)
+    .map((piece) => ({
+      xUnits: Math.trunc(piece.xUnits),
+      yUnits: Math.trunc(piece.yUnits),
+      widthUnits: Math.trunc(piece.widthUnits),
+      heightUnits: Math.trunc(piece.heightUnits),
+      label: piece.label?.trim(),
+    }))
 
   if (
     pieces.length === 0 ||
-    pieces.some((piece) => piece.widthUnits <= 0 || piece.heightUnits <= 0 || piece.xUnits < 0 || piece.yUnits < 0)
+    [...pieces, ...removedPieces].some(
+      (piece) => piece.widthUnits <= 0 || piece.heightUnits <= 0 || piece.xUnits < 0 || piece.yUnits < 0
+    )
   ) {
     throw new Error('Composite area needs positive rectangle dimensions and non-negative positions.')
   }
 
-  const maxX = Math.max(...pieces.map((piece) => piece.xUnits + piece.widthUnits))
-  const maxY = Math.max(...pieces.map((piece) => piece.yUnits + piece.heightUnits))
+  const allPieces = [...pieces, ...removedPieces]
+  const maxX = Math.max(...allPieces.map((piece) => piece.xUnits + piece.widthUnits))
+  const maxY = Math.max(...allPieces.map((piece) => piece.yUnits + piece.heightUnits))
   if (maxX > 20 || maxY > 16) {
     throw new Error('Composite area model supports a drawing up to 20 by 16 units.')
   }
@@ -8650,6 +8778,7 @@ export function compositeAreaModelScene(input: {
     ...buildSceneChrome(input.title?.trim() || 'Composite area'),
   ]
   let totalArea = 0
+  let removedArea = 0
 
   pieces.forEach((piece, index) => {
     const area = piece.widthUnits * piece.heightUnits
@@ -8678,6 +8807,26 @@ export function compositeAreaModelScene(input: {
     }
   })
 
+  removedPieces.forEach((piece) => {
+    const area = piece.widthUnits * piece.heightUnits
+    removedArea += area
+    totalArea -= area
+    const x = originX + piece.xUnits * cellSize
+    const y = originY + piece.yUnits * cellSize
+    const width = piece.widthUnits * cellSize
+    const height = piece.heightUnits * cellSize
+    actions.push(
+      rectangle(x, y, width, height, {
+        color: 'red',
+        fill: 'semi',
+        opacity: 0.2,
+        dash: 'dashed',
+        size: 'm',
+        label: piece.label || `-${area}`,
+      })
+    )
+  })
+
   actions.push(
     rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
       color: 'light-green',
@@ -8686,7 +8835,7 @@ export function compositeAreaModelScene(input: {
       dash: 'solid',
       size: 's',
     }),
-    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Add the parts', {
+    textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, removedPieces.length > 0 ? 'Subtract the missing piece' : 'Add the parts', {
       width: NOTE_FRAME.width - 32,
       color: 'green',
     }),
@@ -8695,6 +8844,10 @@ export function compositeAreaModelScene(input: {
       NOTE_FRAME.y + 52,
       [
         ...pieces.slice(0, 4).map((piece, index) => `Part ${index + 1}: ${piece.widthUnits} x ${piece.heightUnits} = ${piece.widthUnits * piece.heightUnits}`),
+        ...removedPieces
+          .slice(0, 2)
+          .map((piece, index) => `Missing ${index + 1}: ${piece.widthUnits} x ${piece.heightUnits} = ${piece.widthUnits * piece.heightUnits}`),
+        ...(removedPieces.length > 0 ? [`Subtract missing area: ${removedArea}`] : []),
         `Total area: ${totalArea} ${formatSquareUnitLabel(unitLabel)}`,
       ],
       {
@@ -8707,7 +8860,10 @@ export function compositeAreaModelScene(input: {
   )
 
   return {
-    summary: `Prepared a composite area model with total area ${totalArea} ${formatSquareUnitLabel(unitLabel)}.`,
+    summary:
+      removedPieces.length > 0
+        ? `Prepared a missing-piece composite area model with total area ${totalArea} ${formatSquareUnitLabel(unitLabel)}.`
+        : `Prepared a composite area model with total area ${totalArea} ${formatSquareUnitLabel(unitLabel)}.`,
     canvasActions: actions,
   }
 }

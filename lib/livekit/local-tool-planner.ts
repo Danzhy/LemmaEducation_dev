@@ -19,6 +19,11 @@ type LocalCompositeAreaPiece = {
   height: number
 }
 
+type LocalCompositeMissingPiece = {
+  outer: LocalCompositeAreaPiece
+  missing: LocalCompositeAreaPiece
+}
+
 const LOCAL_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
 const LOCAL_PLACE_VALUE_PATTERN =
   String.raw`thousandths?|hundredths?|tenths?|thousands?|hundreds?|tens?|ones?|units?`
@@ -598,6 +603,83 @@ function extractCompositeAreaAnswer(text: string, piecesEndIndex: number) {
   return null
 }
 
+function hasLocalMissingPieceCompositeAreaCue(text: string) {
+  return (
+    /\barea\b/i.test(text) &&
+    /\b(rectangle|rectangular|shape|composite|l[-\s]?shaped)\b/i.test(text) &&
+    /\b(notch|cut\s*out|cutout|removed|missing|taken\s+out|hole|subtracted?)\b/i.test(text)
+  )
+}
+
+function extractLocalCompositeMissingPiece(text: string): (LocalCompositeMissingPiece & { endIndex: number }) | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!hasLocalMissingPieceCompositeAreaCue(normalized)) return null
+
+  const matches = [
+    ...normalized.matchAll(new RegExp(`(${LOCAL_NUMBER_PATTERN})\\s*(?:by|x|×)\\s*(${LOCAL_NUMBER_PATTERN})`, 'gi')),
+  ]
+  const dimensions = matches
+    .map((match) => ({
+      width: parseLocalPlainNumber(match[1]),
+      height: parseLocalPlainNumber(match[2]),
+      index: match.index ?? 0,
+      endIndex: (match.index ?? 0) + match[0].length,
+    }))
+    .filter(
+      (dimension): dimension is LocalCompositeAreaPiece & { index: number; endIndex: number } =>
+        dimension.width !== null && dimension.height !== null && dimension.width > 0 && dimension.height > 0
+    )
+
+  if (dimensions.length < 2) return null
+
+  const localContexts = dimensions.map((dimension, index) => {
+    const previousEnd = index === 0 ? 0 : dimensions[index - 1].endIndex
+    const nextStart = index === dimensions.length - 1 ? normalized.length : dimensions[index + 1].index
+    return `${normalized.slice(Math.max(previousEnd, dimension.index - 36), dimension.index)} ${normalized.slice(
+      dimension.endIndex,
+      Math.min(nextStart, dimension.endIndex + 48)
+    )}`
+  })
+  const missingCue = /\b(notch|cut\s*out|cutout|removed|missing|taken\s+out|hole|inner|small|subtracted?)\b/i
+  const outerCue = /\b(outer|whole|large|big|original|starting|main)\b/i
+  let missingIndex = localContexts.findIndex((context) => missingCue.test(context))
+  let outerIndex = localContexts.findIndex((context, index) => index !== missingIndex && outerCue.test(context))
+
+  if (missingIndex === -1 && outerIndex !== -1) {
+    missingIndex = outerIndex === 0 ? 1 : 0
+  }
+  if (missingIndex === -1) {
+    missingIndex = 1
+  }
+  if (outerIndex === -1 || outerIndex === missingIndex) {
+    outerIndex = missingIndex === 0 ? 1 : 0
+  }
+
+  const outer = dimensions[outerIndex]
+  const missing = dimensions[missingIndex]
+  if (!outer || !missing) return null
+
+  return {
+    outer: { width: outer.width, height: outer.height },
+    missing: { width: missing.width, height: missing.height },
+    endIndex: Math.max(...dimensions.map((dimension) => dimension.endIndex)),
+  }
+}
+
+function extractCompositeMissingAreaAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const missingPiece = extractLocalCompositeMissingPiece(normalized)
+  if (!missingPiece) return null
+
+  const answer = extractCompositeAreaAnswer(normalized, missingPiece.endIndex)
+  if (answer === null) return null
+
+  return buildStepPair(
+    `area of composite rectangle ${missingPiece.outer.width} by ${missingPiece.outer.height} with ${missingPiece.missing.width} by ${missingPiece.missing.height} missing`,
+    String(answer)
+  )
+}
+
 function extractCompositeAreaAttempt(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const composite = extractLocalCompositeAreaPieces(normalized)
@@ -638,6 +720,38 @@ function buildCompositeAreaBoardRectangles(pieces: LocalCompositeAreaPiece[]) {
   }
 
   return rectangles
+}
+
+function buildCompositeMissingPieceBoardInput(setup: LocalCompositeMissingPiece) {
+  const outerWidth = Math.trunc(setup.outer.width)
+  const outerHeight = Math.trunc(setup.outer.height)
+  const missingWidth = Math.trunc(setup.missing.width)
+  const missingHeight = Math.trunc(setup.missing.height)
+  if (
+    outerWidth <= 0 ||
+    outerHeight <= 0 ||
+    missingWidth <= 0 ||
+    missingHeight <= 0 ||
+    outerWidth > 20 ||
+    outerHeight > 16 ||
+    missingWidth >= outerWidth ||
+    missingHeight >= outerHeight
+  ) {
+    return null
+  }
+
+  return {
+    rectangles: [{ xUnits: 0, yUnits: 0, widthUnits: outerWidth, heightUnits: outerHeight, label: 'Whole' }],
+    removedRectangles: [
+      {
+        xUnits: outerWidth - missingWidth,
+        yUnits: 0,
+        widthUnits: missingWidth,
+        heightUnits: missingHeight,
+        label: 'Missing',
+      },
+    ],
+  }
 }
 
 function extractLocalTriangleBaseHeight(text: string) {
@@ -1083,6 +1197,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const angleRelationshipAttempt = extractAngleRelationshipAttempt(normalized)
   if (angleRelationshipAttempt) return angleRelationshipAttempt
 
+  const compositeMissingAreaAttempt = extractCompositeMissingAreaAttempt(normalized)
+  if (compositeMissingAreaAttempt) return compositeMissingAreaAttempt
+
   const compositeAreaAttempt = extractCompositeAreaAttempt(normalized)
   if (compositeAreaAttempt) return compositeAreaAttempt
 
@@ -1322,6 +1439,18 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
         plans.push({
           toolName: 'place_value_chart',
           input: placeValueChartInput,
+        })
+      }
+      const missingPiece = extractLocalCompositeMissingPiece(studentStepPair.previousStep)
+      const missingPieceBoardInput = missingPiece ? buildCompositeMissingPieceBoardInput(missingPiece) : null
+      if (missingPieceBoardInput) {
+        plans.push({
+          toolName: 'composite_area_model',
+          input: {
+            ...missingPieceBoardInput,
+            unitLabel: 'units',
+            title: 'Missing-piece area',
+          },
         })
       }
     }
@@ -1573,6 +1702,20 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
+  const missingPieceArea = extractLocalCompositeMissingPiece(prompt)
+  const missingPieceBoardInput = missingPieceArea ? buildCompositeMissingPieceBoardInput(missingPieceArea) : null
+  if (missingPieceBoardInput) {
+    plans.push({
+      toolName: 'composite_area_model',
+      input: {
+        ...missingPieceBoardInput,
+        unitLabel: 'units',
+        title: 'Missing-piece area',
+      },
+    })
+    return plans
+  }
+
   const compositeArea = extractLocalCompositeAreaPieces(prompt)
   const compositeRectangles = compositeArea ? buildCompositeAreaBoardRectangles(compositeArea.pieces) : null
   if (compositeRectangles) {
@@ -1765,7 +1908,12 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
         Boolean(output && typeof output === 'object' && 'verdict' in output)
     )
     const hasPlaceValueChart = plans.some((plan) => plan.toolName === 'place_value_chart')
-    const boardCue = hasPlaceValueChart ? ' I also highlighted the place-value chart so the target column is visible.' : ''
+    const hasCompositeAreaModel = plans.some((plan) => plan.toolName === 'composite_area_model')
+    const boardCue = hasPlaceValueChart
+      ? ' I also highlighted the place-value chart so the target column is visible.'
+      : hasCompositeAreaModel
+        ? ' I also put the whole rectangle and missing piece on the board.'
+        : ''
     if (checkedStep?.verdict === 'valid') {
       return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
     }

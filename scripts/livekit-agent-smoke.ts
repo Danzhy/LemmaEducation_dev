@@ -193,6 +193,14 @@ async function main() {
     { previousStep: 'total area of composite rectangles 3 by 4 and 2 by 5', nextStep: '25' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-composite-area-step-check' }
   )
+  const validMissingPieceCompositeAreaStep = await tools.math_check_step.execute(
+    { previousStep: 'area of composite rectangle 10 by 8 with 3 by 4 missing', nextStep: '68' },
+    { ctx: {} as never, toolCallId: 'smoke-missing-piece-composite-area-step-check' }
+  )
+  const invalidMissingPieceCompositeAreaStep = await tools.math_check_step.execute(
+    { previousStep: 'area of composite rectangle 10 by 8 with 3 by 4 missing', nextStep: '92' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-missing-piece-composite-area-step-check' }
+  )
   const validTriangleAreaStep = await tools.math_check_step.execute(
     { previousStep: 'area of triangle with base 10 and height 6', nextStep: '30' },
     { ctx: {} as never, toolCallId: 'smoke-triangle-area-step-check' }
@@ -602,6 +610,20 @@ async function main() {
     !JSON.stringify(invalidCompositeAreaStep).includes('outside bounding rectangle')
   ) {
     throw new Error(`math_check_step did not reject a composite area bounding-box mistake: ${JSON.stringify(invalidCompositeAreaStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validMissingPieceCompositeAreaStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validMissingPieceCompositeAreaStep).includes('subtracts the removed rectangle')
+  ) {
+    throw new Error(`math_check_step did not accept a missing-piece composite area claim: ${JSON.stringify(validMissingPieceCompositeAreaStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidMissingPieceCompositeAreaStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidMissingPieceCompositeAreaStep).includes('instead of adding')
+  ) {
+    throw new Error(`math_check_step did not reject a missing-piece composite area addition mistake: ${JSON.stringify(invalidMissingPieceCompositeAreaStep)}`)
   }
 
   if (

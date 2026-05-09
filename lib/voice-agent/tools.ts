@@ -2440,6 +2440,21 @@ export function createVoiceAgentTools() {
               required: ['xUnits', 'yUnits', 'widthUnits', 'heightUnits'],
             },
           },
+          removedRectangles: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                xUnits: { type: 'number' },
+                yUnits: { type: 'number' },
+                widthUnits: { type: 'number' },
+                heightUnits: { type: 'number' },
+                label: { type: 'string' },
+              },
+              required: ['xUnits', 'yUnits', 'widthUnits', 'heightUnits'],
+            },
+          },
           unitLabel: { type: 'string' },
           title: { type: 'string' },
         },
@@ -2454,12 +2469,20 @@ export function createVoiceAgentTools() {
             heightUnits: number
             label?: string
           }>
+          removedRectangles?: Array<{
+            xUnits: number
+            yUnits: number
+            widthUnits: number
+            heightUnits: number
+            label?: string
+          }>
           unitLabel?: string
           title?: string
         }
         return stringifyResult(
           compositeAreaModelScene({
             rectangles: params.rectangles,
+            removedRectangles: params.removedRectangles,
             unitLabel: params.unitLabel,
             title: params.title,
           })

@@ -303,6 +303,20 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks missing-piece composite area attempts before classifying the mistake',
+    prompt: 'I got the area of a 10 by 8 rectangle with a 3 by 4 notch cut out as 92. Is that right?',
+    expectedTools: ['math_check_step', 'composite_area_model', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'area of composite rectangle 10 by 8 with 3 by 4 missing')
+      assert.equal(input.nextStep, '92')
+      const boardInput = plans[1].input
+      const removedRectangles = boardInput.removedRectangles as Array<{ widthUnits: number; heightUnits: number }>
+      assert.equal(removedRectangles.length, 1)
+      assert.equal(removedRectangles[0].widthUnits, 3)
+      assert.equal(removedRectangles[0].heightUnits, 4)
+    },
+  },
+  {
     name: 'checks triangle area attempts before classifying the mistake',
     prompt: 'I got the area of a triangle with base 10 and height 6 as 60. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
@@ -347,6 +361,20 @@ const cases: PlannerCase[] = [
       assert.equal(rectangles[0].widthUnits, 3)
       assert.equal(rectangles[1].heightUnits, 5)
       assert.equal(rectangles[1].xUnits, 3)
+    },
+  },
+  {
+    name: 'routes missing-piece composite area requests to a composite area model',
+    prompt: 'Find the area of a 10 by 8 rectangle with a 3 by 4 notch cut out.',
+    expectedTools: ['composite_area_model'],
+    inspect: (input) => {
+      const rectangles = input.rectangles as Array<{ widthUnits: number; heightUnits: number }>
+      const removedRectangles = input.removedRectangles as Array<{ widthUnits: number; heightUnits: number; xUnits: number }>
+      assert.equal(rectangles[0].widthUnits, 10)
+      assert.equal(rectangles[0].heightUnits, 8)
+      assert.equal(removedRectangles[0].widthUnits, 3)
+      assert.equal(removedRectangles[0].heightUnits, 4)
+      assert.equal(removedRectangles[0].xUnits, 7)
     },
   },
   {
@@ -521,6 +549,14 @@ assert.match(
     [{ verdict: 'valid', reason: 'Both equations keep the same solution, x = 4.', hintTarget: 'inverse operations' }]
   ),
   /place-value chart/i
+)
+assert.match(
+  buildLocalAssistantReply(
+    'is this missing area right',
+    [{ toolName: 'math_check_step', input: {} }, { toolName: 'composite_area_model', input: {} }],
+    [{ verdict: 'invalid', reason: 'The whole area is 80 and the missing piece is 12.', hintTarget: 'subtract the missing rectangle' }]
+  ),
+  /whole rectangle and missing piece/
 )
 assert.match(
   buildLocalAssistantReply(

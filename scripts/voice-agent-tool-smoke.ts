@@ -178,6 +178,15 @@ const smokeCases: SmokeCase[] = [
     run: () => compositeAreaModelScene({ unitLabel: 'cm', rectangles: [{ xUnits: 0, yUnits: 0, widthUnits: 3, heightUnits: 4 }, { xUnits: 3, yUnits: 0, widthUnits: 2, heightUnits: 5 }] }),
   },
   {
+    name: 'missing_piece_composite_area_model',
+    run: () =>
+      compositeAreaModelScene({
+        unitLabel: 'cm',
+        rectangles: [{ xUnits: 0, yUnits: 0, widthUnits: 10, heightUnits: 8, label: 'Whole' }],
+        removedRectangles: [{ xUnits: 7, yUnits: 0, widthUnits: 3, heightUnits: 4, label: 'Missing' }],
+      }),
+  },
+  {
     name: 'order_of_operations',
     run: () => orderOfOperationsScene({ expression: '3+4*2' }),
   },
@@ -421,6 +430,20 @@ assert(
   invalidCompositeAreaStep.verdict === 'invalid' &&
     invalidCompositeAreaStep.hintTarget.includes('outside bounding rectangle'),
   'math_check_step should catch composite area bounding-box mistakes.'
+)
+
+const validMissingPieceCompositeAreaStep = mathCheckStep('area of composite rectangle 10 by 8 with 3 by 4 missing', '68')
+assert(
+  validMissingPieceCompositeAreaStep.verdict === 'valid' &&
+    validMissingPieceCompositeAreaStep.hintTarget.includes('subtracts the removed rectangle'),
+  'math_check_step should validate missing-piece composite area claims.'
+)
+
+const invalidMissingPieceCompositeAreaStep = mathCheckStep('area of composite rectangle 10 by 8 with 3 by 4 missing', '92')
+assert(
+  invalidMissingPieceCompositeAreaStep.verdict === 'invalid' &&
+    invalidMissingPieceCompositeAreaStep.hintTarget.includes('instead of adding'),
+  'math_check_step should catch missing-piece composite area addition mistakes.'
 )
 
 const validTriangleAreaStep = mathCheckStep('area of triangle with base 10 and height 6', '30')
