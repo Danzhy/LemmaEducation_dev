@@ -100,6 +100,14 @@ async function main() {
     { previousStep: '25% of 80', nextStep: '20' },
     { ctx: {} as never, toolCallId: 'smoke-percent-step-check' }
   )
+  const validPercentChangeStep = await tools.math_check_step.execute(
+    { previousStep: 'from 80 to 100', nextStep: '25% increase' },
+    { ctx: {} as never, toolCallId: 'smoke-percent-change-step-check' }
+  )
+  const invalidPercentChangeStep = await tools.math_check_step.execute(
+    { previousStep: 'from 80 to 100', nextStep: '20% increase' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-percent-change-step-check' }
+  )
   const invalidDecimalStep = await tools.math_check_step.execute(
     { previousStep: '0.4 + 0.08', nextStep: '0.12' },
     { ctx: {} as never, toolCallId: 'smoke-decimal-step-check' }
@@ -367,6 +375,17 @@ async function main() {
 
   if (!JSON.stringify(validPercentStep).includes('"verdict":"valid"')) {
     throw new Error(`math_check_step did not accept percent-of wording: ${JSON.stringify(validPercentStep)}`)
+  }
+
+  if (!JSON.stringify(validPercentChangeStep).includes('"verdict":"valid"')) {
+    throw new Error(`math_check_step did not accept a percent-change step: ${JSON.stringify(validPercentChangeStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidPercentChangeStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidPercentChangeStep).includes('percent-change base')
+  ) {
+    throw new Error(`math_check_step did not reject a percent-change base mistake: ${JSON.stringify(invalidPercentChangeStep)}`)
   }
 
   if (

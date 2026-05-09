@@ -144,6 +144,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks percent-change attempts before classifying the mistake',
+    prompt: 'The price went from 80 to 100, and I got 20% increase. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'from 80 to 100')
+      assert.equal(input.nextStep, '20% increase')
+    },
+  },
+  {
     name: 'checks natural two-step equation balance attempts before classifying the mistake',
     prompt: 'I subtracted 3 from 2x + 3 = 11 and got 2x = 14. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],

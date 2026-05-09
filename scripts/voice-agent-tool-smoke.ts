@@ -263,6 +263,20 @@ assert(
 const validPercentStep = mathCheckStep('25% of 80', '20')
 assert(validPercentStep.verdict === 'valid', 'math_check_step should validate percent-of wording.')
 
+const validPercentChangeStep = mathCheckStep('from 80 to 100', '25% increase')
+assert(
+  validPercentChangeStep.verdict === 'valid' &&
+    validPercentChangeStep.hintTarget.includes('original amount'),
+  'math_check_step should validate percent-change steps.'
+)
+
+const invalidPercentChangeStep = mathCheckStep('from 80 to 100', '20% increase')
+assert(
+  invalidPercentChangeStep.verdict === 'invalid' &&
+    invalidPercentChangeStep.hintTarget.includes('percent-change base'),
+  'math_check_step should catch percent-change base mistakes.'
+)
+
 const invalidDecimalStep = mathCheckStep('0.4 + 0.08', '0.12')
 assert(
   invalidDecimalStep.verdict === 'invalid' &&

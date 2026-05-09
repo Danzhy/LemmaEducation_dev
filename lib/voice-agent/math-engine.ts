@@ -484,6 +484,116 @@ function checkSlopeStep(previousStep: string, nextStep: string): MathStepCheckRe
   }
 }
 
+const PLAIN_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
+
+function parsePlainNumber(token: string) {
+  const value = Number(token.replace(/,/g, ''))
+  return Number.isFinite(value) ? value : null
+}
+
+function extractPercentChangeAmounts(text: string) {
+  if (/%|\bpercent\b/i.test(text)) return null
+
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const fromToMatch = normalized.match(
+    new RegExp(
+      `\\bfrom\\s+\\$?\\s*(${PLAIN_NUMBER_PATTERN})\\s+(?:to|into|up\\s+to|down\\s+to)\\s+\\$?\\s*(${PLAIN_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  const arrowMatch = normalized.match(
+    new RegExp(`\\$?\\s*(${PLAIN_NUMBER_PATTERN})\\s*(?:->|→|⇒|to)\\s*\\$?\\s*(${PLAIN_NUMBER_PATTERN})`, 'i')
+  )
+  const match = fromToMatch ?? arrowMatch
+  if (!match) return null
+
+  const from = parsePlainNumber(match[1])
+  const to = parsePlainNumber(match[2])
+  if (from === null || to === null) return null
+  return { from, to }
+}
+
+function parsePercentChangeAnswer(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const percentMatches = [
+    ...normalized.matchAll(new RegExp(`(${PLAIN_NUMBER_PATTERN})\\s*(?:%|percent(?:age)?)`, 'gi')),
+  ]
+  const valueMatch = percentMatches.at(-1)
+  const value = valueMatch ? parsePlainNumber(valueMatch[1]) : null
+  if (value === null) return null
+
+  const lower = normalized.toLowerCase()
+  const direction = /\b(decrease|decreased|decreasing|drop|dropped|loss|lower|less|down|discount)\b/.test(lower)
+    ? 'decrease'
+    : /\b(increase|increased|increasing|gain|grew|growth|more|up|rise|rose|raised)\b/.test(lower)
+      ? 'increase'
+      : null
+
+  return { value, direction }
+}
+
+function checkPercentChangeStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/%|\bpercent\b/i.test(nextStep)) return null
+  if (!/\b(percent\s+change|increase|increased|decrease|decreased|from|to|original|new|old)\b/i.test(combined)) {
+    return null
+  }
+
+  const amounts = extractPercentChangeAmounts(previousStep)
+  const studentAnswer = parsePercentChangeAnswer(nextStep)
+  if (!amounts || !studentAnswer) return null
+
+  const { from, to } = amounts
+  if (isNearlyEqual(from, 0)) {
+    return {
+      verdict: 'unclear',
+      reason: 'Percent change needs a nonzero original amount as the base.',
+      hintTarget: 'identify the original amount before finding percent change',
+    }
+  }
+
+  const change = to - from
+  const expectedDirection = change > 0 ? 'increase' : change < 0 ? 'decrease' : 'unchanged'
+  const expectedPercent = Math.abs((change / from) * 100)
+  const valueMatches = isNearlyEqual(expectedPercent, studentAnswer.value, 0.05)
+  const directionMatches =
+    studentAnswer.direction === null ||
+    expectedDirection === 'unchanged' ||
+    studentAnswer.direction === expectedDirection
+  const changeMagnitude = Math.abs(change)
+  const baseReason = `The amount changed by ${formatNumber(changeMagnitude, 4)} from ${formatNumber(
+    from,
+    4
+  )} to ${formatNumber(to, 4)}. Percent change uses the original amount ${formatNumber(
+    from,
+    4
+  )} as the base, so ${formatNumber(changeMagnitude, 4)}/${formatNumber(from, 4)} = ${formatPercent(
+    expectedPercent
+  )}.`
+
+  if (valueMatches && directionMatches) {
+    return {
+      verdict: 'valid',
+      reason: baseReason,
+      hintTarget: 'explain why the original amount is the percent-change base',
+    }
+  }
+
+  if (!directionMatches) {
+    return {
+      verdict: 'invalid',
+      reason: `${baseReason} The direction is a ${expectedDirection}, not a ${studentAnswer.direction}.`,
+      hintTarget: 'match the increase or decrease direction to the change',
+    }
+  }
+
+  return {
+    verdict: 'invalid',
+    reason: `${baseReason} The student percent is ${formatPercent(studentAnswer.value)}.`,
+    hintTarget: 'use the original amount as the percent-change base',
+  }
+}
+
 function evaluateComparableExpression(expression: string): ComparableExpression {
   const unitQuantity = parseUnitQuantity(expression)
   if (unitQuantity) {
@@ -659,6 +769,9 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasMixedNumberWork: hasMixedNumber(previousStep) || hasMixedNumber(nextStep),
     hasFractionWork: /\d+\s*\/\s*\d+/.test(combined),
     hasPercentWork: /%|\bpercent\b/i.test(combined),
+    hasPercentChangeWork:
+      /%|\bpercent\b/i.test(nextStep) &&
+      /\b(percent\s+change|increase|increased|decrease|decreased|from|to|original|new|old)\b/i.test(combined),
     hasRatioWork: /-?\d+(?:\.\d+)?\s*:\s*-?\d+(?:\.\d+)?/.test(combined),
     hasDecimalWork: /\d+\.\d+/.test(combined),
     hasIntegerSignWork: /(^|[=+\-*/(]\s*)-\d/.test(combined),
@@ -699,6 +812,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasFractionWork) {
     return 'recheck the common denominator or fraction operation'
+  }
+  if (features.hasPercentChangeWork) {
+    return 'use the original amount as the percent-change base'
   }
   if (features.hasPercentWork) {
     return 'convert the percent to an equivalent decimal or fraction first'
@@ -2440,6 +2556,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const coordinateDistanceStep = checkCoordinateDistanceStep(previousStep, nextStep)
   if (coordinateDistanceStep) {
     return coordinateDistanceStep
+  }
+
+  const percentChangeStep = checkPercentChangeStep(previousStep, nextStep)
+  if (percentChangeStep) {
+    return percentChangeStep
   }
 
   if (!prev.includes('=') && !next.includes('=')) {

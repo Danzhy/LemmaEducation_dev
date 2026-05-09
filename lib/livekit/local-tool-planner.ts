@@ -14,6 +14,8 @@ type StudentStepPair = {
   nextStep: string
 }
 
+const LOCAL_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
+
 function formatToolNameForStudent(toolName: string) {
   return toolName.replace(/_/g, ' ')
 }
@@ -85,6 +87,11 @@ function parseLocalNumberToken(token: string) {
   }
 
   const value = Number(compact)
+  return Number.isFinite(value) ? value : null
+}
+
+function parseLocalPlainNumber(token: string) {
+  const value = Number(token.replace(/,/g, ''))
   return Number.isFinite(value) ? value : null
 }
 
@@ -378,6 +385,49 @@ function extractMixedNumberOperationAttempt(text: string): StudentStepPair | nul
   return null
 }
 
+function extractPercentChangeAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/%|\bpercent\b/i.test(normalized)) return null
+  if (!/\b(percent\s+change|increase|increased|decrease|decreased|went\s+from|changed\s+from|from)\b/i.test(normalized)) {
+    return null
+  }
+
+  const amountMatch =
+    normalized.match(
+      new RegExp(
+        `\\bfrom\\s+\\$?\\s*(${LOCAL_NUMBER_PATTERN})\\s+(?:to|into|up\\s+to|down\\s+to)\\s+\\$?\\s*(${LOCAL_NUMBER_PATTERN})`,
+        'i'
+      )
+    ) ??
+    normalized.match(
+      new RegExp(`\\$?\\s*(${LOCAL_NUMBER_PATTERN})\\s*(?:->|→|⇒|to)\\s*\\$?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+    )
+  if (!amountMatch) return null
+
+  const from = parseLocalPlainNumber(amountMatch[1])
+  const to = parseLocalPlainNumber(amountMatch[2])
+  if (from === null || to === null) return null
+
+  const percentMatches = [
+    ...normalized.matchAll(new RegExp(`(${LOCAL_NUMBER_PATTERN})\\s*(?:%|percent(?:age)?)`, 'gi')),
+  ]
+  const answerMatch = percentMatches.at(-1)
+  const percentValue = answerMatch ? parseLocalPlainNumber(answerMatch[1]) : null
+  if (percentValue === null) return null
+
+  const lower = normalized.toLowerCase()
+  const direction = /\b(decrease|decreased|decreasing|drop|dropped|loss|lower|less|down|discount)\b/.test(lower)
+    ? 'decrease'
+    : /\b(increase|increased|increasing|gain|grew|growth|more|up|rise|rose|raised)\b/.test(lower)
+      ? 'increase'
+      : null
+
+  return buildStepPair(
+    `from ${from} to ${to}`,
+    `${percentValue}%${direction ? ` ${direction}` : ''}`
+  )
+}
+
 function extractAlgebraExpressionAttempt(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
@@ -453,6 +503,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const arithmeticOperationAttempt = extractArithmeticOperationAttempt(normalized)
   if (arithmeticOperationAttempt) return arithmeticOperationAttempt
 
+  const percentChangeAttempt = extractPercentChangeAttempt(normalized)
+  if (percentChangeAttempt) return percentChangeAttempt
+
   const slopeAttempt = extractSlopeAttempt(normalized)
   if (slopeAttempt) return slopeAttempt
 
@@ -507,6 +560,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const hasStudentAttempt =
     /\b(i tried|i got|i found|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
     /\b(i added|i subtracted|i calculated|i evaluated|i did|i worked out|i simplified|and got)\b/.test(lower) ||
+    /\b(went from|changed from|increased from|decreased from|percent change)\b/.test(lower) ||
     prompt.includes('=')
   const asksForCurriculumContext =
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
