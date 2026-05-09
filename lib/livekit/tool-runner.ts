@@ -328,7 +328,7 @@ function createLearnerContextTool(): ToolWithInvoke {
   return {
     name: 'learner_context',
     description:
-      'Load concise recent tutoring history for this signed-in learner: recent topics, struggle signals, useful tools, and suggested tutor adjustments. Use this when the student says "last time", asks to continue, asks what they struggle with, or when adapting a review session without exposing old private history verbatim.',
+      'Load concise recent tutoring history for this signed-in learner: recent topics, struggle signals, structured misconception timeline, useful tools, and suggested tutor adjustments. Use this when the student says "last time", asks to continue, asks what they struggle with, or when adapting a review session without exposing old private history verbatim.',
     strict: true,
     parameters: {
       type: 'object',

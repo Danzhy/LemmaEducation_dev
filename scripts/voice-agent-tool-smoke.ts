@@ -1221,10 +1221,22 @@ const reviewPlan = adaptiveReviewPlan({
   topics: ['fractions'],
   struggleSignals: ['student says they are stuck'],
   recentExcerpts: ['I got stuck adding unlike denominators.'],
+  misconceptionTimeline: [
+    {
+      topic: 'fractions',
+      signal: 'May be adding or subtracting denominators instead of finding a common denominator.',
+      count: 3,
+      priority: 'reteach',
+      sourceTools: ['misconception_diagnosis', 'math_check_step'],
+      recentEvidence: ['Misconception diagnosis returned this learning pattern.'],
+      lastSeen: '2026-05-09T18:00:00.000Z',
+    },
+  ],
 })
 assert(
   reviewPlan.reviewMode === 'rebuild' &&
     reviewPlan.firstBoardTool === 'fraction_strip' &&
+    reviewPlan.timelineFocus?.count === 3 &&
     reviewPlan.selectedMisconception.toLowerCase().includes('denominator') &&
     reviewPlan.firstStudentQuestion.includes('same-size pieces') &&
     reviewPlan.microPractice.length === 2,

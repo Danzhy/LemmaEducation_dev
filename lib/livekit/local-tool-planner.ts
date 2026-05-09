@@ -11,6 +11,7 @@ type LearnerContextOutput = {
   likelyTopics?: unknown
   struggleSignals?: unknown
   recentExcerpts?: unknown
+  misconceptionTimeline?: unknown
 }
 
 type StudentStepPair = {
@@ -3595,6 +3596,7 @@ export function planLocalToolTurn(
         topics: [],
         struggleSignals: [],
         recentExcerpts: [],
+        misconceptionTimeline: [],
       },
     })
 
@@ -4336,6 +4338,30 @@ function excerptArray(value: unknown, limit: number) {
     .slice(0, limit)
 }
 
+function misconceptionTimelineArray(value: unknown, limit: number) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const record = item as Record<string, unknown>
+      const topic = typeof record.topic === 'string' ? record.topic.trim() : ''
+      const signal = typeof record.signal === 'string' ? record.signal.trim() : ''
+      if (!topic || !signal) return null
+      const priority = typeof record.priority === 'string' ? record.priority.trim() : 'watch'
+      return {
+        topic,
+        signal,
+        count: typeof record.count === 'number' ? record.count : 1,
+        priority,
+        sourceTools: stringArray(record.sourceTools, 4),
+        recentEvidence: stringArray(record.recentEvidence, 3),
+        lastSeen: typeof record.lastSeen === 'string' ? record.lastSeen.slice(0, 40) : '',
+      }
+    })
+    .filter(Boolean)
+    .slice(0, limit)
+}
+
 export function hydrateLocalToolPlanInput(
   plan: LocalToolPlan,
   previousOutputs: unknown[],
@@ -4361,6 +4387,7 @@ export function hydrateLocalToolPlanInput(
   const topics = stringArray(learnerContext.likelyTopics, 5)
   const struggleSignals = stringArray(learnerContext.struggleSignals, 5)
   const recentExcerpts = excerptArray(learnerContext.recentExcerpts, 6)
+  const misconceptionTimeline = misconceptionTimelineArray(learnerContext.misconceptionTimeline, 6)
 
   return {
     ...plan.input,
@@ -4370,6 +4397,7 @@ export function hydrateLocalToolPlanInput(
     topics,
     struggleSignals,
     recentExcerpts,
+    misconceptionTimeline,
   }
 }
 

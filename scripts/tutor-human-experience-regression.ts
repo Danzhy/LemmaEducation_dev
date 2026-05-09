@@ -96,8 +96,19 @@ const CASES: TutorExperienceCase[] = [
       topics: ['fractions'],
       struggleSignals: ['student says they are stuck'],
       recentExcerpts: ['I got stuck because I added 1/2 + 1/3 and got 2/5.'],
+      misconceptionTimeline: [
+        {
+          topic: 'fractions',
+          signal: 'May be adding or subtracting denominators instead of finding a common denominator.',
+          count: 3,
+          priority: 'reteach',
+          sourceTools: ['misconception_diagnosis'],
+          recentEvidence: ['Misconception diagnosis returned this learning pattern.'],
+          lastSeen: '2026-05-09T18:00:00.000Z',
+        },
+      ],
     },
-    expectedSubstrings: ['selectedMisconception', 'firstStudentQuestion', 'same-size pieces'],
+    expectedSubstrings: ['timelineFocus', 'selectedMisconception', 'firstStudentQuestion', 'same-size pieces'],
   },
   {
     id: 'response-planner-one-question-turn',

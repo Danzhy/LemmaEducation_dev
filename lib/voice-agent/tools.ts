@@ -589,7 +589,7 @@ export function createVoiceAgentTools() {
     tool({
       name: 'learner_context',
       description:
-        'Load concise recent tutoring history for this signed-in learner: recent topics, struggle signals, useful tools, and suggested tutor adjustments. Use this when the student says "last time", asks to continue, asks what they struggle with, or when adapting a review session without exposing old private history verbatim.',
+        'Load concise recent tutoring history for this signed-in learner: recent topics, struggle signals, structured misconception timeline, useful tools, and suggested tutor adjustments. Use this when the student says "last time", asks to continue, asks what they struggle with, or when adapting a review session without exposing old private history verbatim.',
       strict: true,
       parameters: {
         type: 'object',
@@ -619,7 +619,7 @@ export function createVoiceAgentTools() {
     tool({
       name: 'adaptive_review_plan',
       description:
-        'Turn learner history into a short returning-student plan: warm start, diagnostic question, first board tool, micro-practice, and what to avoid. Use after learner_context when the student wants to continue, review, or work on recurring struggle areas.',
+        'Turn learner history and any structured misconception timeline into a short returning-student plan: warm start, diagnostic question, first board tool, micro-practice, and what to avoid. Use after learner_context when the student wants to continue, review, or work on recurring struggle areas.',
       strict: true,
       parameters: {
         type: 'object',
@@ -640,8 +640,38 @@ export function createVoiceAgentTools() {
             type: 'array',
             items: { type: 'string' },
           },
+          misconceptionTimeline: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                topic: { type: 'string' },
+                signal: { type: 'string' },
+                count: { type: 'number' },
+                priority: { type: 'string', enum: ['watch', 'reteach', 'blocker'] },
+                sourceTools: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+                recentEvidence: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+                lastSeen: { type: 'string' },
+              },
+            },
+          },
         },
-        required: ['gradeLevel', 'targetTopic', 'sessionGoal', 'topics', 'struggleSignals', 'recentExcerpts'],
+        required: [
+          'gradeLevel',
+          'targetTopic',
+          'sessionGoal',
+          'topics',
+          'struggleSignals',
+          'recentExcerpts',
+          'misconceptionTimeline',
+        ],
       },
       async execute(input) {
         const params = input as {
@@ -651,6 +681,7 @@ export function createVoiceAgentTools() {
           topics?: string[]
           struggleSignals?: string[]
           recentExcerpts?: string[]
+          misconceptionTimeline?: Array<Record<string, unknown>>
         }
         return stringifyResult(
           adaptiveReviewPlan({
@@ -660,6 +691,9 @@ export function createVoiceAgentTools() {
             topics: Array.isArray(params.topics) ? params.topics : [],
             struggleSignals: Array.isArray(params.struggleSignals) ? params.struggleSignals : [],
             recentExcerpts: Array.isArray(params.recentExcerpts) ? params.recentExcerpts : [],
+            misconceptionTimeline: Array.isArray(params.misconceptionTimeline)
+              ? params.misconceptionTimeline
+              : [],
           })
         )
       },

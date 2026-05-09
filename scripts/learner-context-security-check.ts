@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { buildLearnerMisconceptionTimeline } from '@/lib/tutor/learner-context'
 
 function read(path: string) {
   return readFileSync(path, 'utf8')
@@ -33,6 +34,7 @@ assertExcludes(route, 'OPENAI_API_KEY')
 assertIncludes(library, 'WHERE s.user_id = ${input.userId}')
 assertIncludes(library, 'WHERE user_id = ${input.userId}')
 assertIncludes(library, 'MAX_EXCERPT_CHARS')
+assertIncludes(library, 'misconceptionTimeline')
 assertIncludes(library, 'Do not quote old session history')
 
 assertIncludes(liveKitRunner, "registry.set('learner_context'")
@@ -43,4 +45,36 @@ assertIncludes(browserTools, "name: 'learner_context'")
 assertIncludes(browserTools, "fetch('/api/tutor/learner-context'")
 assertIncludes(instructions, 'learner_context')
 
-console.log(JSON.stringify({ ok: true, checked: 8 }))
+const timeline = buildLearnerMisconceptionTimeline([
+  {
+    tool_name: 'mistake_pattern_classifier',
+    created_at: '2026-05-09T18:00:00.000Z',
+    output_json: {
+      topic: 'fractions',
+      primaryPattern: 'denominator_operation',
+      severity: 'reteach',
+      evidence: ['Student wrote a prior step.'],
+    },
+  },
+  {
+    tool_name: 'math_check_step',
+    created_at: '2026-05-09T19:00:00.000Z',
+    output_json: {
+      verdict: 'invalid',
+      hintTarget: 'find a common denominator before adding',
+      reason: 'The checked step was invalid.',
+    },
+  },
+])
+
+assert(timeline.length >= 2, 'Learner timeline should aggregate structured misconception tool signals.')
+assert(
+  timeline.some((item) => item.signal.includes('denominator operation') && item.priority === 'reteach'),
+  'Learner timeline should preserve privacy-safe classifier patterns.'
+)
+assert(
+  !JSON.stringify(timeline).includes('Student wrote a prior step'),
+  'Learner timeline should not copy raw classifier evidence into memory summaries.'
+)
+
+console.log(JSON.stringify({ ok: true, checked: 9, timelineItems: timeline.length }))

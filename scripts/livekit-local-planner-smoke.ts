@@ -1616,6 +1616,7 @@ const hydratedReviewInput = hydrateLocalToolPlanInput(
       topics: [],
       struggleSignals: [],
       recentExcerpts: [],
+      misconceptionTimeline: [],
     },
   },
   [
@@ -1623,6 +1624,17 @@ const hydratedReviewInput = hydrateLocalToolPlanInput(
       likelyTopics: ['ratios and rates'],
       struggleSignals: ['needs setup support'],
       recentExcerpts: [{ role: 'user', content: 'I was stuck on unit rates.' }],
+      misconceptionTimeline: [
+        {
+          topic: 'ratios and rates',
+          signal: 'Needs review: scale both quantities by the same factor',
+          count: 2,
+          priority: 'reteach',
+          sourceTools: ['math_check_step'],
+          recentEvidence: ['Step check returned invalid.'],
+          lastSeen: '2026-05-09T19:00:00.000Z',
+        },
+      ],
     },
   ],
   'continue from last time',
@@ -1631,6 +1643,17 @@ const hydratedReviewInput = hydrateLocalToolPlanInput(
 assert.deepEqual(hydratedReviewInput.topics, ['ratios and rates'])
 assert.deepEqual(hydratedReviewInput.struggleSignals, ['needs setup support'])
 assert.equal(hydratedReviewInput.targetTopic, 'ratios and rates')
+assert.deepEqual(hydratedReviewInput.misconceptionTimeline, [
+  {
+    topic: 'ratios and rates',
+    signal: 'Needs review: scale both quantities by the same factor',
+    count: 2,
+    priority: 'reteach',
+    sourceTools: ['math_check_step'],
+    recentEvidence: ['Step check returned invalid.'],
+    lastSeen: '2026-05-09T19:00:00.000Z',
+  },
+])
 
 const hydratedTableInput = hydrateLocalToolPlanInput(
   {

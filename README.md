@@ -69,7 +69,7 @@ The hidden `/tutor-agent-lab` route keeps the stable `/tutor` flow untouched whi
 - Tutor-turn audits to catch answer dumping, missing questions, and privacy risks in lab responses
 - Interruption recovery planning so voice labs resume from the next short chunk instead of restarting long explanations
 - Curriculum context and search for teacher-uploaded notes, PDFs, and custom class instructions
-- Learner context plus adaptive review planning for recent topics, struggle signals, and micro-practice
+- Learner context plus adaptive review planning for recent topics, structured misconception timelines, struggle signals, and micro-practice
 - Session mastery snapshots for concise teacher-safe learning handoffs in hidden labs
 - A lab-only tool trace and recipe chips for fast local QA
 

@@ -682,6 +682,17 @@ async function main() {
       topics: ['fractions'],
       struggleSignals: ['student says they are stuck'],
       recentExcerpts: ['I got stuck adding 1/2 + 1/3.'],
+      misconceptionTimeline: [
+        {
+          topic: 'fractions',
+          signal: 'May be adding or subtracting denominators instead of finding a common denominator.',
+          count: 2,
+          priority: 'reteach',
+          sourceTools: ['misconception_diagnosis'],
+          recentEvidence: ['Misconception diagnosis returned this learning pattern.'],
+          lastSeen: '2026-05-09T18:00:00.000Z',
+        },
+      ],
     },
     { ctx: {} as never, toolCallId: 'smoke-adaptive-review-plan' }
   )
@@ -1521,6 +1532,7 @@ async function main() {
 
   if (
     !JSON.stringify(reviewPlan).includes('diagnosticQuestion') ||
+    !JSON.stringify(reviewPlan).includes('timelineFocus') ||
     !JSON.stringify(reviewPlan).includes('selectedMisconception') ||
     !JSON.stringify(reviewPlan).includes('same-size pieces')
   ) {

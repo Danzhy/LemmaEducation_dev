@@ -1,7 +1,9 @@
 import { getNeonSql } from '@/lib/tutor/db'
 import { getTutorSessionOwnerUserId, isTutorSessionId } from '@/lib/tutor/history'
+import type { LearnerMisconceptionTimelineItem } from '@/lib/voice-agent/types'
 
 const MAX_EXCERPT_CHARS = 220
+const MAX_TIMELINE_EVIDENCE_CHARS = 120
 
 type SessionSummaryRow = {
   id: string
@@ -24,6 +26,12 @@ type ToolRow = {
   count: number | string
 }
 
+type DiagnosticToolRow = {
+  tool_name: string
+  output_json: unknown
+  created_at: Date | string
+}
+
 export type LearnerContextResponse = {
   ok: true
   hasHistory: boolean
@@ -32,6 +40,7 @@ export type LearnerContextResponse = {
   gradeLevels: string[]
   likelyTopics: string[]
   struggleSignals: string[]
+  misconceptionTimeline: LearnerMisconceptionTimelineItem[]
   recentExcerpts: Array<{ role: 'user' | 'assistant'; content: string }>
   recentTools: Array<{ toolName: string; count: number }>
   suggestedTutorAdjustments: string[]
@@ -67,6 +76,10 @@ function compactExcerpt(value: string) {
   return value.replace(/\s+/g, ' ').trim().slice(0, MAX_EXCERPT_CHARS)
 }
 
+function compactTimelineEvidence(value: string) {
+  return value.replace(/\s+/g, ' ').trim().slice(0, MAX_TIMELINE_EVIDENCE_CHARS)
+}
+
 function uniqueInOrder(values: string[]) {
   return [...new Set(values.filter(Boolean))]
 }
@@ -85,6 +98,168 @@ function findStruggleSignals(text: string) {
     .map(([signal]) => signal)
 }
 
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function stringArrayValue(value: unknown) {
+  return Array.isArray(value)
+    ? value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+    : []
+}
+
+function topicFromToolOutput(output: Record<string, unknown>, fallback: string) {
+  const rawTopic = stringValue(output.label) || stringValue(output.topic) || fallback
+  const scoredTopic = scoreTopics(rawTopic)[0]
+  return scoredTopic || rawTopic.toLowerCase().replace(/_/g, ' ').trim() || 'recent math work'
+}
+
+function priorityFromToolOutput(output: Record<string, unknown>): LearnerMisconceptionTimelineItem['priority'] {
+  const severity = stringValue(output.severity).toLowerCase()
+  if (severity === 'blocker') return 'blocker'
+  if (severity === 'reteach') return 'reteach'
+  const verdict = stringValue(output.verdict).toLowerCase()
+  if (verdict === 'invalid') return 'reteach'
+  return 'watch'
+}
+
+function patternLabel(value: string) {
+  return value.replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function extractTimelineSignalsFromToolRow(row: DiagnosticToolRow) {
+  const output = recordValue(row.output_json)
+  if (!output) return []
+
+  const topic = topicFromToolOutput(
+    output,
+    [row.tool_name, stringValue(output.hintTarget), stringValue(output.reason)].filter(Boolean).join(' ')
+  )
+  const priority = priorityFromToolOutput(output)
+  const lastSeen = asDate(row.created_at).toISOString()
+
+  if (row.tool_name === 'mistake_pattern_classifier') {
+    const primaryPattern = patternLabel(stringValue(output.primaryPattern))
+    if (!primaryPattern || primaryPattern === 'unclear') return []
+    return [
+      {
+        topic,
+        signal: `Recurring ${primaryPattern} pattern`,
+        priority,
+        sourceTool: row.tool_name,
+        evidence: `Tool classified this as ${priority}.`,
+        lastSeen,
+      },
+    ]
+  }
+
+  if (row.tool_name === 'misconception_diagnosis') {
+    return stringArrayValue(output.findings).map((finding) => ({
+      topic,
+      signal: compactTimelineEvidence(finding),
+      priority,
+      sourceTool: row.tool_name,
+      evidence: 'Misconception diagnosis returned this learning pattern.',
+      lastSeen,
+    }))
+  }
+
+  if (row.tool_name === 'math_check_step') {
+    const verdict = stringValue(output.verdict).toLowerCase()
+    if (verdict !== 'invalid' && verdict !== 'unclear') return []
+    const hintTarget = stringValue(output.hintTarget)
+    if (!hintTarget) return []
+    return [
+      {
+        topic,
+        signal: `Needs review: ${compactTimelineEvidence(hintTarget)}`,
+        priority,
+        sourceTool: row.tool_name,
+        evidence: `Step check returned ${verdict}.`,
+        lastSeen,
+      },
+    ]
+  }
+
+  if (row.tool_name === 'session_mastery_snapshot') {
+    return stringArrayValue(output.needsReview).map((need) => ({
+      topic,
+      signal: compactTimelineEvidence(need),
+      priority,
+      sourceTool: row.tool_name,
+      evidence: 'Session mastery snapshot marked this for review.',
+      lastSeen,
+    }))
+  }
+
+  return []
+}
+
+export function buildLearnerMisconceptionTimeline(
+  rows: DiagnosticToolRow[]
+): LearnerMisconceptionTimelineItem[] {
+  const timeline = new Map<
+    string,
+    LearnerMisconceptionTimelineItem & { priorityScore: number; seenTime: number }
+  >()
+  const priorityScore: Record<LearnerMisconceptionTimelineItem['priority'], number> = {
+    watch: 1,
+    reteach: 2,
+    blocker: 3,
+  }
+
+  for (const row of rows) {
+    for (const item of extractTimelineSignalsFromToolRow(row)) {
+      const key = `${item.topic.toLowerCase()}::${item.signal.toLowerCase()}`
+      const seenTime = asDate(item.lastSeen).getTime()
+      const existing = timeline.get(key)
+      if (!existing) {
+        timeline.set(key, {
+          topic: item.topic,
+          signal: item.signal,
+          count: 1,
+          priority: item.priority,
+          sourceTools: [item.sourceTool],
+          recentEvidence: [item.evidence],
+          lastSeen: item.lastSeen,
+          priorityScore: priorityScore[item.priority],
+          seenTime,
+        })
+        continue
+      }
+
+      existing.count += 1
+      if (!existing.sourceTools.includes(item.sourceTool)) {
+        existing.sourceTools.push(item.sourceTool)
+      }
+      if (!existing.recentEvidence.includes(item.evidence) && existing.recentEvidence.length < 3) {
+        existing.recentEvidence.push(item.evidence)
+      }
+      if (priorityScore[item.priority] > existing.priorityScore) {
+        existing.priority = item.priority
+        existing.priorityScore = priorityScore[item.priority]
+      }
+      if (seenTime > existing.seenTime) {
+        existing.lastSeen = item.lastSeen
+        existing.seenTime = seenTime
+      }
+    }
+  }
+
+  return [...timeline.values()]
+    .sort((left, right) => {
+      if (right.priorityScore !== left.priorityScore) return right.priorityScore - left.priorityScore
+      if (right.count !== left.count) return right.count - left.count
+      return right.seenTime - left.seenTime
+    })
+    .slice(0, 6)
+    .map(({ priorityScore: _priorityScore, seenTime: _seenTime, ...item }) => item)
+}
+
 function buildLearnerInstruction(input: Omit<LearnerContextResponse, 'ok' | 'instruction'>) {
   if (!input.hasHistory) {
     return 'No previous tutoring history was found for this learner. Start with one diagnostic question and adapt from the current work.'
@@ -94,6 +269,12 @@ function buildLearnerInstruction(input: Omit<LearnerContextResponse, 'ok' | 'ins
     'Use this learner history quietly to adapt the next tutoring move.',
     input.likelyTopics.length > 0 ? `Recent topics: ${input.likelyTopics.join(', ')}.` : '',
     input.struggleSignals.length > 0 ? `Observed signals: ${input.struggleSignals.join('; ')}.` : '',
+    input.misconceptionTimeline.length > 0
+      ? `Misconception timeline: ${input.misconceptionTimeline
+          .slice(0, 3)
+          .map((item) => `${item.topic} - ${item.signal} (${item.count}x)`)
+          .join('; ')}.`
+      : '',
     input.suggestedTutorAdjustments.length > 0
       ? `Tutor adjustments: ${input.suggestedTutorAdjustments.join(' ')}`
       : '',
@@ -196,12 +377,29 @@ export async function getLearnerContextForUser(input: {
     LIMIT 8
   `.catch(() => [])
 
+  const diagnosticToolRows = await sql`
+    SELECT tool_name, output_json, created_at
+    FROM tutor_tool_events
+    WHERE user_id = ${input.userId}
+      AND (${sessionId}::uuid IS NULL OR session_id != ${sessionId}::uuid)
+      AND status = 'completed'
+      AND tool_name IN (
+        'mistake_pattern_classifier',
+        'misconception_diagnosis',
+        'math_check_step',
+        'session_mastery_snapshot'
+      )
+    ORDER BY created_at DESC
+    LIMIT 36
+  `.catch(() => [])
+
   const sessions = sessionRows as SessionSummaryRow[]
   const messages = messageRows as MessageRow[]
   const recentTools = (toolRows as ToolRow[]).map((row) => ({
     toolName: row.tool_name,
     count: Number(row.count ?? 0),
   }))
+  const misconceptionTimeline = buildLearnerMisconceptionTimeline(diagnosticToolRows as DiagnosticToolRow[])
   const combinedText = [
     ...sessions.map((session) => session.first_user_message ?? ''),
     ...messages.map((message) => message.content),
@@ -230,12 +428,13 @@ export async function getLearnerContextForUser(input: {
   })
 
   const responseWithoutInstruction = {
-    hasHistory: sessions.length > 0 || messages.length > 0,
+    hasHistory: sessions.length > 0 || messages.length > 0 || misconceptionTimeline.length > 0,
     recentSessionCount: sessions.length,
     recentActiveMinutes,
     gradeLevels,
     likelyTopics,
     struggleSignals,
+    misconceptionTimeline,
     recentExcerpts,
     recentTools,
     suggestedTutorAdjustments,

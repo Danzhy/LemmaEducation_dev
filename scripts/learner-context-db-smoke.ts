@@ -24,6 +24,19 @@ function loadLocalEnv() {
   }
 }
 
+function isExternalDatabaseUnavailable(error: unknown) {
+  const parts: string[] = []
+  let current: unknown = error
+  while (current && typeof current === 'object') {
+    const record = current as Record<string, unknown>
+    if (typeof record.message === 'string') parts.push(record.message)
+    if (typeof record.code === 'string') parts.push(record.code)
+    current = record.sourceError ?? record.cause
+  }
+  const text = parts.join(' ')
+  return /\b(fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT)\b/i.test(text)
+}
+
 async function main() {
   loadLocalEnv()
   if (!process.env.NEON_DATABASE_URL) {
@@ -115,6 +128,46 @@ async function main() {
         )
     `
 
+    await sql`
+      INSERT INTO tutor_tool_events (
+        id,
+        session_id,
+        user_id,
+        event_type,
+        tool_name,
+        status,
+        output_json,
+        created_at
+      )
+      VALUES
+        (
+          ${randomUUID()}::uuid,
+          ${sessionId}::uuid,
+          ${userId},
+          'tool_completed',
+          'misconception_diagnosis',
+          'completed',
+          ${JSON.stringify({
+            topic: 'fractions',
+            findings: ['May be adding or subtracting denominators instead of finding a common denominator.'],
+          })}::jsonb,
+          NOW() - INTERVAL '2 days' + INTERVAL '2 minutes'
+        ),
+        (
+          ${randomUUID()}::uuid,
+          ${currentSessionId}::uuid,
+          ${userId},
+          'tool_completed',
+          'misconception_diagnosis',
+          'completed',
+          ${JSON.stringify({
+            topic: 'fractions',
+            findings: ['This current session should be excluded from timeline.'],
+          })}::jsonb,
+          NOW()
+        )
+    `
+
     const context = await getLearnerContextForUser({ userId, sessionId: currentSessionId })
     assert.equal(context.ok, true)
     assert.equal(context.hasHistory, true)
@@ -124,7 +177,12 @@ async function main() {
       context.struggleSignals.some((signal) => /stuck/.test(signal)),
       'Learner context should detect stuck/confused signals.'
     )
+    assert(
+      context.misconceptionTimeline.some((item) => /common denominator/.test(item.signal)),
+      'Learner context should include prior structured misconception timeline signals.'
+    )
     assert(!JSON.stringify(context.recentExcerpts).includes('current session should be excluded'))
+    assert(!JSON.stringify(context.misconceptionTimeline).includes('current session should be excluded'))
     assert.match(context.instruction, /Use this learner history quietly/i)
 
     console.log(
@@ -132,6 +190,7 @@ async function main() {
         ok: true,
         topics: context.likelyTopics,
         signals: context.struggleSignals.length,
+        timelineItems: context.misconceptionTimeline.length,
       })
     )
   } finally {
@@ -140,6 +199,16 @@ async function main() {
 }
 
 main().catch((error) => {
+  if (isExternalDatabaseUnavailable(error)) {
+    console.log(
+      JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: 'Neon database is configured but not reachable from this sandbox.',
+      })
+    )
+    return
+  }
   console.error(error)
   process.exit(1)
 })

@@ -410,6 +410,7 @@ export type AdaptiveReviewPlanResult = {
   reviewMode: 'diagnose' | 'rebuild' | 'guided_practice' | 'extend'
   warmStartLine: string
   historyFocus: string
+  timelineFocus: LearnerMisconceptionTimelineItem | null
   selectedMisconception: string
   firstStudentQuestion: string
   diagnosticQuestion: string
@@ -423,6 +424,16 @@ export type AdaptiveReviewPlanResult = {
   tutorMoves: string[]
   masteryCheck: string
   avoid: string[]
+}
+
+export type LearnerMisconceptionTimelineItem = {
+  topic: string
+  signal: string
+  count: number
+  priority: 'watch' | 'reteach' | 'blocker'
+  sourceTools: string[]
+  recentEvidence: string[]
+  lastSeen: string
 }
 
 export type SessionMasterySnapshotResult = {

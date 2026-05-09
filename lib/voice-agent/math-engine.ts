@@ -19,6 +19,7 @@ import type {
   TutorResponsePlannerResult,
   BoardStateSummaryResult,
   AdaptiveReviewPlanResult,
+  LearnerMisconceptionTimelineItem,
   SessionMasterySnapshotResult,
   ShortSpokenTurnFormatterResult,
   TutorTurnAuditResult,
@@ -11465,10 +11466,12 @@ function topicFromHistory(input: {
   targetTopic?: string
   topics?: string[]
   recentExcerpts?: string[]
+  misconceptionTimeline?: LearnerMisconceptionTimelineItem[]
 }) {
   const candidates = [
     input.targetTopic,
     ...(input.topics ?? []),
+    ...(input.misconceptionTimeline ?? []).map((item) => item.topic),
     ...(input.recentExcerpts ?? []),
   ]
   return resolveCurriculumTopic(candidates.find((candidate) => candidate?.trim()) ?? 'fractions')
@@ -11486,8 +11489,13 @@ function selectWarmStartMisconception(input: {
   sessionGoal: string
   signals: string[]
   recentExcerpts: string[]
+  timelineFocus?: LearnerMisconceptionTimelineItem | null
 }) {
   const guide = CURRICULUM_GUIDE[input.topic]
+  if (input.timelineFocus?.signal) {
+    return input.timelineFocus.signal
+  }
+
   const combinedHistory = [input.sessionGoal, ...input.signals, ...input.recentExcerpts]
     .map((value) => value.trim())
     .filter(Boolean)
@@ -11504,6 +11512,72 @@ function selectWarmStartMisconception(input: {
   }
 
   return diagnosed.findings[0] || guide.misconceptions[0]
+}
+
+function sanitizeReviewTimeline(
+  value: unknown
+): LearnerMisconceptionTimelineItem[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const record = item as Record<string, unknown>
+      const topic = typeof record.topic === 'string' ? record.topic.trim() : ''
+      const signal = typeof record.signal === 'string' ? record.signal.trim() : ''
+      if (!topic || !signal) return null
+      const rawPriority = typeof record.priority === 'string' ? record.priority.trim().toLowerCase() : ''
+      const priority: LearnerMisconceptionTimelineItem['priority'] =
+        rawPriority === 'blocker' || rawPriority === 'reteach' || rawPriority === 'watch'
+          ? rawPriority
+          : 'watch'
+      const sourceTools = Array.isArray(record.sourceTools)
+        ? record.sourceTools
+            .map((toolName) => (typeof toolName === 'string' ? toolName.trim() : ''))
+            .filter(Boolean)
+            .slice(0, 4)
+        : []
+      const recentEvidence = Array.isArray(record.recentEvidence)
+        ? record.recentEvidence
+            .map((evidence) => (typeof evidence === 'string' ? evidence.trim() : ''))
+            .filter(Boolean)
+            .slice(0, 3)
+        : []
+      const rawCount = typeof record.count === 'number' && Number.isFinite(record.count) ? record.count : 1
+
+      return {
+        topic,
+        signal,
+        count: Math.max(1, Math.min(99, Math.trunc(rawCount))),
+        priority,
+        sourceTools,
+        recentEvidence,
+        lastSeen: typeof record.lastSeen === 'string' ? record.lastSeen.slice(0, 40) : '',
+      }
+    })
+    .filter((item): item is LearnerMisconceptionTimelineItem => Boolean(item))
+    .slice(0, 6)
+}
+
+function selectTimelineFocus(
+  timeline: LearnerMisconceptionTimelineItem[],
+  topic: CurriculumTopic
+) {
+  const priorityScore: Record<LearnerMisconceptionTimelineItem['priority'], number> = {
+    watch: 1,
+    reteach: 2,
+    blocker: 3,
+  }
+  return (
+    timeline
+      .filter((item) => resolveCurriculumTopic(item.topic) === topic)
+      .sort((left, right) => {
+        const priorityDelta = priorityScore[right.priority] - priorityScore[left.priority]
+        if (priorityDelta !== 0) return priorityDelta
+        if (right.count !== left.count) return right.count - left.count
+        return right.lastSeen.localeCompare(left.lastSeen)
+      })[0] ?? null
+  )
 }
 
 function buildWarmStartQuestion(input: {
@@ -11558,19 +11632,26 @@ export function adaptiveReviewPlan(input: {
   topics?: string[]
   struggleSignals?: string[]
   recentExcerpts?: string[]
+  misconceptionTimeline?: unknown
 }): AdaptiveReviewPlanResult {
-  const topic = topicFromHistory(input)
+  const misconceptionTimeline = sanitizeReviewTimeline(input.misconceptionTimeline)
+  const topic = topicFromHistory({
+    ...input,
+    misconceptionTimeline,
+  })
   const guide = CURRICULUM_GUIDE[topic]
   const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
   const signals = (input.struggleSignals ?? []).map((signal) => signal.trim()).filter(Boolean).slice(0, 5)
   const recentExcerpts = (input.recentExcerpts ?? []).map((excerpt) => excerpt.trim()).filter(Boolean).slice(0, 6)
   const sessionGoal = input.sessionGoal?.trim() || 'review recent learning'
   const reviewMode = inferReviewMode({ signals, sessionGoal, targetTopic: topic })
+  const timelineFocus = selectTimelineFocus(misconceptionTimeline, topic)
   const selectedMisconception = selectWarmStartMisconception({
     topic,
     sessionGoal,
     signals,
     recentExcerpts,
+    timelineFocus,
   })
   const studentFocus = compactWarmStartFocus(selectedMisconception)
   const firstStudentQuestion = buildWarmStartQuestion({
@@ -11601,7 +11682,10 @@ export function adaptiveReviewPlan(input: {
       reviewMode === 'extend'
         ? `Let us build on your recent ${guide.label.toLowerCase()} work with one slightly richer check.`
         : `Let us start with one quick ${guide.label.toLowerCase()} check about ${studentFocus}.`,
-    historyFocus: `Revisit one learning pattern: ${selectedMisconception}`,
+    historyFocus: timelineFocus
+      ? `Revisit one structured timeline pattern: ${timelineFocus.signal} (${timelineFocus.count}x).`
+      : `Revisit one learning pattern: ${selectedMisconception}`,
+    timelineFocus,
     selectedMisconception,
     firstStudentQuestion,
     diagnosticQuestion: firstStudentQuestion,
