@@ -14,6 +14,18 @@ type StudentStepPair = {
   nextStep: string
 }
 
+type LocalTapeDiagramInput = {
+  title: string
+  bars: Array<{
+    label: string
+    segments: Array<{
+      label: string
+      value: number | string
+      shaded: boolean
+    }>
+  }>
+}
+
 type LocalCompositeAreaPiece = {
   width: number
   height: number
@@ -315,12 +327,96 @@ function wantsLocalTapeDiagram(prompt: string) {
   )
 }
 
-function buildLocalTapeDiagramInput(prompt: string) {
-  if (!wantsLocalTapeDiagram(prompt)) return null
+function buildPartWholeTapeDiagramInput(whole: number, known: number, title: string): LocalTapeDiagramInput | null {
+  if (!Number.isFinite(whole) || !Number.isFinite(known) || whole < 0 || known < 0 || whole < known) {
+    return null
+  }
 
+  const unknown = Number((whole - known).toFixed(6))
+  return {
+    title,
+    bars: [
+      {
+        label: `Whole ${formatLocalNumber(whole)}`,
+        segments: [
+          { label: `Known ${formatLocalNumber(known)}`, value: known, shaded: true },
+          {
+            label: unknown > 0 ? `Unknown ${formatLocalNumber(unknown)}` : 'Unknown',
+            value: unknown > 0 ? unknown : '?',
+            shaded: false,
+          },
+        ],
+      },
+    ],
+  }
+}
+
+function buildInferredPartWholeTapeDiagramInput(prompt: string): LocalTapeDiagramInput | null {
+  const lower = prompt.toLowerCase()
+  const values = extractNumbers(prompt).filter((value) => Number.isFinite(value) && value >= 0).slice(0, 5)
+  if (values.length < 2) return null
+  if (/%|\b(percent|ratio|rate|probability|chance|mean|median|mode|range|coordinate|graph|equation)\b/.test(lower)) {
+    return null
+  }
+
+  const asksForUnknownPart =
+    /\bhow\s+(?:many|much)\b/.test(lower) &&
+    /\b(left|remain(?:ing)?|rest|missing|unknown|still\s+need|not|are|were|is)\b/.test(lower)
+  const partWholeCue =
+    /\b(total|altogether|in all|whole|left|remaining|rest|started with|now\s+\w{0,20}\s*has|there (?:are|were)|has|had|used|gave|spent|ate|read|sold|lost|out of|of the|are|were)\b/.test(
+      lower
+    )
+  if (!asksForUnknownPart || !partWholeCue) return null
+
+  const numberPattern = new RegExp(`(${LOCAL_NUMBER_PATTERN})`, 'i')
+  const outOfMatch = lower.match(new RegExp(`(${LOCAL_NUMBER_PATTERN})\\s*(?:out\\s+of|of)\\s*(${LOCAL_NUMBER_PATTERN})`, 'i'))
+  if (outOfMatch) {
+    const known = parseLocalPlainNumber(outOfMatch[1])
+    const whole = parseLocalPlainNumber(outOfMatch[2])
+    if (known !== null && whole !== null) return buildPartWholeTapeDiagramInput(whole, known, 'Part-whole tape diagram')
+  }
+
+  const startNowMatch = lower.match(
+    new RegExp(
+      `\\b(?:started\\s+with|had|has)\\s+(${LOCAL_NUMBER_PATTERN})\\b[\\s\\S]{0,140}\\b(?:now\\s+(?:\\w+\\s+){0,3}(?:has|have)|total(?:s)?|altogether|in\\s+all)\\s+(${LOCAL_NUMBER_PATTERN})\\b`,
+      'i'
+    )
+  )
+  if (startNowMatch) {
+    const known = parseLocalPlainNumber(startNowMatch[1])
+    const whole = parseLocalPlainNumber(startNowMatch[2])
+    if (known !== null && whole !== null) return buildPartWholeTapeDiagramInput(whole, known, 'Part-whole tape diagram')
+  }
+
+  const ofWholeMatch = lower.match(
+    new RegExp(`\\bof\\s+(?:the\\s+|a\\s+)?(${LOCAL_NUMBER_PATTERN})\\b[\\s\\S]{0,120}?\\b(${LOCAL_NUMBER_PATTERN})\\b`, 'i')
+  )
+  if (ofWholeMatch) {
+    const whole = parseLocalPlainNumber(ofWholeMatch[1])
+    const known = parseLocalPlainNumber(ofWholeMatch[2])
+    if (known !== null && whole !== null) return buildPartWholeTapeDiagramInput(whole, known, 'Part-whole tape diagram')
+  }
+
+  if (values[0] >= values[1]) {
+    return buildPartWholeTapeDiagramInput(values[0], values[1], 'Part-whole tape diagram')
+  }
+
+  const secondNumberHasWholeCue = lower.match(
+    new RegExp(`\\b(?:now|total|altogether|in\\s+all)\\b[\\s\\S]{0,50}?${numberPattern.source}`, 'i')
+  )
+  if (secondNumberHasWholeCue && values[1] >= values[0]) {
+    return buildPartWholeTapeDiagramInput(values[1], values[0], 'Part-whole tape diagram')
+  }
+
+  return null
+}
+
+function buildLocalTapeDiagramInput(prompt: string) {
   const lower = prompt.toLowerCase()
   const values = extractNumbers(prompt).filter((value) => Number.isFinite(value) && value >= 0).slice(0, 5)
   const title = /comparison/.test(lower) ? 'Comparison tape diagram' : 'Tape diagram'
+
+  if (!wantsLocalTapeDiagram(prompt)) return buildInferredPartWholeTapeDiagramInput(prompt)
 
   if (values.length === 0) {
     return {
@@ -342,23 +438,8 @@ function buildLocalTapeDiagramInput(prompt: string) {
     const whole = values[0]
     const known = values[1]
     if (hasWholeCue && whole >= known) {
-      const unknown = Number((whole - known).toFixed(6))
-      return {
-        title,
-        bars: [
-          {
-            label: `Whole ${formatLocalNumber(whole)}`,
-            segments: [
-              { label: `Known ${formatLocalNumber(known)}`, value: known, shaded: true },
-              {
-                label: unknown > 0 ? `Unknown ${formatLocalNumber(unknown)}` : 'Unknown',
-                value: unknown > 0 ? unknown : '?',
-                shaded: false,
-              },
-            ],
-          },
-        ],
-      }
+      const partWholeInput = buildPartWholeTapeDiagramInput(whole, known, title)
+      if (partWholeInput) return partWholeInput
     }
 
     const remainingValues = values.slice(1)

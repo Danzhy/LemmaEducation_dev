@@ -144,6 +144,35 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'infers tape diagrams for subtraction part-whole stories',
+    prompt: 'Maya has 36 stickers. She used 14. How many stickers are left?',
+    expectedTools: ['bar_model'],
+    inspect: (input) => {
+      const bars = input.bars as Array<{
+        label: string
+        segments: Array<{ label: string; value: number | string; shaded: boolean }>
+      }>
+      assert.equal(input.title, 'Part-whole tape diagram')
+      assert.equal(bars[0].label, 'Whole 36')
+      assert.equal(bars[0].segments[0].value, 14)
+      assert.equal(bars[0].segments[1].value, 22)
+    },
+  },
+  {
+    name: 'infers tape diagrams for missing-category stories',
+    prompt: 'There are 36 students in class. 14 are girls. How many are boys?',
+    expectedTools: ['bar_model'],
+    inspect: (input) => {
+      const bars = input.bars as Array<{
+        label: string
+        segments: Array<{ label: string; value: number | string; shaded: boolean }>
+      }>
+      assert.equal(input.title, 'Part-whole tape diagram')
+      assert.equal(bars[0].segments[0].value, 14)
+      assert.equal(bars[0].segments[1].value, 22)
+    },
+  },
+  {
     name: 'routes percent-of-number to calculator plus visual bar',
     prompt: 'What is 25% of 80? Show me the thinking.',
     expectedTools: ['percent_of_number', 'percent_bar'],
