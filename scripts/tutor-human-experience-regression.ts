@@ -164,6 +164,21 @@ const CASES: TutorExperienceCase[] = [
     expectedSubstrings: ['tldraw_step_reveal', 'Speak one beat', 'Reveal one mark'],
   },
   {
+    id: 'equivalent-fraction-bars',
+    title: 'Show equivalent fractions with side-by-side bars',
+    gradeBand: 'grades 4-6',
+    toolName: 'fraction_compare',
+    input: {
+      leftNumerator: 3,
+      leftDenominator: 2,
+      rightNumerator: 3,
+      rightDenominator: 2,
+      title: 'Equivalent fraction bars',
+    },
+    minCanvasActions: 8,
+    expectedSubstrings: ['Equivalent fraction bars', '3/2 = 3/2', 'canvasActions'],
+  },
+  {
     id: 'function-graph',
     title: 'Draw a function graph with key features',
     gradeBand: 'grades 6-7',

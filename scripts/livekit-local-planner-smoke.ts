@@ -127,6 +127,29 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes mixed-number fraction-bar requests to an improper fraction strip',
+    prompt: 'Show a fraction bar for 1 1/2.',
+    expectedTools: ['fraction_strip'],
+    inspect: (input) => {
+      assert.equal(input.numerator, 3)
+      assert.equal(input.denominator, 2)
+      assert.equal(input.title, 'Mixed-number fraction bar')
+      assert.equal(input.label, '1 1/2 = 3/2')
+    },
+  },
+  {
+    name: 'routes equivalent-fraction visual requests to side-by-side bars',
+    prompt: 'Show equivalent fraction bars for 1 1/2 and 3/2.',
+    expectedTools: ['fraction_compare'],
+    inspect: (input) => {
+      assert.equal(input.leftNumerator, 3)
+      assert.equal(input.leftDenominator, 2)
+      assert.equal(input.rightNumerator, 3)
+      assert.equal(input.rightDenominator, 2)
+      assert.equal(input.title, 'Equivalent fraction bars')
+    },
+  },
+  {
     name: 'routes explicit tape-diagram requests to bar model',
     prompt: 'Draw a tape diagram for 36 stickers total with 14 used and the rest unknown.',
     expectedTools: ['bar_model'],

@@ -36,6 +36,12 @@ type LocalCompositeMissingPiece = {
   missing: LocalCompositeAreaPiece
 }
 
+type LocalFraction = {
+  numerator: number
+  denominator: number
+  label: string
+}
+
 const LOCAL_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
 const LOCAL_PLACE_VALUE_PATTERN =
   String.raw`thousandths?|hundredths?|tenths?|thousands?|hundreds?|tens?|ones?|units?`
@@ -311,12 +317,63 @@ function extractFractions(text: string) {
   }))
 }
 
+function extractVisualFractions(text: string): LocalFraction[] {
+  const characters = [...text]
+  const fractions: LocalFraction[] = []
+  const mixedPattern = /(^|[^A-Za-z0-9_.])(-?\d+)\s+(\d+)\s*\/\s*(\d+)(?=$|[^A-Za-z0-9_])/g
+
+  for (const match of text.matchAll(mixedPattern)) {
+    const prefix = match[1] ?? ''
+    const start = (match.index ?? 0) + prefix.length
+    const end = (match.index ?? 0) + match[0].length
+    for (let index = start; index < end; index += 1) {
+      characters[index] = ' '
+    }
+
+    const whole = Number(match[2])
+    const numerator = Number(match[3])
+    const denominator = Number(match[4])
+    if (!Number.isFinite(whole) || !Number.isFinite(numerator) || !Number.isFinite(denominator)) continue
+    if (whole < 0 || numerator < 0 || denominator <= 0) continue
+
+    const improperNumerator = whole * denominator + numerator
+    fractions.push({
+      numerator: improperNumerator,
+      denominator,
+      label: `${whole} ${numerator}/${denominator} = ${improperNumerator}/${denominator}`,
+    })
+  }
+
+  const maskedText = characters.join('')
+  for (const match of maskedText.matchAll(/(-?\d+)\s*\/\s*(-?\d+)/g)) {
+    const numerator = Number(match[1])
+    const denominator = Number(match[2])
+    if (!Number.isFinite(numerator) || !Number.isFinite(denominator)) continue
+    if (numerator < 0 || denominator <= 0) continue
+    fractions.push({
+      numerator,
+      denominator,
+      label: `${numerator}/${denominator}`,
+    })
+  }
+
+  return fractions
+}
+
 function wantsLocalFractionStrip(prompt: string) {
   const lower = prompt.toLowerCase()
   return (
     /\bfraction\s+(?:bar|strip|model)\b/.test(lower) ||
     /\b(?:show|draw|model|visualize)\b.{0,80}\bfraction\b/.test(lower) ||
     /\bfraction\b.{0,80}\b(?:bar|strip|model|visual)\b/.test(lower)
+  )
+}
+
+function wantsEquivalentFractionBars(prompt: string) {
+  const lower = prompt.toLowerCase()
+  return (
+    /\b(?:equivalent|same\s+value|equal\s+fractions?)\b/.test(lower) &&
+    /\b(?:fraction|bar|strip|model|visual|show|draw|compare)\b/.test(lower)
   )
 }
 
@@ -1927,6 +1984,7 @@ function isLocalAnswerDisclosureRequest(prompt: string) {
 export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalToolPlan[] {
   const lower = prompt.toLowerCase()
   const fractions = extractFractions(prompt)
+  const visualFractions = extractVisualFractions(prompt)
   const numbers = extractNumbers(prompt)
   const unitConversionRequest = extractUnitConversionRequest(prompt)
   const slopeRequest = extractSlopeRequest(prompt)
@@ -2335,28 +2393,44 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
-  if (/compare/.test(lower) && fractions.length >= 2) {
+  if (wantsEquivalentFractionBars(prompt) && visualFractions.length >= 2) {
     plans.push({
       toolName: 'fraction_compare',
       input: {
-        leftNumerator: fractions[0].numerator,
-        leftDenominator: fractions[0].denominator,
-        rightNumerator: fractions[1].numerator,
-        rightDenominator: fractions[1].denominator,
+        leftNumerator: visualFractions[0].numerator,
+        leftDenominator: visualFractions[0].denominator,
+        rightNumerator: visualFractions[1].numerator,
+        rightDenominator: visualFractions[1].denominator,
+        title: 'Equivalent fraction bars',
+      },
+    })
+    return plans
+  }
+
+  const comparisonFractions = visualFractions.length >= 2 ? visualFractions : fractions
+  if (/compare/.test(lower) && comparisonFractions.length >= 2) {
+    plans.push({
+      toolName: 'fraction_compare',
+      input: {
+        leftNumerator: comparisonFractions[0].numerator,
+        leftDenominator: comparisonFractions[0].denominator,
+        rightNumerator: comparisonFractions[1].numerator,
+        rightDenominator: comparisonFractions[1].denominator,
         title: 'Compare the fractions',
       },
     })
     return plans
   }
 
-  if (wantsLocalFractionStrip(prompt) && fractions.length >= 1) {
+  if (wantsLocalFractionStrip(prompt) && visualFractions.length >= 1) {
+    const fraction = visualFractions[0]
     plans.push({
       toolName: 'fraction_strip',
       input: {
-        numerator: fractions[0].numerator,
-        denominator: fractions[0].denominator,
-        title: 'Fraction bar',
-        label: `${fractions[0].numerator}/${fractions[0].denominator}`,
+        numerator: fraction.numerator,
+        denominator: fraction.denominator,
+        title: fraction.label.includes('=') ? 'Mixed-number fraction bar' : 'Fraction bar',
+        label: fraction.label,
       },
     })
     return plans
