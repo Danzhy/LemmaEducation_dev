@@ -178,6 +178,18 @@ async function main() {
     { previousStep: '3:12', nextStep: '1:3' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-ratio-step-check' }
   )
+  const validProportionStep = await tools.math_check_step.execute(
+    { previousStep: '3/4 = x/20', nextStep: 'x = 15' },
+    { ctx: {} as never, toolCallId: 'smoke-proportion-step-check' }
+  )
+  const invalidProportionStep = await tools.math_check_step.execute(
+    { previousStep: '3/4 = x/20', nextStep: 'x = 12' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-proportion-step-check' }
+  )
+  const equivalentRatioStep = await tools.math_check_step.execute(
+    { previousStep: '6:8', nextStep: '9:12' },
+    { ctx: {} as never, toolCallId: 'smoke-equivalent-ratio-step-check' }
+  )
   const invalidIntegerSignStep = await tools.math_check_step.execute(
     { previousStep: '-3 - 5', nextStep: '2' },
     { ctx: {} as never, toolCallId: 'smoke-integer-sign-step-check' }
@@ -756,6 +768,24 @@ async function main() {
     !JSON.stringify(invalidRatioStep).includes('ratio')
   ) {
     throw new Error(`math_check_step did not reject an invalid ratio simplification: ${JSON.stringify(invalidRatioStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validProportionStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validProportionStep).includes('cross products')
+  ) {
+    throw new Error(`math_check_step did not accept a valid proportion step: ${JSON.stringify(validProportionStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidProportionStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidProportionStep).includes('cross products')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid cross-multiplication step: ${JSON.stringify(invalidProportionStep)}`)
+  }
+
+  if (!JSON.stringify(equivalentRatioStep).includes('"verdict":"valid"')) {
+    throw new Error(`math_check_step did not accept an equivalent ratio comparison: ${JSON.stringify(equivalentRatioStep)}`)
   }
 
   if (

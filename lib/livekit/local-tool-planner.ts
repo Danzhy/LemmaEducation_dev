@@ -2050,6 +2050,63 @@ function extractLinearEquationAttempt(text: string): StudentStepPair | null {
   return buildStepPair(equations[0], equations[1])
 }
 
+function extractProportionEquationSnippet(text: string) {
+  const valuePattern = String.raw`(?:x|${LOCAL_NUMBER_PATTERN})`
+  const ratioPattern = String.raw`${valuePattern}\s*(?:\/|:)\s*${valuePattern}`
+  const match = text.match(new RegExp(`(${ratioPattern}\\s*=\\s*${ratioPattern})`, 'i'))
+  if (!match) return null
+
+  return {
+    equation: match[1],
+    start: match.index ?? 0,
+    end: (match.index ?? 0) + match[1].length,
+  }
+}
+
+function extractProportionAnswerSegment(text: string) {
+  const assignmentMatch = text.match(new RegExp(`\\bx\\s*=\\s*(${LOCAL_NUMBER_PATTERN})\\b`, 'i'))
+  if (assignmentMatch) return `x = ${assignmentMatch[1]}`
+
+  const reversedAssignmentMatch = text.match(new RegExp(`\\b(${LOCAL_NUMBER_PATTERN})\\s*=\\s*x\\b`, 'i'))
+  if (reversedAssignmentMatch) return `x = ${reversedAssignmentMatch[1]}`
+
+  const answerMatch = text.match(
+    new RegExp(`\\b(?:got|gets|found|answer(?:\\s+is)?|think|equals?|is|was)\\s+(${LOCAL_NUMBER_PATTERN})\\b`, 'i')
+  )
+  return answerMatch ? `x = ${answerMatch[1]}` : null
+}
+
+function extractProportionAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(?:proportion|cross[- ]?multiply|cross[- ]?products?|solved?|got|found|answer|right|correct|is that|is this)\b/i.test(normalized)) {
+    return null
+  }
+
+  const snippet = extractProportionEquationSnippet(normalized)
+  if (!snippet || !/\bx\b/i.test(snippet.equation)) return null
+
+  const after = normalized.slice(snippet.end)
+  const before = normalized.slice(0, snippet.start)
+  const answer = extractProportionAnswerSegment(after) ?? extractProportionAnswerSegment(before)
+  if (!answer) return null
+
+  return buildStepPair(snippet.equation, answer)
+}
+
+function extractRatioEquivalenceAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(?:same|equivalent|equal\s+ratios?|proportional|proportion|match)\b/i.test(normalized)) {
+    return null
+  }
+
+  const ratioMatches = [
+    ...normalized.matchAll(new RegExp(`(${LOCAL_NUMBER_PATTERN}\\s*:\\s*${LOCAL_NUMBER_PATTERN})`, 'gi')),
+  ]
+  if (ratioMatches.length < 2) return null
+
+  return buildStepPair(ratioMatches[0][1], ratioMatches[1][1])
+}
+
 function extractMixedNumberOperationAttempt(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const valuePattern = String.raw`-?(?:\d+\s+\d+\s*\/\s*\d+|\d+\s*\/\s*-?\d+|\d+(?:\.\d+)?|\.\d+)`
@@ -2346,6 +2403,12 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
     if (pair) return pair
   }
 
+  const proportionAttempt = extractProportionAttempt(normalized)
+  if (proportionAttempt) return proportionAttempt
+
+  const ratioEquivalenceAttempt = extractRatioEquivalenceAttempt(normalized)
+  if (ratioEquivalenceAttempt) return ratioEquivalenceAttempt
+
   const linearEquationAttempt = extractLinearEquationAttempt(normalized)
   if (linearEquationAttempt) return linearEquationAttempt
 
@@ -2431,7 +2494,7 @@ function inferLocalTopic(text: string) {
     return 'place value'
   }
   if (/\bdecimal|percent|%|round|rounded|nearest|place value|tenths?|hundredths?|thousandths?|ones?|tens?|hundreds?|thousands?\b/.test(lower)) return 'decimals and percents'
-  if (/\bratio|rate|per one|unit rate|scale\b/.test(lower)) return 'ratios'
+  if (/\bratio|rate|per one|unit rate|scale|proportion|proportional\b/.test(lower)) return 'ratios'
   if (/\bequation|variable|solve for x|\bx\b/.test(lower)) return 'equations'
   if (/\bnegative|positive|integer|signed|minus\b|-\d/.test(lower)) return 'integers'
   if (/\barea|perimeter|angle|geometry|rectangle|triangle|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?\b/.test(lower)) return 'geometry'
@@ -2500,7 +2563,7 @@ function isLocalAnswerDisclosureRequest(prompt: string) {
 
   const directRatioRateQuestion =
     /\b(?:what(?:'s| is)|find|calculate|compute|how much|how many|how far|how long|how fast)\b/.test(lower) &&
-    /\b(?:unit rate|rate|ratio|proportion|scale factor|per one|per each)\b/.test(lower)
+    /\b(?:unit rate|rate|ratio|proportion|proportional|scale factor|per one|per each)\b/.test(lower)
   const directRateSetupQuestion =
     /\b(?:what(?:'s| is)|find|calculate|compute|how much|how many|how far|how long|how fast)\b/.test(lower) &&
     /\b(?:recipe|muffins?|cups?|notebooks?|cost|priced?|miles?|kilometers?|kilometres?|hours?|minutes?|seconds?)\b/.test(
@@ -2551,7 +2614,7 @@ export function planLocalToolTurn(
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|tape|bar\s+model|part[- ]?whole|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
+    /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|proportion|proportional|area|perimeter|rectangle|triangle|base|height|word problem|plan|tape|bar\s+model|part[- ]?whole|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
   const referencesVisibleBoard =
     /\b(this diagram|the diagram|my diagram|this drawing|my drawing|on the board|the board|whiteboard|canvas|visible work|what i drew|the picture|this figure|the figure)\b/.test(
       lower
@@ -2598,6 +2661,18 @@ export function planLocalToolTurn(
     if (!hasStudentAttempt) {
       return plans
     }
+  }
+
+  if (
+    studentStepPair &&
+    !asksForMistakeHelp &&
+    /\b(?:same|equivalent|equal\s+ratios?|proportional|proportion|match)\b/.test(lower)
+  ) {
+    plans.push({
+      toolName: 'math_check_step',
+      input: studentStepPair,
+    })
+    return plans
   }
 
   if (asksForLearnerContext) {

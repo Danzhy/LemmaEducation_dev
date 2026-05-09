@@ -422,6 +422,23 @@ assert(
   'math_check_step should catch ratio simplification mistakes.'
 )
 
+const validProportionStep = mathCheckStep('3/4 = x/20', 'x = 15')
+assert(
+  validProportionStep.verdict === 'valid' &&
+    validProportionStep.hintTarget.includes('cross products'),
+  'math_check_step should validate proportion solving steps.'
+)
+
+const invalidProportionStep = mathCheckStep('3/4 = x/20', 'x = 12')
+assert(
+  invalidProportionStep.verdict === 'invalid' &&
+    invalidProportionStep.hintTarget.includes('cross products'),
+  'math_check_step should catch cross-multiplication mistakes.'
+)
+
+const equivalentRatioStep = mathCheckStep('6:8', '9:12')
+assert(equivalentRatioStep.verdict === 'valid', 'math_check_step should validate equivalent ratio comparisons.')
+
 const invalidIntegerSignStep = mathCheckStep('-3 - 5', '2')
 assert(
   invalidIntegerSignStep.verdict === 'invalid' &&

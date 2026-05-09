@@ -705,6 +705,159 @@ function extractPlainNumbers(text: string) {
     .filter((value): value is number => value !== null)
 }
 
+type ProportionToken =
+  | {
+      kind: 'number'
+      value: number
+      text: string
+    }
+  | {
+      kind: 'variable'
+      text: 'x'
+    }
+
+type ProportionPart = {
+  numerator: ProportionToken
+  denominator: ProportionToken
+  separator: '/' | ':'
+}
+
+type ProportionEquation = {
+  left: ProportionPart
+  right: ProportionPart
+  expectedX: number
+}
+
+function parseProportionToken(token: string): ProportionToken | null {
+  const trimmed = token.trim()
+  if (/^x$/i.test(trimmed)) {
+    return {
+      kind: 'variable',
+      text: 'x',
+    }
+  }
+
+  const value = parsePlainNumber(trimmed)
+  if (value === null) return null
+
+  return {
+    kind: 'number',
+    value,
+    text: trimmed.replace(/,/g, ''),
+  }
+}
+
+function parseProportionPart(text: string): ProportionPart | null {
+  const valuePattern = `(?:x|${PLAIN_NUMBER_PATTERN})`
+  const match = text.trim().match(new RegExp(`^\\s*(${valuePattern})\\s*([/:])\\s*(${valuePattern})\\s*$`, 'i'))
+  if (!match) return null
+
+  const numerator = parseProportionToken(match[1])
+  const denominator = parseProportionToken(match[3])
+  if (!numerator || !denominator) return null
+  if (denominator.kind === 'number' && isNearlyEqual(denominator.value, 0)) return null
+
+  return {
+    numerator,
+    denominator,
+    separator: match[2] as '/' | ':',
+  }
+}
+
+function countVariableTokens(...tokens: ProportionToken[]) {
+  return tokens.filter((token) => token.kind === 'variable').length
+}
+
+function multiplyKnownTokens(tokens: ProportionToken[]) {
+  return tokens.reduce((product, token) => (token.kind === 'number' ? product * token.value : product), 1)
+}
+
+function solveProportionEquation(text: string): ProportionEquation | null {
+  const parts = text.split('=')
+  if (parts.length !== 2) return null
+
+  const left = parseProportionPart(parts[0])
+  const right = parseProportionPart(parts[1])
+  if (!left || !right) return null
+
+  const allTokens = [left.numerator, left.denominator, right.numerator, right.denominator]
+  if (countVariableTokens(...allTokens) !== 1) return null
+
+  const leftCross = [left.numerator, right.denominator]
+  const rightCross = [right.numerator, left.denominator]
+  const leftVariables = countVariableTokens(...leftCross)
+  const rightVariables = countVariableTokens(...rightCross)
+  if (leftVariables + rightVariables !== 1) return null
+
+  const variableCoefficient = leftVariables === 1 ? multiplyKnownTokens(leftCross) : multiplyKnownTokens(rightCross)
+  const knownProduct = leftVariables === 1 ? multiplyKnownTokens(rightCross) : multiplyKnownTokens(leftCross)
+  if (!Number.isFinite(variableCoefficient) || isNearlyEqual(variableCoefficient, 0)) return null
+
+  const expectedX = knownProduct / variableCoefficient
+  if (!Number.isFinite(expectedX)) return null
+
+  return {
+    left,
+    right,
+    expectedX,
+  }
+}
+
+function parseProportionAnswer(text: string) {
+  const assignmentMatch =
+    text.match(new RegExp(`\\bx\\s*=\\s*(${PLAIN_NUMBER_PATTERN})\\b`, 'i')) ??
+    text.match(new RegExp(`\\b(${PLAIN_NUMBER_PATTERN})\\s*=\\s*x\\b`, 'i'))
+  if (assignmentMatch) return parsePlainNumber(assignmentMatch[1])
+
+  const plainMatch = text.trim().match(new RegExp(`^${PLAIN_NUMBER_PATTERN}$`))
+  return plainMatch ? parsePlainNumber(plainMatch[0]) : null
+}
+
+function resolveProportionToken(token: ProportionToken, xValue: number) {
+  return token.kind === 'variable' ? xValue : token.value
+}
+
+function crossProductValues(equation: ProportionEquation, xValue: number) {
+  return {
+    left: resolveProportionToken(equation.left.numerator, xValue) * resolveProportionToken(equation.right.denominator, xValue),
+    right: resolveProportionToken(equation.right.numerator, xValue) * resolveProportionToken(equation.left.denominator, xValue),
+  }
+}
+
+function checkProportionStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const equation = solveProportionEquation(previousStep)
+  if (!equation) return null
+
+  const studentX = parseProportionAnswer(nextStep)
+  if (studentX === null) return null
+
+  const products = crossProductValues(equation, studentX)
+  const matches = isNearlyEqual(studentX, equation.expectedX)
+
+  if (matches) {
+    return {
+      verdict: 'valid',
+      reason: `With x = ${formatNumber(studentX, 4)}, the cross products are both ${formatNumber(
+        products.left,
+        4
+      )}, so the proportion stays equivalent.`,
+      hintTarget: 'explain how the cross products stayed equal',
+    }
+  }
+
+  return {
+    verdict: 'invalid',
+    reason: `With x = ${formatNumber(studentX, 4)}, the cross products are ${formatNumber(
+      products.left,
+      4
+    )} and ${formatNumber(products.right, 4)}. Solving the cross products gives x = ${formatNumber(
+      equation.expectedX,
+      4
+    )}.`,
+    hintTarget: 'set the cross products equal before solving for x',
+  }
+}
+
 type StatisticsKind = 'mean' | 'median' | 'mode' | 'range'
 
 type ComputedStatistics = {
@@ -2159,6 +2312,10 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasPlaceValueDigitWork: Boolean(extractPlaceValueDigitPrompt(previousStep)),
     hasDecimalRoundingWork:
       /\b(round|rounded|nearest)\b/i.test(combined) && /\d+\.\d+/.test(combined) && Boolean(extractRoundingPlace(combined)),
+    hasProportionWork:
+      /\b(proportion|cross[- ]?multiply|cross[- ]?products?|equivalent\s+ratios?)\b/i.test(combined) ||
+      Boolean(solveProportionEquation(previousStep)) ||
+      Boolean(solveProportionEquation(nextStep)),
     hasRatioWork: /-?\d+(?:\.\d+)?\s*:\s*-?\d+(?:\.\d+)?/.test(combined),
     hasDecimalWork: /\d+\.\d+/.test(combined),
     hasIntegerSignWork: /(^|[=+\-*/(]\s*)-\d/.test(combined),
@@ -2235,6 +2392,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasDecimalRoundingWork) {
     return 'identify the target place and check the next digit'
+  }
+  if (features.hasProportionWork) {
+    return 'set the cross products equal before solving for x'
   }
   if (features.hasRatioWork) {
     return 'scale both parts of the ratio by the same factor'
@@ -3997,6 +4157,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const probabilityModelStep = checkProbabilityModelStep(previousStep, nextStep)
   if (probabilityModelStep) {
     return probabilityModelStep
+  }
+
+  const proportionStep = checkProportionStep(previousStep, nextStep)
+  if (proportionStep) {
+    return proportionStep
   }
 
   const coordinatePointStep = checkCoordinatePointStep(previousStep, nextStep)

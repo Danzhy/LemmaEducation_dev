@@ -614,6 +614,24 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks proportion solving attempts before classifying the mistake',
+    prompt: 'I solved 3/4 = x/20 and got x = 12. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '3/4 = x/20')
+      assert.equal(input.nextStep, 'x = 12')
+    },
+  },
+  {
+    name: 'checks direct equivalent-ratio comparisons with math_check_step',
+    prompt: 'Is 6:8 the same as 9:12?',
+    expectedTools: ['math_check_step'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '6:8')
+      assert.equal(input.nextStep, '9:12')
+    },
+  },
+  {
     name: 'checks natural order-of-operations attempts before classifying the mistake',
     prompt: 'I calculated 3 + 4 * 2 and got 14. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
