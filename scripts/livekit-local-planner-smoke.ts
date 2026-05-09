@@ -1356,6 +1356,20 @@ assert.match(
 )
 assert.match(
   buildLocalAssistantReply(
+    'continue from last time',
+    [{ toolName: 'learner_context', input: {} }, { toolName: 'adaptive_review_plan', input: {} }],
+    [
+      { likelyTopics: ['fractions'] },
+      {
+        warmStartLine: 'Let us start with one quick fractions check about common denominators.',
+        firstStudentQuestion: 'Do these fractions have same-size pieces yet?',
+      },
+    ]
+  ),
+  /same-size pieces/
+)
+assert.match(
+  buildLocalAssistantReply(
     'random',
     [{ toolName: 'socratic_move_planner', input: {} }],
     [{ suggestedQuestion: 'What did you try first?' }]

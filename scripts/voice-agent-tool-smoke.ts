@@ -1225,8 +1225,10 @@ const reviewPlan = adaptiveReviewPlan({
 assert(
   reviewPlan.reviewMode === 'rebuild' &&
     reviewPlan.firstBoardTool === 'fraction_strip' &&
+    reviewPlan.selectedMisconception.toLowerCase().includes('denominator') &&
+    reviewPlan.firstStudentQuestion.includes('same-size pieces') &&
     reviewPlan.microPractice.length === 2,
-  'adaptive_review_plan should turn learner history into a concrete review path.'
+  'adaptive_review_plan should turn learner history into a misconception-focused warm start.'
 )
 
 const masterySnapshot = sessionMasterySnapshot({

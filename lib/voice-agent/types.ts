@@ -409,6 +409,9 @@ export type AdaptiveReviewPlanResult = {
   gradeLevel: string
   reviewMode: 'diagnose' | 'rebuild' | 'guided_practice' | 'extend'
   warmStartLine: string
+  historyFocus: string
+  selectedMisconception: string
+  firstStudentQuestion: string
   diagnosticQuestion: string
   firstBoardTool: string
   suggestedToolSequence: string[]

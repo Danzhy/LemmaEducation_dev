@@ -11474,6 +11474,83 @@ function topicFromHistory(input: {
   return resolveCurriculumTopic(candidates.find((candidate) => candidate?.trim()) ?? 'fractions')
 }
 
+function compactWarmStartFocus(value: string) {
+  return value
+    .replace(/^may be\s+/i, '')
+    .replace(/\.$/, '')
+    .trim()
+}
+
+function selectWarmStartMisconception(input: {
+  topic: CurriculumTopic
+  sessionGoal: string
+  signals: string[]
+  recentExcerpts: string[]
+}) {
+  const guide = CURRICULUM_GUIDE[input.topic]
+  const combinedHistory = [input.sessionGoal, ...input.signals, ...input.recentExcerpts]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 1400)
+  const diagnosed = misconceptionDiagnosis({
+    topic: input.topic,
+    studentWork: combinedHistory || guide.misconceptions[0],
+  })
+  const answerRushSignal = input.signals.some((signal) => /answer checking|rush|final answer/i.test(signal))
+
+  if (answerRushSignal) {
+    return 'May be checking final answers before explaining the reasoning.'
+  }
+
+  return diagnosed.findings[0] || guide.misconceptions[0]
+}
+
+function buildWarmStartQuestion(input: {
+  topic: CurriculumTopic
+  selectedMisconception: string
+  reviewMode: AdaptiveReviewPlanResult['reviewMode']
+}) {
+  const focus = input.selectedMisconception.toLowerCase()
+
+  if (input.topic === 'fractions' && /denominator|common denominator|same-size/.test(focus)) {
+    return 'Do these fractions have same-size pieces yet?'
+  }
+  if (input.topic === 'decimals_percents' && /percent|100|hundred/.test(focus)) {
+    return 'What is the whole, or 100 percent, in this problem?'
+  }
+  if (input.topic === 'decimals_percents' && /place|digit|decimal/.test(focus)) {
+    return 'Which place value should we compare first?'
+  }
+  if (input.topic === 'ratios_rates') {
+    return 'Which two quantities should stay paired as we scale?'
+  }
+  if (input.topic === 'expressions_equations') {
+    return 'What operation would keep both sides balanced next?'
+  }
+  if (input.topic === 'geometry_measurement') {
+    return 'Are we measuring around the shape, inside it, or an angle?'
+  }
+  if (input.topic === 'coordinate_graphing') {
+    return 'Which value is x, and which value is y?'
+  }
+  if (input.topic === 'data_probability') {
+    return 'What total, category, or outcome should be our comparison base?'
+  }
+  if (input.topic === 'place_value') {
+    return 'Which digit and place should we look at first?'
+  }
+  if (input.topic === 'multiplication_division') {
+    return 'What equal group or sharing step do you notice first?'
+  }
+
+  if (input.reviewMode === 'extend') {
+    return 'What stayed the same from the last problem, and what changed?'
+  }
+
+  return 'What is one small first step you can try?'
+}
+
 export function adaptiveReviewPlan(input: {
   gradeLevel?: string
   targetTopic?: string
@@ -11486,8 +11563,21 @@ export function adaptiveReviewPlan(input: {
   const guide = CURRICULUM_GUIDE[topic]
   const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
   const signals = (input.struggleSignals ?? []).map((signal) => signal.trim()).filter(Boolean).slice(0, 5)
+  const recentExcerpts = (input.recentExcerpts ?? []).map((excerpt) => excerpt.trim()).filter(Boolean).slice(0, 6)
   const sessionGoal = input.sessionGoal?.trim() || 'review recent learning'
   const reviewMode = inferReviewMode({ signals, sessionGoal, targetTopic: topic })
+  const selectedMisconception = selectWarmStartMisconception({
+    topic,
+    sessionGoal,
+    signals,
+    recentExcerpts,
+  })
+  const studentFocus = compactWarmStartFocus(selectedMisconception)
+  const firstStudentQuestion = buildWarmStartQuestion({
+    topic,
+    selectedMisconception,
+    reviewMode,
+  })
   const practice = practiceSetGenerator({
     topic,
     difficulty: reviewMode === 'rebuild' || reviewMode === 'diagnose' ? 'support' : 'core',
@@ -11509,12 +11599,12 @@ export function adaptiveReviewPlan(input: {
     reviewMode,
     warmStartLine:
       reviewMode === 'extend'
-        ? `Let us build on your recent ${guide.label.toLowerCase()} work with a slightly richer version.`
-        : `Let us do a quick ${guide.label.toLowerCase()} check before we move on.`,
-    diagnosticQuestion:
-      reviewMode === 'rebuild'
-        ? guide.nextMove
-        : `What is one thing you remember about ${guide.prerequisites[0].toLowerCase()}?`,
+        ? `Let us build on your recent ${guide.label.toLowerCase()} work with one slightly richer check.`
+        : `Let us start with one quick ${guide.label.toLowerCase()} check about ${studentFocus}.`,
+    historyFocus: `Revisit one learning pattern: ${selectedMisconception}`,
+    selectedMisconception,
+    firstStudentQuestion,
+    diagnosticQuestion: firstStudentQuestion,
     firstBoardTool,
     suggestedToolSequence: [firstBoardTool, ...guide.tools.filter((toolName) => toolName !== firstBoardTool)].slice(0, 3),
     microPractice: practice.map((item) => ({
@@ -11523,7 +11613,7 @@ export function adaptiveReviewPlan(input: {
       suggestedTool: item.suggestedTool,
     })),
     tutorMoves: [
-      'Start with one diagnostic question and wait for the student response.',
+      'Start with the low-friction first question and wait for the student response.',
       `Use ${firstBoardTool.replace(/_/g, ' ')} only if the student needs the idea made visible.`,
       'Give one micro-practice item at a time.',
       'End by asking the student to explain the pattern in their own words.',
@@ -11534,6 +11624,7 @@ export function adaptiveReviewPlan(input: {
         : 'Can the student make the next step without copying a full worked solution?',
     avoid: [
       'Do not list old private session details.',
+      'Do not quote exact old transcript lines.',
       'Do not give a long recap before the student tries.',
       'Do not reveal practice answers until the student attempts the first step.',
     ],

@@ -1519,8 +1519,12 @@ async function main() {
     throw new Error('next_step_coach did not return the next tutor move.')
   }
 
-  if (!JSON.stringify(reviewPlan).includes('diagnosticQuestion')) {
-    throw new Error('adaptive_review_plan did not return a review plan.')
+  if (
+    !JSON.stringify(reviewPlan).includes('diagnosticQuestion') ||
+    !JSON.stringify(reviewPlan).includes('selectedMisconception') ||
+    !JSON.stringify(reviewPlan).includes('same-size pieces')
+  ) {
+    throw new Error('adaptive_review_plan did not return a misconception-focused warm start.')
   }
 
   if (!JSON.stringify(integerOperation).includes('"result":2')) {

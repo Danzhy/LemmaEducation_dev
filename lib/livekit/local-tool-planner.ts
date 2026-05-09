@@ -4408,6 +4408,15 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
   }
 
   if (firstTool === 'learner_context') {
+    const reviewPlan = outputs.find(
+      (output): output is { warmStartLine?: string; firstStudentQuestion?: string; diagnosticQuestion?: string } =>
+        Boolean(output && typeof output === 'object' && 'warmStartLine' in output)
+    )
+    const warmStartLine = reviewPlan?.warmStartLine?.trim()
+    const firstQuestion = reviewPlan?.firstStudentQuestion?.trim() || reviewPlan?.diagnosticQuestion?.trim()
+    if (warmStartLine && firstQuestion) {
+      return `${warmStartLine} ${firstQuestion}`
+    }
     return 'I checked your recent tutoring history and made a quick review plan. I will start with one diagnostic question, then use the board only where it helps.'
   }
 
