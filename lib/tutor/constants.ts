@@ -1,12 +1,14 @@
-/** Pilot cap: each student can use up to 4 saved tutor sessions. */
-export const TUTOR_MAX_COMPLETED_SESSIONS = 4
+/** Pilot cap: each student can use up to four active tutor hours per week. */
+export const TUTOR_WEEKLY_QUOTA_SECONDS = 4 * 60 * 60
 
 /** Pilot cap: each tutor session can last for up to one active hour. */
 export const TUTOR_MAX_SESSION_SECONDS = 60 * 60
 
-/** Lifetime cap across the pilot allotment. */
-export const TUTOR_QUOTA_SECONDS =
-  TUTOR_MAX_COMPLETED_SESSIONS * TUTOR_MAX_SESSION_SECONDS
+/** Weekly active-time cap used by tutor session and token gates. */
+export const TUTOR_QUOTA_SECONDS = TUTOR_WEEKLY_QUOTA_SECONDS
+
+/** Quota periods reset Monday at 00:00 UTC. */
+export const TUTOR_QUOTA_PERIOD = 'week'
 
 /** Auto-pause sessions after this many idle seconds. */
 export const TUTOR_INACTIVITY_PAUSE_SECONDS = 5 * 60

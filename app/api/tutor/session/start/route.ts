@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { getNeonSql } from '@/lib/tutor/db'
 import {
-  TUTOR_MAX_COMPLETED_SESSIONS,
   TUTOR_MAX_SESSION_SECONDS,
   TUTOR_QUOTA_SECONDS,
 } from '@/lib/tutor/constants'
@@ -45,19 +44,6 @@ export async function POST(request: Request) {
 
     await reconcileOpenSessions(sql, userId, 'unknown')
     const quota = await getQuotaSnapshot(sql, userId)
-
-    if (quota.remainingSessionCount <= 0) {
-      return NextResponse.json(
-        {
-          ok: false,
-          code: 'SESSION_LIMIT_REACHED',
-          message: 'You have used all 4 pilot tutoring sessions.',
-          remainingSessionCount: 0,
-          maxCompletedSessions: TUTOR_MAX_COMPLETED_SESSIONS,
-        },
-        { status: 403 }
-      )
-    }
 
     if (quota.remainingSeconds <= 0) {
       return NextResponse.json(
@@ -128,8 +114,10 @@ export async function POST(request: Request) {
       sessionId,
       remainingSeconds: quota.remainingSeconds,
       quotaSeconds: TUTOR_QUOTA_SECONDS,
-      remainingSessionCount: quota.remainingSessionCount - 1,
-      maxCompletedSessions: TUTOR_MAX_COMPLETED_SESSIONS,
+      quotaPeriod: quota.quotaPeriod,
+      quotaPeriodStartedAt: quota.quotaPeriodStartedAt,
+      remainingSessionCount: null,
+      maxCompletedSessions: null,
       maxSessionSeconds: TUTOR_MAX_SESSION_SECONDS,
     })
   } catch (e) {

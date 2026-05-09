@@ -155,7 +155,7 @@ async function startServerTutorSession(options?: TutorConnectOptions) {
       throw new Error('Your tutoring time limit has been reached.')
     }
     if (code === 'SESSION_LIMIT_REACHED') {
-      throw new Error('You have used all 4 pilot tutoring sessions.')
+      throw new Error('This tutoring session reached its 1 hour limit.')
     }
     if (startSessionRes.status === 429 || code === 'RATE_LIMITED') {
       throw new Error('Too many session attempts. Please wait a moment and try again.')

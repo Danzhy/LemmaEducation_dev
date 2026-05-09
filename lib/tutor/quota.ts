@@ -1,7 +1,7 @@
 import {
   TUTOR_INACTIVITY_PAUSE_SECONDS,
-  TUTOR_MAX_COMPLETED_SESSIONS,
   TUTOR_MAX_SESSION_SECONDS,
+  TUTOR_QUOTA_PERIOD,
   TUTOR_QUOTA_SECONDS,
 } from '@/lib/tutor/constants'
 import { ensureTutorUsageRow } from '@/lib/tutor/ensure-usage'
@@ -43,6 +43,13 @@ function getElapsedSeconds(startedAt: Date | string, endedAt: Date = new Date())
   const started = toDate(startedAt)
   const elapsedMs = endedAt.getTime() - started.getTime()
   return Math.max(0, Math.floor(elapsedMs / 1000))
+}
+
+export function getTutorQuotaPeriodStart(now: Date = new Date()): Date {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const daysSinceMonday = (start.getUTCDay() + 6) % 7
+  start.setUTCDate(start.getUTCDate() - daysSinceMonday)
+  return start
 }
 
 function getSessionActiveSeconds(session: SessionRow, now: Date = new Date()): number {
@@ -91,6 +98,32 @@ export async function getPersistedUsageTotal(sql: Sql, userId: string): Promise<
   return usage.totalActiveSeconds
 }
 
+export async function getPersistedWeeklyUsage(
+  sql: Sql,
+  userId: string,
+  now: Date = new Date()
+) {
+  const periodStartedAt = getTutorQuotaPeriodStart(now)
+  const rows = await sql`
+    SELECT COALESCE(SUM(active_seconds), 0)::bigint AS weekly_active_seconds
+    FROM tutor_sessions
+    WHERE user_id = ${userId}
+      AND ended_at IS NOT NULL
+      AND ended_at >= ${periodStartedAt}
+  `
+
+  const row = rows[0] as
+    | {
+        weekly_active_seconds?: string | bigint | number
+      }
+    | undefined
+
+  return {
+    weeklyActiveSeconds: Number(row?.weekly_active_seconds ?? 0),
+    periodStartedAt,
+  }
+}
+
 export async function getOpenSessions(sql: Sql, userId: string): Promise<SessionRow[]> {
   const rows = await sql`
     SELECT
@@ -135,6 +168,7 @@ export async function getOpenSessionById(
 
 export async function getQuotaSnapshot(sql: Sql, userId: string, now: Date = new Date()) {
   const usage = await getPersistedUsage(sql, userId)
+  const weeklyUsage = await getPersistedWeeklyUsage(sql, userId, now)
   const openSessions = await getOpenSessions(sql, userId)
   const liveOpenSessionSeconds = openSessions.reduce(
     (sum, session) => sum + getSessionActiveSeconds(session, now),
@@ -144,22 +178,26 @@ export async function getQuotaSnapshot(sql: Sql, userId: string, now: Date = new
   const activeSessionSeconds = activeSession ? getSessionActiveSeconds(activeSession, now) : 0
   const totalActiveSeconds = Math.min(
     TUTOR_QUOTA_SECONDS,
-    usage.totalActiveSeconds + liveOpenSessionSeconds
+    weeklyUsage.weeklyActiveSeconds + liveOpenSessionSeconds
   )
   const usedSessionCount = usage.totalCompletedSessions + openSessions.length
 
   return {
     quotaSeconds: TUTOR_QUOTA_SECONDS,
+    quotaPeriod: TUTOR_QUOTA_PERIOD,
+    quotaPeriodStartedAt: weeklyUsage.periodStartedAt.toISOString(),
     maxSessionSeconds: TUTOR_MAX_SESSION_SECONDS,
-    maxCompletedSessions: TUTOR_MAX_COMPLETED_SESSIONS,
+    maxCompletedSessions: null,
     inactivityPauseSeconds: TUTOR_INACTIVITY_PAUSE_SECONDS,
-    persistedActiveSeconds: usage.totalActiveSeconds,
+    persistedActiveSeconds: weeklyUsage.weeklyActiveSeconds,
+    lifetimeActiveSeconds: usage.totalActiveSeconds,
+    weeklyActiveSeconds: weeklyUsage.weeklyActiveSeconds,
     totalCompletedSessions: usage.totalCompletedSessions,
     liveSessionSeconds: activeSessionSeconds,
     totalActiveSeconds,
     remainingSeconds: Math.max(0, TUTOR_QUOTA_SECONDS - totalActiveSeconds),
     usedSessionCount,
-    remainingSessionCount: Math.max(0, TUTOR_MAX_COMPLETED_SESSIONS - usedSessionCount),
+    remainingSessionCount: null,
     activeSessionId: activeSession?.id ?? null,
     activeSessionState: activeSession ? getSessionState(activeSession) : null,
     activeSessionSeconds,
@@ -230,7 +268,7 @@ export async function resumeSessionById(
   }
 
   const snapshot = await getQuotaSnapshot(sql, userId, now)
-  if (snapshot.remainingSeconds <= 0 || snapshot.remainingSessionCount <= 0) {
+  if (snapshot.remainingSeconds <= 0) {
     return { status: 'quota_exceeded' as const }
   }
 
@@ -283,13 +321,15 @@ export async function finalizeSessionById(
   }
 
   const usage = await getPersistedUsage(sql, userId)
+  const weeklyUsage = await getPersistedWeeklyUsage(sql, userId, now)
   const rawActiveSeconds = getSessionActiveSeconds(session, now)
   const sessionActiveSeconds = Math.min(rawActiveSeconds, TUTOR_MAX_SESSION_SECONDS)
-  const remainingBeforeQuota = Math.max(0, TUTOR_QUOTA_SECONDS - usage.totalActiveSeconds)
+  const remainingBeforeQuota = Math.max(0, TUTOR_QUOTA_SECONDS - weeklyUsage.weeklyActiveSeconds)
   const appliedSeconds = Math.min(sessionActiveSeconds, remainingBeforeQuota)
   const sessionLimitReached = rawActiveSeconds >= TUTOR_MAX_SESSION_SECONDS
   const quotaExceeded =
-    sessionActiveSeconds > remainingBeforeQuota || usage.totalActiveSeconds >= TUTOR_QUOTA_SECONDS
+    sessionActiveSeconds > remainingBeforeQuota ||
+    weeklyUsage.weeklyActiveSeconds >= TUTOR_QUOTA_SECONDS
 
   let finalReason: EndReason = endedReason
   if (sessionLimitReached) {

@@ -31,6 +31,7 @@
     "test:learner-context": "node --import tsx scripts/learner-context-db-smoke.ts",
     "test:learner-security": "node --import tsx scripts/learner-context-security-check.ts",
     "test:session-review": "node --import tsx scripts/session-review-tool-summary-smoke.ts",
+    "test:tutor-quota": "node --import tsx scripts/tutor-quota-policy-smoke.ts",
     "test:tutor-human-experience": "node --import tsx scripts/tutor-human-experience-regression.ts"
   },
   "overrides": {

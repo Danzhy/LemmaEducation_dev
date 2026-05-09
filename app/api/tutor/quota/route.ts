@@ -57,8 +57,12 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       totalActiveSeconds: quota.totalActiveSeconds,
+      weeklyActiveSeconds: quota.weeklyActiveSeconds,
+      lifetimeActiveSeconds: quota.lifetimeActiveSeconds,
       remainingSeconds: quota.remainingSeconds,
       quotaSeconds: quota.quotaSeconds,
+      quotaPeriod: quota.quotaPeriod,
+      quotaPeriodStartedAt: quota.quotaPeriodStartedAt,
       activeSessionId: quota.activeSessionId,
       activeSessionState: quota.activeSessionState,
       activeSessionSeconds: quota.activeSessionSeconds,

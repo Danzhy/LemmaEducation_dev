@@ -27,7 +27,7 @@ The dev app now includes the core guardrails needed for a limited pilot with rea
 - **Roster and access controls** so teachers can remove students and families can revoke linked oversight
 - **Saved tutor history** with transcripts and canvas snapshots
 - **Access audit logging** when teachers or parents open saved student sessions
-- **Pilot tutor limits** of up to 4 sessions per student, with each session capped at 1 hour
+- **Pilot tutor limits** of up to 4 active hours per student each week, with each session capped at 1 hour
 - **Automatic inactivity pause** after 5 minutes without activity
 - **Server-backed tutor API rate limits** to reduce abuse and accidental spend
 - **Tool activity logging** so experimental agent tool calls can be reviewed alongside saved sessions
