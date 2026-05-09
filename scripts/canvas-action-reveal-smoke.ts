@@ -4,6 +4,10 @@ import {
   shouldStageCanvasActions,
 } from '@/lib/tutor/canvas-action-reveal'
 import { canvasArtifactIdMatches } from '@/lib/tutor/canvas-action-artifacts'
+import {
+  deleteExistingCanvasArtifactShapes,
+  getCanvasArtifactShapeIds,
+} from '@/lib/tutor/canvas-artifact-renderer'
 import { extractCanvasActionsFromToolResult } from '@/lib/tutor/canvas-action-parser'
 import type { TutorCanvasAction } from '@/lib/tutor/session-adapter'
 import {
@@ -91,6 +95,123 @@ function drawingActions(actions: TutorCanvasAction[]) {
   return actions.filter((action) => action.type !== 'clear_tool_layer' && action.type !== 'focus_region')
 }
 
+type MockToolShape = {
+  id: string
+  meta: Record<string, unknown>
+  payload: string
+}
+
+class MockArtifactEditor {
+  private nextShapeIndex = 0
+  private readonly shapes = new Map<string, MockToolShape>()
+
+  getCurrentPageShapeIds() {
+    return this.shapes.keys()
+  }
+
+  getShape(shapeId: string) {
+    return this.shapes.get(shapeId)
+  }
+
+  deleteShapes(shapeIds: string[]) {
+    shapeIds.forEach((shapeId) => this.shapes.delete(shapeId))
+  }
+
+  createToolShape(artifactId: string, artifactGroupId: string | undefined, payload: string) {
+    this.nextShapeIndex += 1
+    const id = `mock-shape-${this.nextShapeIndex}`
+    this.shapes.set(id, {
+      id,
+      meta: {
+        lemmaToolOwned: true,
+        lemmaArtifactId: artifactId,
+        ...(artifactGroupId ? { lemmaArtifactGroupId: artifactGroupId } : {}),
+      },
+      payload,
+    })
+    return id
+  }
+
+  get shapeCount() {
+    return this.shapes.size
+  }
+
+  shapeIds() {
+    return [...this.shapes.keys()].sort()
+  }
+
+  artifactIds() {
+    return [...this.shapes.values()]
+      .map((shape) => shape.meta.lemmaArtifactId)
+      .filter((artifactId): artifactId is string => typeof artifactId === 'string')
+      .sort()
+  }
+}
+
+function childLabelForAction(action: TutorCanvasAction) {
+  switch (action.type) {
+    case 'draw_line_segment':
+    case 'draw_rectangle':
+    case 'plot_polyline':
+    case 'highlight_region':
+    case 'place_point':
+      return action.label
+    case 'draw_axes':
+      return action.xLabel ?? action.yLabel
+    default:
+      return undefined
+  }
+}
+
+function applyMockRendererAction(editor: MockArtifactEditor, action: TutorCanvasAction) {
+  if (action.type === 'clear_tool_layer' || action.type === 'focus_region' || !action.artifactId) return
+
+  deleteExistingCanvasArtifactShapes(editor, action.artifactId)
+  editor.createToolShape(action.artifactId, action.artifactGroupId, action.type)
+
+  const childLabel = childLabelForAction(action)
+  if (childLabel) {
+    editor.createToolShape(`${action.artifactId}:label`, action.artifactGroupId, childLabel)
+  }
+}
+
+function renderToolResult(editor: MockArtifactEditor, toolName: string, result: { canvasActions: TutorCanvasAction[] }) {
+  extractCanvasActionsFromToolResult(toolName, result).forEach((action) => applyMockRendererAction(editor, action))
+}
+
+function assertMockRendererReplacesRepeatedArtifact(
+  toolName: string,
+  firstResult: { canvasActions: TutorCanvasAction[] },
+  secondResult: { canvasActions: TutorCanvasAction[] }
+) {
+  const editor = new MockArtifactEditor()
+
+  renderToolResult(editor, toolName, firstResult)
+  const firstShapeCount = editor.shapeCount
+  const firstShapeIds = editor.shapeIds()
+  const firstArtifactIds = editor.artifactIds()
+
+  assert.ok(firstShapeCount > 0, `${toolName} should render at least one tool-owned shape.`)
+
+  renderToolResult(editor, toolName, secondResult)
+
+  assert.equal(
+    editor.shapeCount,
+    firstShapeCount,
+    `${toolName} should replace existing artifact shapes instead of stacking duplicates.`
+  )
+  assert.deepEqual(
+    editor.artifactIds(),
+    firstArtifactIds,
+    `${toolName} should preserve the same rendered artifact slots after a repeated request.`
+  )
+  assert.notDeepEqual(
+    editor.shapeIds(),
+    firstShapeIds,
+    `${toolName} should delete stale shapes before drawing replacement shapes.`
+  )
+}
+
 function assertStableSemanticArtifactIds(
   toolName: string,
   firstResult: { canvasActions: TutorCanvasAction[] },
@@ -159,6 +280,67 @@ assertStableSemanticArtifactIds(
 )
 
 assertStableSemanticArtifactIds(
+  'angle_diagram',
+  angleDiagramScene({
+    degrees: 110,
+    relationshipType: 'supplementary',
+    knownAngle: 110,
+    missingAngle: 70,
+    attemptedAngle: 80,
+  }),
+  angleDiagramScene({
+    degrees: 100,
+    relationshipType: 'supplementary',
+    knownAngle: 100,
+    missingAngle: 80,
+    attemptedAngle: 75,
+  })
+)
+
+const lookupEditor = new MockArtifactEditor()
+lookupEditor.createToolShape('tool:fraction_strip:scene:0', 'tool:fraction_strip', 'main')
+lookupEditor.createToolShape('tool:fraction_strip:scene:0:label', 'tool:fraction_strip', 'label')
+lookupEditor.createToolShape('tool:fraction_strip:scene:0-stale', 'tool:fraction_strip', 'unrelated')
+
+assert.equal(getCanvasArtifactShapeIds(lookupEditor, 'tool:fraction_strip:scene:0').length, 2)
+assert.equal(deleteExistingCanvasArtifactShapes(lookupEditor, 'tool:fraction_strip:scene:0').length, 2)
+assert.equal(lookupEditor.shapeCount, 1, 'Artifact replacement should not delete dash-suffixed unrelated shapes.')
+
+assertMockRendererReplacesRepeatedArtifact(
+  'fraction_strip',
+  fractionStripScene({ numerator: 1, denominator: 4, title: 'Fraction model' }),
+  fractionStripScene({ numerator: 3, denominator: 4, title: 'Fraction model' })
+)
+
+assertMockRendererReplacesRepeatedArtifact(
+  'bar_model',
+  barModelScene({
+    title: 'Comparison tape',
+    bars: [
+      {
+        label: 'Maya',
+        segments: [
+          { label: 'shared', value: 24, shaded: true },
+          { label: 'more', value: 8, shaded: false },
+        ],
+      },
+    ],
+  }),
+  barModelScene({
+    title: 'Comparison tape',
+    bars: [
+      {
+        label: 'Maya',
+        segments: [
+          { label: 'shared', value: 30, shaded: true },
+          { label: 'more', value: 12, shaded: false },
+        ],
+      },
+    ],
+  })
+)
+
+assertMockRendererReplacesRepeatedArtifact(
   'angle_diagram',
   angleDiagramScene({
     degrees: 110,

@@ -9,7 +9,7 @@ import type {
   TutorCanvasLabelPosition,
   TutorCanvasSize,
 } from '@/lib/tutor/session-adapter'
-import { canvasArtifactIdMatches } from '@/lib/tutor/canvas-action-artifacts'
+import { deleteExistingCanvasArtifactShapes } from '@/lib/tutor/canvas-artifact-renderer'
 
 const TOOL_META = { lemmaToolOwned: true } as const
 
@@ -19,20 +19,6 @@ function buildToolMeta(action: TutorCanvasAction, suffix?: string) {
     ...TOOL_META,
     ...(artifactId ? { lemmaArtifactId: artifactId } : {}),
     ...(action.artifactGroupId ? { lemmaArtifactGroupId: action.artifactGroupId } : {}),
-  }
-}
-
-function deleteExistingArtifactShapes(editor: Editor, artifactId: string) {
-  const matchingShapeIds = [...editor.getCurrentPageShapeIds()].filter((shapeId) => {
-    const shape = editor.getShape(shapeId)
-    return canvasArtifactIdMatches(
-      (shape as { meta?: Record<string, unknown> } | undefined)?.meta?.lemmaArtifactId,
-      artifactId
-    )
-  })
-
-  if (matchingShapeIds.length > 0) {
-    editor.deleteShapes(matchingShapeIds)
   }
 }
 
@@ -400,7 +386,7 @@ function createHighlight(editor: Editor, action: Extract<TutorCanvasAction, { ty
 
 export function applyTutorCanvasAction(editor: Editor, action: TutorCanvasAction): string[] {
   if (action.artifactId) {
-    deleteExistingArtifactShapes(editor, action.artifactId)
+    deleteExistingCanvasArtifactShapes(editor, action.artifactId)
   }
 
   switch (action.type) {
