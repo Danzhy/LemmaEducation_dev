@@ -620,6 +620,20 @@ assert(
   'math_check_step should catch x-intercept claims that use the wrong axis condition.'
 )
 
+const validValueTableStep = mathCheckStep('table for y = 2x + 1', '(0, 1), (1, 3), (2, 5)')
+assert(
+  validValueTableStep.verdict === 'valid' &&
+    validValueTableStep.hintTarget.includes('x-value'),
+  'math_check_step should validate table-of-values rows.'
+)
+
+const invalidValueTableStep = mathCheckStep('table for y = 2x + 1', '(0, 1), (1, 3), (2, 4)')
+assert(
+  invalidValueTableStep.verdict === 'invalid' &&
+    invalidValueTableStep.hintTarget.includes('table row'),
+  'math_check_step should catch table-of-values row mistakes.'
+)
+
 const validNumericEqualityStep = mathCheckStep('3/4 = 6/8', '0.75 = 0.75')
 assert(
   validNumericEqualityStep.verdict === 'valid',

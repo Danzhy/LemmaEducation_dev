@@ -258,6 +258,14 @@ async function main() {
     { previousStep: 'x-intercept of y = 2x + 4', nextStep: '(4, 0)' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-x-intercept-step-check' }
   )
+  const validValueTableStep = await tools.math_check_step.execute(
+    { previousStep: 'table for y = 2x + 1', nextStep: '(0, 1), (1, 3), (2, 5)' },
+    { ctx: {} as never, toolCallId: 'smoke-value-table-step-check' }
+  )
+  const invalidValueTableStep = await tools.math_check_step.execute(
+    { previousStep: 'table for y = 2x + 1', nextStep: '(0, 1), (1, 3), (2, 4)' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-value-table-step-check' }
+  )
   const invalidNumericEqualityStep = await tools.math_check_step.execute(
     { previousStep: '3/4 = 6/8', nextStep: '3/4 = 7/8' },
     { ctx: {} as never, toolCallId: 'smoke-numeric-equality-step-check' }
@@ -766,6 +774,17 @@ async function main() {
     !JSON.stringify(invalidXInterceptStep).includes('x-intercept')
   ) {
     throw new Error(`math_check_step did not reject an invalid x-intercept claim: ${JSON.stringify(invalidXInterceptStep)}`)
+  }
+
+  if (!JSON.stringify(validValueTableStep).includes('"verdict":"valid"') || !JSON.stringify(validValueTableStep).includes('x-value')) {
+    throw new Error(`math_check_step did not accept valid table rows: ${JSON.stringify(validValueTableStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidValueTableStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidValueTableStep).includes('table row')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid table row: ${JSON.stringify(invalidValueTableStep)}`)
   }
 
   if (!JSON.stringify(invalidNumericEqualityStep).includes('"verdict":"invalid"')) {

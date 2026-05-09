@@ -632,6 +632,56 @@ function checkGraphInterceptStep(previousStep: string, nextStep: string): MathSt
   }
 }
 
+function extractFunctionExpressionForTableCheck(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const match = normalized.match(
+    /\by\s*=\s*(.+?)(?=\s+(?:using|with|for|at|when|where|table|values?|rows?|ordered|and|i\s+got|i\s+found|my\s+answer|my\s+table)\b|\s*,\s*(?:my|the|table|values?|rows?|\(?-?\d|x\s*=)|[?!.;]|$)/i
+  )
+  return match?.[1]?.trim().replace(/\s+$/g, '') || null
+}
+
+function formatTableRows(rows: Array<{ x: number; y: number }>, limit = 3) {
+  const shown = rows.slice(0, limit).map((row) => `(${formatNumber(row.x, 4)}, ${formatNumber(row.y, 4)})`)
+  const suffix = rows.length > limit ? ', ...' : ''
+  return `${shown.join(', ')}${suffix}`
+}
+
+function checkTableOfValuesStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\b(table|values?|rows?|ordered\s+pairs?)\b/i.test(combined)) return null
+
+  const expression =
+    extractFunctionExpressionForTableCheck(previousStep) ??
+    extractFunctionExpressionForPointCheck(previousStep) ??
+    extractFunctionExpressionForTableCheck(combined)
+  const rows = parseCoordinatePoints(nextStep).slice(0, 8)
+  if (!expression || rows.length === 0) return null
+
+  try {
+    const checkedRows = rows.map((row) => ({
+      ...row,
+      expectedY: coerceFiniteNumber(safeEvaluate(normalizeGraphExpression(expression), { x: row.x })),
+    }))
+    const mismatch = checkedRows.find((row) => !isNearlyEqual(row.y, row.expectedY, 0.01))
+
+    if (!mismatch) {
+      return {
+        verdict: 'valid',
+        reason: `The table rows fit the function: ${formatTableRows(rows)} all match y = ${expression}.`,
+        hintTarget: 'explain how each x-value was substituted into the function',
+      }
+    }
+
+    return {
+      verdict: 'invalid',
+      reason: `In the table, x = ${formatNumber(mismatch.x, 4)} should give y = ${formatNumber(mismatch.expectedY, 4)}, not ${formatNumber(mismatch.y, 4)}.`,
+      hintTarget: 'substitute each x-value before filling the table row',
+    }
+  } catch {
+    return null
+  }
+}
+
 const PLAIN_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
 
 function parsePlainNumber(token: string) {
@@ -1745,6 +1795,9 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
   const combined = `${previousStep} ${nextStep}`
   const compactCombined = normalizeExpression(combined)
   return {
+    hasTableOfValuesWork:
+      /\b(table|values?|rows?|ordered\s+pairs?)\b/i.test(combined) &&
+      /\by\s*=/.test(combined),
     hasGraphInterceptWork:
       /\b(intercept|root|zero|x-axis|y-axis)\b/i.test(combined) &&
       /\by\s*=/.test(combined),
@@ -1804,6 +1857,9 @@ function hasOrderOfOperationsFocus(features: ReturnType<typeof detectStepFeature
 }
 
 function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures>) {
+  if (features.hasTableOfValuesWork) {
+    return 'substitute each x-value before filling the table row'
+  }
   if (features.hasGraphInterceptWork) {
     return 'use the axis condition for the requested intercept'
   }
@@ -3576,6 +3632,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const graphInterceptStep = checkGraphInterceptStep(previousStep, nextStep)
   if (graphInterceptStep) {
     return graphInterceptStep
+  }
+
+  const tableOfValuesStep = checkTableOfValuesStep(previousStep, nextStep)
+  if (tableOfValuesStep) {
+    return tableOfValuesStep
   }
 
   const coordinatePointStep = checkCoordinatePointStep(previousStep, nextStep)

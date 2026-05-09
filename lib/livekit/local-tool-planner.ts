@@ -314,6 +314,19 @@ function extractGraphDomain(text: string) {
   return { start: Math.min(start, end), end: Math.max(start, end) }
 }
 
+function extractTableXValues(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const explicitMatch = normalized.match(
+    /\bx(?:\s*[- ]?values?)?\s*(?:=|are|:)?\s*((?:-?(?:\d+(?:\.\d+)?|\.\d+)\s*(?:,|and|to|through|\s)+){0,7}-?(?:\d+(?:\.\d+)?|\.\d+))/i
+  )
+  if (!explicitMatch) return []
+
+  return [...explicitMatch[1].matchAll(new RegExp(LOCAL_NUMBER_PATTERN, 'g'))]
+    .map((match) => parseLocalPlainNumber(match[0]))
+    .filter((value): value is number => typeof value === 'number')
+    .slice(0, 6)
+}
+
 function extractCoordinatePoints(text: string) {
   return [...text.matchAll(/\(\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*\)/g)]
     .map((match) => ({
@@ -494,6 +507,52 @@ function extractGraphInterceptType(text: string): 'x' | 'y' | null {
   }
 
   return null
+}
+
+function extractFunctionExpressionForTableAttempt(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const match = normalized.match(
+    /\by\s*=\s*(.+?)(?=\s+(?:using|with|for|at|when|where|table|values?|rows?|ordered|from|and|i\s+got|i\s+found|my\s+answer|my\s+table)\b|\s*,\s*(?:my|the|table|values?|rows?|\(?-?\d|x\s*=)|[?!.;]|$)/i
+  )
+  return match?.[1]?.trim().replace(/\s+$/g, '') || ''
+}
+
+function extractTableOfValuesAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(table|values?|rows?|ordered\s+pairs?)\b/i.test(normalized)) return null
+
+  const expression = extractFunctionExpressionForTableAttempt(normalized)
+  const points = extractCoordinatePoints(normalized)
+  if (!expression || points.length === 0) return null
+
+  return buildStepPair(`table for y = ${expression}`, points.map((point) => point.raw).join(', '))
+}
+
+function extractTableOfValuesRequest(text: string) {
+  if (!/\b(table|values?|rows?)\b/i.test(text)) return null
+
+  const expression = extractFunctionExpressionForTableAttempt(text) || extractGraphExpression(text)
+  if (!expression) return null
+
+  const xValues = extractTableXValues(text)
+  return {
+    expression,
+    ...(xValues.length > 0 ? { xValues } : {}),
+  }
+}
+
+function buildLocalTableOfValuesInputFromStepPair(stepPair: StudentStepPair) {
+  if (!/\b(table|values?|rows?|ordered\s+pairs?)\b/i.test(stepPair.previousStep)) return null
+
+  const expression = extractFunctionExpressionForTableAttempt(stepPair.previousStep)
+  if (!expression) return null
+
+  const rowPoints = extractCoordinatePoints(stepPair.nextStep)
+  const xValues = rowPoints.length > 0 ? rowPoints.map((point) => point.x).slice(0, 6) : extractTableXValues(stepPair.previousStep)
+  return {
+    expression,
+    ...(xValues.length > 0 ? { xValues } : {}),
+  }
 }
 
 function extractFunctionExpressionForInterceptAttempt(text: string) {
@@ -1378,6 +1437,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const decimalRoundingAttempt = extractDecimalRoundingAttempt(normalized)
   if (decimalRoundingAttempt) return decimalRoundingAttempt
 
+  const tableOfValuesAttempt = extractTableOfValuesAttempt(normalized)
+  if (tableOfValuesAttempt) return tableOfValuesAttempt
+
   const graphInterceptAttempt = extractGraphInterceptAttempt(normalized)
   if (graphInterceptAttempt) return graphInterceptAttempt
 
@@ -1434,7 +1496,7 @@ function inferLocalTopic(text: string) {
   if (/\bequation|variable|solve for x|\bx\b/.test(lower)) return 'equations'
   if (/\bnegative|positive|integer|signed|minus\b|-\d/.test(lower)) return 'integers'
   if (/\barea|perimeter|angle|geometry|rectangle|triangle|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?\b/.test(lower)) return 'geometry'
-  if (/\bgraph|coordinate|slope|point|axis|distance|intercept\b/.test(lower)) return 'graphing'
+  if (/\bgraph|coordinate|slope|point|axis|distance|intercept|table of values|value table\b/.test(lower)) return 'graphing'
   if (/\bmean|median|mode|probability|chance|data\b/.test(lower)) return 'data'
   return text.slice(0, 120)
 }
@@ -1446,12 +1508,14 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const unitConversionRequest = extractUnitConversionRequest(prompt)
   const slopeRequest = extractSlopeRequest(prompt)
   const coordinateDistanceRequest = extractCoordinateDistanceRequest(prompt)
+  const tableOfValuesRequest = extractTableOfValuesRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
   const plans: LocalToolPlan[] = []
   const asksForFullSolution =
     /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(lower)
   const hasStudentAttempt =
     /\b(i tried|i got|i found|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
+    /\b(my table|my row|my values?|my ordered pairs?)\b/.test(lower) ||
     /\b(i added|i subtracted|i multiplied|i divided|i calculated|i evaluated|i did|i worked out|i simplified|i rounded|rounded|and got)\b/.test(lower) ||
     /\b(went from|changed from|increased from|decreased from|percent change)\b/.test(lower) ||
     /\b(percent error|actual value|accepted value|measured value|estimate)\b/.test(lower) ||
@@ -1461,7 +1525,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|coordinate|distance|intercept|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?)\b/.test(lower)
+    /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?)\b/.test(lower)
   const asksForMistakeHelp =
     /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|check this|is this right|is that right|am i right|is my step right|correct)\b/.test(lower)
   const needsSafetyBoundary =
@@ -1667,6 +1731,13 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
           input: graphInterceptBoardInput,
         })
       }
+      const tableOfValuesInput = buildLocalTableOfValuesInputFromStepPair(studentStepPair)
+      if (tableOfValuesInput) {
+        plans.push({
+          toolName: 'table_of_values',
+          input: tableOfValuesInput,
+        })
+      }
     }
     plans.push({
       toolName: 'mistake_pattern_classifier',
@@ -1715,6 +1786,14 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
         ...slopeRequest,
         title: 'Slope triangle',
       },
+    })
+    return plans
+  }
+
+  if (tableOfValuesRequest) {
+    plans.push({
+      toolName: 'table_of_values',
+      input: tableOfValuesRequest,
     })
     return plans
   }
@@ -2134,6 +2213,7 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
       (plan) => plan.toolName === 'geometry_figure' && plan.input.showTriangleAreaModel === true
     )
     const hasAngleDiagram = plans.some((plan) => plan.toolName === 'angle_diagram')
+    const hasTableOfValues = plans.some((plan) => plan.toolName === 'table_of_values')
     const boardCue = hasPlaceValueChart
       ? ' I also highlighted the place-value chart so the target column is visible.'
       : hasCompositeAreaModel
@@ -2142,7 +2222,9 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
           ? ' I also put the half-rectangle triangle model on the board.'
           : hasAngleDiagram
             ? ' I also put the angle relationship diagram on the board.'
-            : ''
+            : hasTableOfValues
+              ? ' I also put the value table on the board.'
+              : ''
     if (checkedStep?.verdict === 'valid') {
       return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
     }
@@ -2210,6 +2292,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'slope_triangle') {
     return 'I put a slope triangle on the board. Compare rise to run first, then tell me what the slope means.'
+  }
+
+  if (firstTool === 'table_of_values') {
+    return 'I put the value table on the board. Pick one x-value and tell me how substituting it gives the matching y-value.'
   }
 
   if (firstTool === 'angle_diagram') {

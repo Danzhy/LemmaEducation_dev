@@ -33,6 +33,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes value-table requests to table_of_values with parsed x-values',
+    prompt: 'Make a table for y = 2x + 1 using x = 0, 1, 2.',
+    expectedTools: ['table_of_values'],
+    inspect: (input) => {
+      assert.equal(input.expression, '2x + 1')
+      assert.deepEqual(input.xValues, [0, 1, 2])
+    },
+  },
+  {
     name: 'routes staged explanation to animation and sequence planning',
     prompt: 'Write while explaining how to simplify fractions step by step',
     expectedTools: ['board_animation_plan', 'tutor_teaching_sequence'],
@@ -304,6 +313,18 @@ const cases: PlannerCase[] = [
       assert.equal(plans[1].input.expression, '2x + 4')
       assert.equal(plans[1].input.showXIntercepts, true)
       assert.equal(plans[1].input.showYIntercept, false)
+    },
+  },
+  {
+    name: 'checks table-of-values rows before classifying the mistake',
+    prompt: 'For y = 2x + 1, my table is (0, 1), (1, 3), (2, 4). Is that right?',
+    expectedTools: ['math_check_step', 'table_of_values', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'table for y = 2x + 1')
+      assert.equal(input.nextStep, '(0, 1), (1, 3), (2, 4)')
+      assert.equal(plans[1].toolName, 'table_of_values')
+      assert.equal(plans[1].input.expression, '2x + 1')
+      assert.deepEqual(plans[1].input.xValues, [0, 1, 2])
     },
   },
   {
@@ -631,6 +652,14 @@ assert.match(
 )
 assert.match(
   buildLocalAssistantReply(
+    'is this table right',
+    [{ toolName: 'math_check_step', input: {} }, { toolName: 'table_of_values', input: {} }],
+    [{ verdict: 'invalid', reason: 'For x = 2, y should be 5.', hintTarget: 'substitute each x-value' }]
+  ),
+  /value table/
+)
+assert.match(
+  buildLocalAssistantReply(
     'which 2',
     [{ toolName: 'math_check_step', input: {} }],
     [
@@ -658,6 +687,14 @@ assert.match(
     [{ summary: 'Prepared a slope triangle with rise 4, run 4, and slope 1.' }]
   ),
   /slope triangle/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'make a table',
+    [{ toolName: 'table_of_values', input: {} }],
+    [{ summary: 'Built a value table for y = 2x + 1.' }]
+  ),
+  /value table/
 )
 assert.match(
   buildLocalAssistantReply(
