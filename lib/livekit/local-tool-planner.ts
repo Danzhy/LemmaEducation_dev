@@ -1160,6 +1160,11 @@ function buildLocalTableOfValuesInputFromStepPair(stepPair: StudentStepPair) {
 
 type LocalStatisticsKind = 'mean' | 'median' | 'mode' | 'range'
 
+type LocalLabeledDataItem = {
+  label: string
+  value: number
+}
+
 function extractLocalStatisticsKind(text: string): { kind: LocalStatisticsKind; label: string; index: number } | null {
   const match = text.match(/\b(mean|average|median|mode|range)\b/i)
   if (!match || typeof match.index !== 'number') return null
@@ -1241,6 +1246,136 @@ function buildLocalStatisticsSummaryInputFromStepPair(stepPair: StudentStepPair)
   return {
     values,
     title: 'Statistics summary',
+  }
+}
+
+function cleanLocalDataLabel(label: string) {
+  return label
+    .replace(/\b(?:bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|data|chart|values?|shows?|with|for|of|the|a|an|has|had)\b/gi, ' ')
+    .replace(/[^A-Za-z0-9' -]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function titleCaseLocalLabel(label: string) {
+  return label.replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function formatLocalDataItems(items: LocalLabeledDataItem[]) {
+  return items.map((item) => `${item.label} ${formatLocalNumber(item.value)}`).join(', ')
+}
+
+function parseLocalLabeledDataItems(text: string): LocalLabeledDataItem[] {
+  const normalized = normalizeLocalPromptText(text)
+  const beforeClaim = normalized.split(/\b(?:value|amount|count|number)\s+(?:for|of|at)\b/i)[0]
+  const afterChartLabel =
+    beforeClaim.match(
+      /\b(?:bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|data|chart|values?)\s*(?:are|is|has|had|shows?|:)?\s*([\s\S]{0,320})/i
+    )?.[1] ?? beforeClaim
+  const dataSegment = afterChartLabel.replace(/^\s*data\s*:\s*/i, '').split(/[;?!.]/)[0]
+  const items = new Map<string, LocalLabeledDataItem>()
+
+  dataSegment
+    .split(/\s*(?:,|\band\b)\s*/i)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .forEach((chunk) => {
+      const match = chunk.match(
+        new RegExp(
+          `^\\s*([A-Za-z][A-Za-z0-9' -]{0,44}?)\\s*(?:=|:|is|has|had|shows?)?\\s*(${LOCAL_NUMBER_PATTERN})\\s*(?:items?|votes?|points?|students?|books?)?\\s*$`,
+          'i'
+        )
+      )
+      if (!match) return
+
+      const label = cleanLocalDataLabel(match[1])
+      const value = parseLocalPlainNumber(match[2])
+      if (!label || value === null) return
+
+      items.set(label, {
+        label,
+        value,
+      })
+    })
+
+  return [...items.values()]
+}
+
+function extractLocalDataDisplayTarget(text: string): { label: string; endIndex: number } | null {
+  const normalized = normalizeLocalPromptText(text)
+  const targetPatterns = [
+    /\b(?:value|amount|count|number)\s+(?:for|of|at)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:is|was|equals?|=|should|right|wrong)\b|[?!.;,]|$)/i,
+    /\b([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:value|amount|count|number)\s*(?:is|was|equals?|=)\b/i,
+  ]
+
+  for (const pattern of targetPatterns) {
+    const match = normalized.match(pattern)
+    if (!match || typeof match.index !== 'number') continue
+    const label = cleanLocalDataLabel(match[1])
+    if (label) return { label, endIndex: match.index + match[0].length }
+  }
+
+  return null
+}
+
+function extractLocalDataDisplayAttempt(text: string): StudentStepPair | null {
+  const normalized = normalizeLocalPromptText(text)
+  if (!/\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|chart)\b/i.test(normalized)) {
+    return null
+  }
+
+  const data = parseLocalLabeledDataItems(normalized).slice(0, 8)
+  const target = extractLocalDataDisplayTarget(normalized)
+  if (data.length < 1 || !target) return null
+
+  const answerSegment = normalized.slice(target.endIndex)
+  const answerMatch = answerSegment.match(
+    new RegExp(`(?:\\b(?:is|was|equals?|=|got|should\\s+be)\\s*)?(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (!answerMatch) return null
+
+  const chartKind = /\bline\s+(?:plot|graph)\b/i.test(normalized) ? 'line plot' : 'bar chart'
+  return buildStepPair(
+    `${chartKind} data: ${formatLocalDataItems(data)}; value for ${target.label}`,
+    answerMatch[1]
+  )
+}
+
+function extractLocalDataDisplayRequest(text: string) {
+  const normalized = normalizeLocalPromptText(text)
+  if (!/\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display)\b/i.test(normalized)) return null
+
+  const data = parseLocalLabeledDataItems(normalized).slice(0, 8)
+  if (data.length < 1) return null
+
+  const displayType = /\bline\s+(?:plot|graph)\b/i.test(normalized) ? 'line_plot' : 'bar_chart'
+  return {
+    displayType,
+    title: displayType === 'line_plot' ? 'Line plot' : 'Bar chart',
+    data: data.map((item) => ({
+      label: titleCaseLocalLabel(item.label),
+      value: item.value,
+    })),
+  }
+}
+
+function buildLocalDataDisplayInputFromStepPair(stepPair: StudentStepPair) {
+  if (!/\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|chart)\b/i.test(stepPair.previousStep)) {
+    return null
+  }
+
+  const data = parseLocalLabeledDataItems(stepPair.previousStep).slice(0, 8)
+  if (data.length < 1) return null
+
+  const displayType = /\bline\s+(?:plot|graph)\b/i.test(stepPair.previousStep) ? 'line_plot' : 'bar_chart'
+  return {
+    displayType,
+    title: displayType === 'line_plot' ? 'Line plot' : 'Bar chart',
+    data: data.map((item) => ({
+      label: titleCaseLocalLabel(item.label),
+      value: item.value,
+    })),
   }
 }
 
@@ -2768,6 +2903,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const statisticsAttempt = extractStatisticsAttempt(normalized)
   if (statisticsAttempt) return statisticsAttempt
 
+  const dataDisplayAttempt = extractLocalDataDisplayAttempt(normalized)
+  if (dataDisplayAttempt) return dataDisplayAttempt
+
   const probabilityAttempt = extractProbabilityAttempt(normalized)
   if (probabilityAttempt) return probabilityAttempt
 
@@ -2834,7 +2972,7 @@ function inferLocalTopic(text: string) {
   if (/\bnegative|positive|integer|signed|minus\b|-\d/.test(lower)) return 'integers'
   if (/\barea|perimeter|angle|geometry|rectangle|triangle|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?\b/.test(lower)) return 'geometry'
   if (/\bgraph|coordinate|slope|point|axis|distance|intercept|table of values|value table\b/.test(lower)) return 'graphing'
-  if (/\bmean|median|mode|probability|chance|data\b/.test(lower)) return 'data'
+  if (/\bmean|median|mode|probability|chance|data|bar\s+chart|line\s+plot|line\s+graph\b/.test(lower)) return 'data'
   return text.slice(0, 120)
 }
 
@@ -2927,6 +3065,7 @@ export function planLocalToolTurn(
   const coordinateDistanceRequest = extractCoordinateDistanceRequest(prompt)
   const tableOfValuesRequest = extractTableOfValuesRequest(prompt)
   const statisticsSummaryRequest = extractStatisticsSummaryRequest(prompt)
+  const dataDisplayRequest = extractLocalDataDisplayRequest(prompt)
   const probabilityModelRequest = extractProbabilityModelRequest(prompt)
   const unitRateRequest = extractLocalUnitRateRequest(prompt)
   const percentOfRequest = extractLocalPercentOfRequest(prompt)
@@ -2943,6 +3082,7 @@ export function planLocalToolTurn(
     /\b(went from|changed from|increased from|decreased from|percent change)\b/.test(lower) ||
     /\b(percent error|actual value|accepted value|measured value|estimate)\b/.test(lower) ||
     /\b(mean|average|median|mode|range)\b.{0,120}\b(is|was|equals?|got)\b/.test(lower) ||
+    /\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display)\b.{0,180}\b(value|amount|count|number)\b.{0,80}\b(is|was|equals?|got)\b/.test(lower) ||
     /\b(probability|chance)\b.{0,140}\b(is|was|equals?|got|as)\b/.test(lower)
   const hasStudentAttempt = hasExplicitStudentAttempt || Boolean(studentStepPair)
   const asksForCurriculumContext =
@@ -2950,7 +3090,7 @@ export function planLocalToolTurn(
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|proportion|proportional|area|perimeter|rectangle|triangle|base|height|word problem|plan|tape|bar\s+model|part[- ]?whole|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
+    /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|proportion|proportional|area|perimeter|rectangle|triangle|base|height|word problem|plan|tape|bar\s+model|bar\s+chart|line\s+plot|line\s+graph|data\s+display|part[- ]?whole|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
   const referencesVisibleBoard =
     /\b(this diagram|the diagram|my diagram|this drawing|my drawing|on the board|the board|whiteboard|canvas|visible work|what i drew|the picture|this figure|the figure)\b/.test(
       lower
@@ -3231,6 +3371,13 @@ export function planLocalToolTurn(
           input: tableOfValuesInput,
         })
       }
+      const dataDisplayInput = buildLocalDataDisplayInputFromStepPair(studentStepPair)
+      if (dataDisplayInput) {
+        plans.push({
+          toolName: 'data_display',
+          input: dataDisplayInput,
+        })
+      }
       const statisticsSummaryInput = buildLocalStatisticsSummaryInputFromStepPair(studentStepPair)
       if (statisticsSummaryInput) {
         plans.push({
@@ -3308,6 +3455,14 @@ export function planLocalToolTurn(
     plans.push({
       toolName: 'table_of_values',
       input: tableOfValuesRequest,
+    })
+    return plans
+  }
+
+  if (dataDisplayRequest) {
+    plans.push({
+      toolName: 'data_display',
+      input: dataDisplayRequest,
     })
     return plans
   }
@@ -3856,6 +4011,7 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     )
     const hasAngleDiagram = plans.some((plan) => plan.toolName === 'angle_diagram')
     const hasTableOfValues = plans.some((plan) => plan.toolName === 'table_of_values')
+    const hasDataDisplay = plans.some((plan) => plan.toolName === 'data_display')
     const hasStatisticsSummary = plans.some((plan) => plan.toolName === 'statistics_summary')
     const hasProbabilityModel = plans.some((plan) => plan.toolName === 'probability_model')
     const hasRatioTable = plans.some((plan) => plan.toolName === 'ratio_table')
@@ -3871,13 +4027,15 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
               ? ' I also put the angle relationship diagram on the board.'
               : hasTableOfValues
                 ? ' I also put the value table on the board.'
-                : hasStatisticsSummary
-                  ? ' I also put the data summary on the board.'
-                  : hasProbabilityModel
-                    ? ' I also put the probability model on the board.'
-                    : hasRatioTable
-                      ? ' I also put the cross-product table on the board.'
-                      : ''
+                : hasDataDisplay
+                  ? ' I also put the data display on the board.'
+                  : hasStatisticsSummary
+                    ? ' I also put the data summary on the board.'
+                    : hasProbabilityModel
+                      ? ' I also put the probability model on the board.'
+                      : hasRatioTable
+                        ? ' I also put the cross-product table on the board.'
+                        : ''
     if (checkedStep?.verdict === 'valid') {
       return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
     }
@@ -3972,6 +4130,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'statistics_summary') {
     return 'I put the data summary on the board. Start by checking the ordered data, then tell me which statistic you need.'
+  }
+
+  if (firstTool === 'data_display') {
+    return 'I put the data display on the board. Match one category label to its bar or point before reading the value.'
   }
 
   if (firstTool === 'probability_model') {

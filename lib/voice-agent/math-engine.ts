@@ -946,6 +946,113 @@ function extractPlainNumbers(text: string) {
     .filter((value): value is number => value !== null)
 }
 
+type LabeledDataItem = {
+  label: string
+  displayLabel: string
+  value: number
+}
+
+function cleanDataDisplayLabel(label: string) {
+  const withoutChartWords = label
+    .replace(/\b(?:bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|data|chart|values?|shows?|with|for|of|the|a|an)\b/gi, ' ')
+    .replace(/[^A-Za-z0-9' -]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return withoutChartWords.toLowerCase()
+}
+
+function parseLabeledDataItems(text: string): LabeledDataItem[] {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const beforeClaim = normalized.split(/\b(?:value|amount|count|number)\s+(?:for|of|at)\b/i)[0]
+  const afterChartLabel =
+    beforeClaim.match(
+      /\b(?:bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|data|chart|values?)\s*(?:are|is|shows?|:)?\s*([\s\S]{0,320})/i
+    )?.[1] ?? beforeClaim
+  const dataSegment = afterChartLabel.replace(/^\s*data\s*:\s*/i, '').split(/[;?!.]/)[0]
+  const items = new Map<string, LabeledDataItem>()
+
+  dataSegment
+    .split(/\s*(?:,|\band\b)\s*/i)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .forEach((chunk) => {
+      const match = chunk.match(
+        new RegExp(
+          `^\\s*([A-Za-z][A-Za-z0-9' -]{0,44}?)\\s*(?:=|:|is|has|had|shows?)?\\s*(${PLAIN_NUMBER_PATTERN})\\s*(?:items?|votes?|points?|students?|books?)?\\s*$`,
+          'i'
+        )
+      )
+      if (!match) return
+
+      const label = cleanDataDisplayLabel(match[1])
+      const value = parsePlainNumber(match[2])
+      if (!label || value === null) return
+
+      items.set(label, {
+        label,
+        displayLabel: label.replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        value,
+      })
+    })
+
+  return [...items.values()]
+}
+
+function extractDataDisplayTargetLabel(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const targetPatterns = [
+    /\b(?:value|amount|count|number)\s+(?:for|of|at)\s+([A-Za-z][A-Za-z0-9' -]{0,44}?)(?=\s+(?:is|was|equals?|=|should|right|wrong)\b|[?!.;,]|$)/i,
+    /\b([A-Za-z][A-Za-z0-9' -]{0,44}?)\s+(?:value|amount|count|number)\s*(?:is|was|equals?|=)\b/i,
+  ]
+
+  for (const pattern of targetPatterns) {
+    const match = normalized.match(pattern)
+    const label = match ? cleanDataDisplayLabel(match[1]) : ''
+    if (label) return label
+  }
+
+  return null
+}
+
+function findLabeledDataItem(items: LabeledDataItem[], targetLabel: string) {
+  return (
+    items.find((item) => item.label === targetLabel) ??
+    items.find((item) => item.label.endsWith(` ${targetLabel}`) || targetLabel.endsWith(` ${item.label}`)) ??
+    null
+  )
+}
+
+function checkDataDisplayValueStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\b(bar\s+chart|line\s+plot|line\s+graph|data\s+display|data\s+set|chart)\b/i.test(combined)) {
+    return null
+  }
+
+  const items = parseLabeledDataItems(previousStep)
+  if (items.length < 1) return null
+
+  const targetLabel = extractDataDisplayTargetLabel(previousStep) ?? extractDataDisplayTargetLabel(combined)
+  if (!targetLabel) return null
+
+  const item = findLabeledDataItem(items, targetLabel)
+  const studentValue = parseLastPlainNumber(nextStep)
+  if (!item || studentValue === null) return null
+
+  const valueMatches = isNearlyEqual(item.value, studentValue, 0.01)
+  const chartKind = /\bline\s+(?:plot|graph)\b/i.test(combined) ? 'line plot' : 'bar chart'
+
+  return {
+    verdict: valueMatches ? 'valid' : 'invalid',
+    reason: valueMatches
+      ? `In the ${chartKind}, ${item.displayLabel} is labeled ${formatNumber(item.value, 4)}.`
+      : `In the ${chartKind}, ${item.displayLabel} is labeled ${formatNumber(item.value, 4)}, not ${formatNumber(studentValue, 4)}.`,
+    hintTarget: valueMatches
+      ? 'explain how the category label matches the bar or point value'
+      : 'match the category label to its bar height or plotted point before reading the value',
+  }
+}
+
 type ProportionToken =
   | {
       kind: 'number'
@@ -4388,6 +4495,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const tableOfValuesStep = checkTableOfValuesStep(previousStep, nextStep)
   if (tableOfValuesStep) {
     return tableOfValuesStep
+  }
+
+  const dataDisplayValueStep = checkDataDisplayValueStep(previousStep, nextStep)
+  if (dataDisplayValueStep) {
+    return dataDisplayValueStep
   }
 
   const statisticsSummaryStep = checkStatisticsSummaryStep(previousStep, nextStep)

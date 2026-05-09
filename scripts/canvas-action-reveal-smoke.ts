@@ -851,6 +851,13 @@ async function main() {
   })
 
   await assertTypedPreviewVisualReplacesRepeatedShapes({
+    name: 'data-display typed-preview visual',
+    expectedToolName: 'data_display',
+    firstPrompt: 'Draw a bar chart with apples 4, bananas 7, and grapes 5.',
+    secondPrompt: 'Draw a bar chart with apples 5, bananas 6, and grapes 8.',
+  })
+
+  await assertTypedPreviewVisualReplacesRepeatedShapes({
     name: 'composite-area typed-preview visual',
     expectedToolName: 'composite_area_model',
     firstPrompt: 'A shape is made of 3 by 4 and 2 by 5 rectangles. What is the total area?',

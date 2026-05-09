@@ -777,6 +777,26 @@ assert(
   'math_check_step should validate range claims.'
 )
 
+const validBarChartValueStep = mathCheckStep(
+  'bar chart data: apples 4, bananas 7, grapes 5; value for bananas',
+  '7'
+)
+assert(
+  validBarChartValueStep.verdict === 'valid' &&
+    validBarChartValueStep.hintTarget.includes('category label'),
+  'math_check_step should validate bar-chart category value claims.'
+)
+
+const invalidLinePlotValueStep = mathCheckStep(
+  'line plot data: Monday 4, Tuesday 7, Wednesday 5; value for Tuesday',
+  '8'
+)
+assert(
+  invalidLinePlotValueStep.verdict === 'invalid' &&
+    invalidLinePlotValueStep.hintTarget.includes('plotted point'),
+  'math_check_step should catch line-plot value reading mistakes.'
+)
+
 const validProbabilityStep = mathCheckStep('probability of 3 favorable outcomes out of 8', '3/8')
 assert(
   validProbabilityStep.verdict === 'valid' &&

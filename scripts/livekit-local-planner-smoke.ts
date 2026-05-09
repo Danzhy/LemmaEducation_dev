@@ -382,6 +382,19 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes labeled bar-chart requests to a data display board model',
+    prompt: 'Draw a bar chart with apples 4, bananas 7, and grapes 5.',
+    expectedTools: ['data_display'],
+    inspect: (input) => {
+      assert.equal(input.displayType, 'bar_chart')
+      assert.deepEqual(input.data, [
+        { label: 'Apples', value: 4 },
+        { label: 'Bananas', value: 7 },
+        { label: 'Grapes', value: 5 },
+      ])
+    },
+  },
+  {
     name: 'routes probability requests to a probability board model',
     prompt: 'Show the probability of 3 favorable outcomes out of 8.',
     expectedTools: ['probability_model'],
@@ -847,6 +860,22 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks data-display value claims before classifying the mistake',
+    prompt: 'The bar chart has apples 4, bananas 7, and grapes 5. Bananas value is 8. Is that right?',
+    expectedTools: ['math_check_step', 'data_display', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, 'bar chart data: apples 4, bananas 7, grapes 5; value for bananas')
+      assert.equal(input.nextStep, '8')
+      assert.equal(plans[1].toolName, 'data_display')
+      assert.equal(plans[1].input.displayType, 'bar_chart')
+      assert.deepEqual(plans[1].input.data, [
+        { label: 'Apples', value: 4 },
+        { label: 'Bananas', value: 7 },
+        { label: 'Grapes', value: 5 },
+      ])
+    },
+  },
+  {
     name: 'checks statistics claims before classifying the mistake',
     prompt: 'The mean of 4, 7, 3, 7, 9 is 5. Is that right?',
     expectedTools: ['math_check_step', 'statistics_summary', 'mistake_pattern_classifier'],
@@ -1289,6 +1318,14 @@ assert.match(
 )
 assert.match(
   buildLocalAssistantReply(
+    'is this bar value right',
+    [{ toolName: 'math_check_step', input: {} }, { toolName: 'data_display', input: {} }],
+    [{ verdict: 'invalid', reason: 'Bananas is labeled 7, not 8.', hintTarget: 'match the category label' }]
+  ),
+  /data display/
+)
+assert.match(
+  buildLocalAssistantReply(
     'is this mean right',
     [{ toolName: 'math_check_step', input: {} }, { toolName: 'statistics_summary', input: {} }],
     [{ verdict: 'invalid', reason: 'The mean is 6, not 5.', hintTarget: 'add all data values' }]
@@ -1340,6 +1377,14 @@ assert.match(
     [{ summary: 'Built a value table for y = 2x + 1.' }]
   ),
   /value table/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'show a bar chart',
+    [{ toolName: 'data_display', input: {} }],
+    [{ summary: 'Prepared a bar chart for 3 values.' }]
+  ),
+  /data display/
 )
 assert.match(
   buildLocalAssistantReply(
