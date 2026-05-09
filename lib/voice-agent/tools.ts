@@ -963,7 +963,7 @@ export function createVoiceAgentTools() {
     tool({
       name: 'math_check_step',
       description:
-        'Check whether one algebra step follows validly from the previous one. Use before correcting a student.',
+        'Check whether one math step or place-value claim follows validly from the previous one. Use before correcting a student.',
       strict: true,
       parameters: {
         type: 'object',

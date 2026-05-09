@@ -171,6 +171,24 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks decimal place-value digit attempts before classifying the mistake',
+    prompt: 'I think the digit in the hundredths place of 3.746 is 7. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'digit in hundredths place of 3.746')
+      assert.equal(input.nextStep, '7')
+    },
+  },
+  {
+    name: 'checks whole-number digit-value attempts before classifying the mistake',
+    prompt: 'I think the value of the 7 in 4,732 is 70. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'value of 7 in 4,732')
+      assert.equal(input.nextStep, '70')
+    },
+  },
+  {
     name: 'checks natural two-step equation balance attempts before classifying the mistake',
     prompt: 'I subtracted 3 from 2x + 3 = 11 and got 2x = 14. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],

@@ -116,6 +116,18 @@ async function main() {
     { previousStep: 'round 3.746 to nearest hundredths', nextStep: '3.74' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-decimal-rounding-step-check' }
   )
+  const validPlaceValueDigitStep = await tools.math_check_step.execute(
+    { previousStep: 'digit in hundredths place of 3.746', nextStep: '4' },
+    { ctx: {} as never, toolCallId: 'smoke-place-value-digit-step-check' }
+  )
+  const invalidPlaceValueDigitStep = await tools.math_check_step.execute(
+    { previousStep: 'digit in hundreds place of 4,732', nextStep: '3' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-place-value-digit-step-check' }
+  )
+  const invalidPlaceValueValueStep = await tools.math_check_step.execute(
+    { previousStep: 'value of 7 in 4,732', nextStep: '70' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-place-value-value-step-check' }
+  )
   const invalidDecimalStep = await tools.math_check_step.execute(
     { previousStep: '0.4 + 0.08', nextStep: '0.12' },
     { ctx: {} as never, toolCallId: 'smoke-decimal-step-check' }
@@ -408,6 +420,27 @@ async function main() {
     !JSON.stringify(invalidDecimalRoundingStep).includes('target place')
   ) {
     throw new Error(`math_check_step did not reject a decimal rounding mistake: ${JSON.stringify(invalidDecimalRoundingStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validPlaceValueDigitStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validPlaceValueDigitStep).includes('hundredths')
+  ) {
+    throw new Error(`math_check_step did not accept a decimal place-value digit claim: ${JSON.stringify(validPlaceValueDigitStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidPlaceValueDigitStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidPlaceValueDigitStep).includes('hundreds')
+  ) {
+    throw new Error(`math_check_step did not reject a whole-number place-value digit mistake: ${JSON.stringify(invalidPlaceValueDigitStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidPlaceValueValueStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidPlaceValueValueStep).includes("digit's place")
+  ) {
+    throw new Error(`math_check_step did not reject a digit-value mistake: ${JSON.stringify(invalidPlaceValueValueStep)}`)
   }
 
   if (

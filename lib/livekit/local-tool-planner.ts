@@ -15,6 +15,8 @@ type StudentStepPair = {
 }
 
 const LOCAL_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
+const LOCAL_PLACE_VALUE_PATTERN =
+  String.raw`thousandths?|hundredths?|tenths?|thousands?|hundreds?|tens?|ones?|units?`
 
 function formatToolNameForStudent(toolName: string) {
   return toolName.replace(/_/g, ' ')
@@ -465,6 +467,56 @@ function extractDecimalRoundingAttempt(text: string): StudentStepPair | null {
   return buildStepPair(`round ${source} to nearest ${place}`, String(answer))
 }
 
+function extractPlaceValueAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  if (!/\b(digit|place\s+value|value\s+of|ones?|tens?|hundreds?|thousands?|tenths?|hundredths?|thousandths?)\b/i.test(normalized)) {
+    return null
+  }
+
+  const digitPlaceMatches = [
+    normalized.match(
+      new RegExp(
+        `\\b(?:digit|number)\\s+(?:is\\s+)?(?:in|at)\\s+(?:the\\s+)?(${LOCAL_PLACE_VALUE_PATTERN})\\s+place\\s+(?:of|in)\\s+(${LOCAL_NUMBER_PATTERN})`,
+        'i'
+      )
+    ),
+    normalized.match(
+      new RegExp(
+        `\\b(?:the\\s+)?(${LOCAL_PLACE_VALUE_PATTERN})\\s+(?:place\\s+)?(?:digit|number)\\s+(?:of|in)\\s+(${LOCAL_NUMBER_PATTERN})`,
+        'i'
+      )
+    ),
+  ].filter(Boolean) as RegExpMatchArray[]
+
+  const digitPlaceMatch = digitPlaceMatches[0]
+  if (digitPlaceMatch) {
+    const before = normalized.slice(0, digitPlaceMatch.index ?? 0)
+    const after = normalized.slice((digitPlaceMatch.index ?? 0) + digitPlaceMatch[0].length)
+    const answerAfter = after.match(/\b(?:is|was|equals?|=|got|as|answer(?: is)?|think)\s+([0-9])\b/i)
+    const answerBefore = before.match(/\b(?:got|wrote|said|think|answer(?: is)?)\s+([0-9])\b/i)
+    const answer = answerAfter?.[1] ?? answerBefore?.[1]
+    if (!answer) return null
+
+    return buildStepPair(`digit in ${digitPlaceMatch[1]} place of ${digitPlaceMatch[2]}`, answer)
+  }
+
+  const valueOfDigitMatch = normalized.match(
+    new RegExp(`\\bvalue\\s+of\\s+(?:the\\s+)?([0-9])\\s+(?:in|of)\\s+(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  if (valueOfDigitMatch) {
+    const before = normalized.slice(0, valueOfDigitMatch.index ?? 0)
+    const after = normalized.slice((valueOfDigitMatch.index ?? 0) + valueOfDigitMatch[0].length)
+    const answerAfter = after.match(new RegExp(`\\b(?:is|was|equals?|=|got|as|answer(?: is)?|think)\\s+(${LOCAL_NUMBER_PATTERN})`, 'i'))
+    const answerBefore = before.match(new RegExp(`\\b(?:got|wrote|said|think|answer(?: is)?)\\s+(${LOCAL_NUMBER_PATTERN})`, 'i'))
+    const answer = answerAfter?.[1] ?? answerBefore?.[1]
+    if (!answer) return null
+
+    return buildStepPair(`value of ${valueOfDigitMatch[1]} in ${valueOfDigitMatch[2]}`, answer)
+  }
+
+  return null
+}
+
 function extractAlgebraExpressionAttempt(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
@@ -543,6 +595,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
   const percentChangeAttempt = extractPercentChangeAttempt(normalized)
   if (percentChangeAttempt) return percentChangeAttempt
 
+  const placeValueAttempt = extractPlaceValueAttempt(normalized)
+  if (placeValueAttempt) return placeValueAttempt
+
   const decimalRoundingAttempt = extractDecimalRoundingAttempt(normalized)
   if (decimalRoundingAttempt) return decimalRoundingAttempt
 
@@ -576,6 +631,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
 function inferLocalTopic(text: string) {
   const lower = text.toLowerCase()
   if (extractFractions(text).length > 0 || /\bfraction|denominator|numerator\b/.test(lower)) return 'fractions'
+  if (/\b(place value|digit|ones?|tens?|hundreds?|thousands?|tenths?|hundredths?|thousandths?)\b/.test(lower) && !/\bround|rounded|nearest\b/.test(lower)) {
+    return 'place value'
+  }
   if (/\bdecimal|percent|%|round|rounded|nearest|place value|tenths?|hundredths?|thousandths?|ones?|tens?|hundreds?|thousands?\b/.test(lower)) return 'decimals and percents'
   if (/\bratio|rate|per one|unit rate|scale\b/.test(lower)) return 'ratios'
   if (/\bequation|variable|solve for x|\bx\b/.test(lower)) return 'equations'

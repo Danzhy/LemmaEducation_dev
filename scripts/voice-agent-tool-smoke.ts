@@ -291,6 +291,27 @@ assert(
   'math_check_step should catch decimal rounding mistakes.'
 )
 
+const validPlaceValueDigitStep = mathCheckStep('digit in hundredths place of 3.746', '4')
+assert(
+  validPlaceValueDigitStep.verdict === 'valid' &&
+    validPlaceValueDigitStep.hintTarget.includes('hundredths'),
+  'math_check_step should validate decimal place-value digit claims.'
+)
+
+const invalidPlaceValueDigitStep = mathCheckStep('digit in hundreds place of 4,732', '3')
+assert(
+  invalidPlaceValueDigitStep.verdict === 'invalid' &&
+    invalidPlaceValueDigitStep.hintTarget.includes('hundreds'),
+  'math_check_step should catch whole-number place-value digit mistakes.'
+)
+
+const invalidPlaceValueValueStep = mathCheckStep('value of 7 in 4,732', '70')
+assert(
+  invalidPlaceValueValueStep.verdict === 'invalid' &&
+    invalidPlaceValueValueStep.hintTarget.includes("digit's place"),
+  'math_check_step should catch digit-value mistakes.'
+)
+
 const invalidDecimalStep = mathCheckStep('0.4 + 0.08', '0.12')
 assert(
   invalidDecimalStep.verdict === 'invalid' &&

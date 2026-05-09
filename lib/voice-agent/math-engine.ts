@@ -594,6 +594,219 @@ function checkPercentChangeStep(previousStep: string, nextStep: string): MathSte
   }
 }
 
+const PLACE_VALUE_PATTERN =
+  String.raw`thousandths?|hundredths?|tenths?|thousands?|hundreds?|tens?|ones?|units?`
+
+const PLACE_VALUE_EXPONENTS: Record<string, number> = {
+  thousandths: -3,
+  thousandth: -3,
+  hundredths: -2,
+  hundredth: -2,
+  tenths: -1,
+  tenth: -1,
+  ones: 0,
+  one: 0,
+  units: 0,
+  unit: 0,
+  tens: 1,
+  ten: 1,
+  hundreds: 2,
+  hundred: 2,
+  thousands: 3,
+  thousand: 3,
+}
+
+const PLACE_VALUE_LABELS_BY_EXPONENT: Record<number, string> = {
+  [-3]: 'thousandths',
+  [-2]: 'hundredths',
+  [-1]: 'tenths',
+  0: 'ones',
+  1: 'tens',
+  2: 'hundreds',
+  3: 'thousands',
+}
+
+function normalizePlaceValue(place: string) {
+  const match = place.toLowerCase().match(new RegExp(`\\b(${PLACE_VALUE_PATTERN})\\b`))
+  if (!match) return null
+  return match[1]
+}
+
+function placeValueExponent(place: string) {
+  const normalized = normalizePlaceValue(place)
+  return normalized ? PLACE_VALUE_EXPONENTS[normalized] ?? null : null
+}
+
+function placeValueLabel(exponent: number) {
+  return PLACE_VALUE_LABELS_BY_EXPONENT[exponent] ?? 'place'
+}
+
+function splitPlaceValueNumber(numberText: string) {
+  const compact = numberText.replace(/,/g, '').trim()
+  const match = compact.match(/^[-+]?(?:(\d+)(?:\.(\d*))?|\.(\d+))$/)
+  if (!match) return null
+
+  return {
+    integerDigits: (match[1] ?? '0').replace(/^0+(?=\d)/, '') || '0',
+    fractionalDigits: match[2] ?? match[3] ?? '',
+  }
+}
+
+function digitAtPlace(numberText: string, exponent: number) {
+  const split = splitPlaceValueNumber(numberText)
+  if (!split) return null
+
+  if (exponent >= 0) {
+    const index = split.integerDigits.length - 1 - exponent
+    return index >= 0 ? Number(split.integerDigits[index]) : 0
+  }
+
+  const index = Math.abs(exponent) - 1
+  return index < split.fractionalDigits.length ? Number(split.fractionalDigits[index]) : 0
+}
+
+function singleDigitPlaceValue(numberText: string, targetDigit: number) {
+  const split = splitPlaceValueNumber(numberText)
+  if (!split) return null
+
+  const matches: Array<{ exponent: number; value: number }> = []
+  for (let index = 0; index < split.integerDigits.length; index += 1) {
+    const digit = Number(split.integerDigits[index])
+    if (digit === targetDigit) {
+      const exponent = split.integerDigits.length - 1 - index
+      matches.push({ exponent, value: digit * 10 ** exponent })
+    }
+  }
+  for (let index = 0; index < split.fractionalDigits.length; index += 1) {
+    const digit = Number(split.fractionalDigits[index])
+    if (digit === targetDigit) {
+      const exponent = -(index + 1)
+      matches.push({ exponent, value: digit * 10 ** exponent })
+    }
+  }
+
+  if (matches.length !== 1) return null
+  return matches[0]
+}
+
+function parsePlaceValueDigitAnswer(text: string) {
+  const normalized = text.toLowerCase().trim()
+  const digitMatch = normalized.match(/\b([0-9])\b/)
+  if (digitMatch) return Number(digitMatch[1])
+
+  const wordDigits: Record<string, number> = {
+    zero: 0,
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+  }
+  const wordMatch = normalized.match(/\b(zero|one|two|three|four|five|six|seven|eight|nine)\b/)
+  return wordMatch ? wordDigits[wordMatch[1]] : null
+}
+
+function parsePlaceValueNumericAnswer(text: string) {
+  const match = text.replace(/,/g, '').match(new RegExp(PLAIN_NUMBER_PATTERN))
+  return match ? parsePlainNumber(match[0]) : null
+}
+
+type PlaceValueDigitPrompt =
+  | {
+      mode: 'digit_at_place'
+      numberText: string
+      place: string
+    }
+  | {
+      mode: 'digit_value'
+      numberText: string
+      targetDigit: number
+    }
+
+function extractPlaceValueDigitPrompt(text: string): PlaceValueDigitPrompt | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const numberPattern = PLAIN_NUMBER_PATTERN
+  const digitPlacePatterns = [
+    new RegExp(
+      `\\b(?:digit|number)\\s+(?:is\\s+)?(?:in|at)\\s+(?:the\\s+)?(${PLACE_VALUE_PATTERN})\\s+place\\s+(?:of|in)\\s+(${numberPattern})`,
+      'i'
+    ),
+    new RegExp(
+      `\\b(?:the\\s+)?(${PLACE_VALUE_PATTERN})\\s+(?:place\\s+)?(?:digit|number)\\s+(?:of|in)\\s+(${numberPattern})`,
+      'i'
+    ),
+  ]
+
+  for (const pattern of digitPlacePatterns) {
+    const match = normalized.match(pattern)
+    if (match) {
+      return {
+        mode: 'digit_at_place',
+        place: match[1],
+        numberText: match[2],
+      }
+    }
+  }
+
+  const digitValueMatch = normalized.match(
+    new RegExp(`\\bvalue\\s+of\\s+(?:the\\s+)?([0-9])\\s+(?:in|of)\\s+(${numberPattern})`, 'i')
+  )
+  if (digitValueMatch) {
+    return {
+      mode: 'digit_value',
+      targetDigit: Number(digitValueMatch[1]),
+      numberText: digitValueMatch[2],
+    }
+  }
+
+  return null
+}
+
+function checkPlaceValueDigitStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const prompt = extractPlaceValueDigitPrompt(previousStep)
+  if (!prompt) return null
+
+  if (prompt.mode === 'digit_at_place') {
+    const exponent = placeValueExponent(prompt.place)
+    const expectedDigit = exponent === null ? null : digitAtPlace(prompt.numberText, exponent)
+    const studentDigit = parsePlaceValueDigitAnswer(nextStep)
+    if (exponent === null || expectedDigit === null || studentDigit === null) return null
+
+    const label = placeValueLabel(exponent)
+    const matches = expectedDigit === studentDigit
+    const reason = `The ${label} digit in ${prompt.numberText} is ${expectedDigit}.`
+    return {
+      verdict: matches ? 'valid' : 'invalid',
+      reason: matches ? reason : `${reason} The student answer is ${studentDigit}.`,
+      hintTarget: matches
+        ? `explain how the ${label} place was located`
+        : `locate the ${label} place before naming the digit`,
+    }
+  }
+
+  const placeValue = singleDigitPlaceValue(prompt.numberText, prompt.targetDigit)
+  const studentValue = parsePlaceValueNumericAnswer(nextStep)
+  if (!placeValue || studentValue === null) return null
+
+  const label = placeValueLabel(placeValue.exponent)
+  const matches = isNearlyEqual(placeValue.value, studentValue, Math.abs(placeValue.value) < 1 ? 1e-9 : 1e-6)
+  const reason = `The ${prompt.targetDigit} in ${prompt.numberText} is in the ${label} place, so its value is ${formatNumber(
+    placeValue.value,
+    6
+  )}.`
+  return {
+    verdict: matches ? 'valid' : 'invalid',
+    reason: matches ? reason : `${reason} The student answer is ${formatNumber(studentValue, 6)}.`,
+    hintTarget: matches
+      ? `explain why the ${label} place gives that value`
+      : "name the digit's place before giving its value",
+  }
+}
+
 function extractRoundingPlace(text: string) {
   const lower = text.toLowerCase()
   if (/\bthousandths?\b/.test(lower)) return 'thousandths'
@@ -823,6 +1036,7 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasPercentChangeWork:
       /%|\bpercent\b/i.test(nextStep) &&
       /\b(percent\s+change|increase|increased|decrease|decreased|from|to|original|new|old)\b/i.test(combined),
+    hasPlaceValueDigitWork: Boolean(extractPlaceValueDigitPrompt(previousStep)),
     hasDecimalRoundingWork:
       /\b(round|rounded|nearest)\b/i.test(combined) && /\d+\.\d+/.test(combined) && Boolean(extractRoundingPlace(combined)),
     hasRatioWork: /-?\d+(?:\.\d+)?\s*:\s*-?\d+(?:\.\d+)?/.test(combined),
@@ -871,6 +1085,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasPercentWork) {
     return 'convert the percent to an equivalent decimal or fraction first'
+  }
+  if (features.hasPlaceValueDigitWork) {
+    return 'locate the named place before deciding the digit value'
   }
   if (features.hasDecimalRoundingWork) {
     return 'identify the target place and check the next digit'
@@ -2617,6 +2834,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const percentChangeStep = checkPercentChangeStep(previousStep, nextStep)
   if (percentChangeStep) {
     return percentChangeStep
+  }
+
+  const placeValueDigitStep = checkPlaceValueDigitStep(previousStep, nextStep)
+  if (placeValueDigitStep) {
+    return placeValueDigitStep
   }
 
   const decimalRoundingStep = checkDecimalRoundingStep(previousStep, nextStep)
