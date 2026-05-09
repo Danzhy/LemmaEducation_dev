@@ -3,6 +3,8 @@ import {
   planCanvasActionReveal,
   shouldStageCanvasActions,
 } from '@/lib/tutor/canvas-action-reveal'
+import { planLocalToolTurn } from '@/lib/livekit/local-tool-planner'
+import { runLiveKitTutorTool } from '@/lib/livekit/tool-runner'
 import { canvasArtifactIdMatches } from '@/lib/tutor/canvas-action-artifacts'
 import {
   deleteExistingCanvasArtifactShapes,
@@ -10,6 +12,7 @@ import {
 } from '@/lib/tutor/canvas-artifact-renderer'
 import { extractCanvasActionsFromToolResult } from '@/lib/tutor/canvas-action-parser'
 import type { TutorCanvasAction } from '@/lib/tutor/session-adapter'
+import { applyTutorCanvasAction } from '@/lib/voice-agent/canvas-actions'
 import {
   annotateGraphFeatures,
   angleDiagramScene,
@@ -173,6 +176,71 @@ class MockArtifactEditor {
   }
 }
 
+type MockTldrawShape = {
+  id: string
+  type: string
+  meta?: Record<string, unknown>
+  props?: Record<string, unknown>
+}
+
+class MockTldrawEditor {
+  private readonly shapes = new Map<string, MockTldrawShape>()
+
+  getCurrentPageShapeIds() {
+    return this.shapes.keys()
+  }
+
+  getShape(shapeId: string) {
+    return this.shapes.get(shapeId)
+  }
+
+  createShape(shape: MockTldrawShape) {
+    this.shapes.set(String(shape.id), {
+      ...shape,
+      id: String(shape.id),
+    })
+  }
+
+  deleteShapes(shapeIds: string[]) {
+    shapeIds.forEach((shapeId) => this.shapes.delete(String(shapeId)))
+  }
+
+  createStudentShape(id: string) {
+    this.shapes.set(id, {
+      id,
+      type: 'draw',
+      meta: {},
+      props: {},
+    })
+  }
+
+  deleteToolOwnedShapes() {
+    const toolOwnedShapeIds = [...this.shapes.values()]
+      .filter((shape) => shape.meta?.lemmaToolOwned)
+      .map((shape) => shape.id)
+    this.deleteShapes(toolOwnedShapeIds)
+  }
+
+  get shapeCount() {
+    return this.shapes.size
+  }
+
+  shapeIds() {
+    return [...this.shapes.keys()].sort()
+  }
+
+  artifactIds() {
+    return [...this.shapes.values()]
+      .map((shape) => shape.meta?.lemmaArtifactId)
+      .filter((artifactId): artifactId is string => typeof artifactId === 'string')
+      .sort()
+  }
+
+  hasShape(shapeId: string) {
+    return this.shapes.has(shapeId)
+  }
+}
+
 function childLabelForAction(action: TutorCanvasAction) {
   switch (action.type) {
     case 'draw_line_segment':
@@ -202,6 +270,76 @@ function applyMockRendererAction(editor: MockArtifactEditor, action: TutorCanvas
 
 function renderToolResult(editor: MockArtifactEditor, toolName: string, result: { canvasActions: TutorCanvasAction[] }) {
   extractCanvasActionsFromToolResult(toolName, result).forEach((action) => applyMockRendererAction(editor, action))
+}
+
+function applyWorkspaceRendererAction(editor: MockTldrawEditor, action: TutorCanvasAction) {
+  if (action.type === 'clear_tool_layer') {
+    editor.deleteToolOwnedShapes()
+    return
+  }
+
+  if (action.type === 'focus_region') return
+
+  applyTutorCanvasAction(editor as never, action)
+}
+
+async function renderTypedPreviewVisual(
+  editor: MockTldrawEditor,
+  prompt: string,
+  expectedToolName: string
+) {
+  const plans = planLocalToolTurn(prompt, '6')
+  assert.deepEqual(
+    plans.map((plan) => plan.toolName),
+    [expectedToolName],
+    `Typed preview prompt should route directly to ${expectedToolName}: ${prompt}`
+  )
+
+  const result = await runLiveKitTutorTool(expectedToolName, plans[0].input)
+  const actions = extractCanvasActionsFromToolResult(expectedToolName, result)
+  const drawingActions = actions.filter(
+    (action) => action.type !== 'clear_tool_layer' && action.type !== 'focus_region'
+  )
+
+  assert.ok(drawingActions.length > 0, `${expectedToolName} should return drawable canvas actions.`)
+  actions.forEach((action) => applyWorkspaceRendererAction(editor, action))
+}
+
+async function assertTypedPreviewVisualReplacesRepeatedShapes(options: {
+  name: string
+  expectedToolName: string
+  firstPrompt: string
+  secondPrompt: string
+}) {
+  const editor = new MockTldrawEditor()
+  editor.createStudentShape('student-rough-work')
+
+  await renderTypedPreviewVisual(editor, options.firstPrompt, options.expectedToolName)
+  const firstShapeCount = editor.shapeCount
+  const firstShapeIds = editor.shapeIds()
+  const firstArtifactIds = editor.artifactIds()
+
+  assert.ok(firstArtifactIds.length > 0, `${options.name} should render tool-owned artifact ids.`)
+  assert.ok(editor.hasShape('student-rough-work'), `${options.name} should preserve student-drawn work.`)
+
+  await renderTypedPreviewVisual(editor, options.secondPrompt, options.expectedToolName)
+
+  assert.equal(
+    editor.shapeCount,
+    firstShapeCount,
+    `${options.name} should replace repeated typed-preview visual shapes instead of stacking duplicates.`
+  )
+  assert.deepEqual(
+    editor.artifactIds(),
+    firstArtifactIds,
+    `${options.name} should preserve stable semantic artifact slots across repeated typed-preview prompts.`
+  )
+  assert.notDeepEqual(
+    editor.shapeIds(),
+    firstShapeIds,
+    `${options.name} should redraw replacement shapes rather than reusing stale tldraw shape ids.`
+  )
+  assert.ok(editor.hasShape('student-rough-work'), `${options.name} should not delete student-drawn work.`)
 }
 
 function assertMockRendererReplacesRepeatedArtifact(
@@ -669,4 +807,33 @@ assertMockRendererReplacesRepeatedArtifact(
   })
 )
 
-console.log('Canvas action reveal smoke passed.')
+async function main() {
+  await assertTypedPreviewVisualReplacesRepeatedShapes({
+    name: 'fraction bar typed-preview visual',
+    expectedToolName: 'fraction_strip',
+    firstPrompt: 'Show a fraction bar for 1/4.',
+    secondPrompt: 'Show a fraction bar for 3/4.',
+  })
+
+  await assertTypedPreviewVisualReplacesRepeatedShapes({
+    name: 'tape diagram typed-preview visual',
+    expectedToolName: 'bar_model',
+    firstPrompt: 'Draw a tape diagram for 36 stickers total with 14 used and the rest unknown.',
+    secondPrompt: 'Draw a tape diagram for 40 stickers total with 15 used and the rest unknown.',
+  })
+
+  await assertTypedPreviewVisualReplacesRepeatedShapes({
+    name: 'angle diagram typed-preview visual',
+    expectedToolName: 'angle_diagram',
+    firstPrompt: 'Show the complementary angle to 35 on the board.',
+    secondPrompt: 'Show the complementary angle to 45 on the board.',
+  })
+
+  console.log('Canvas action reveal smoke passed.')
+  process.exit(0)
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
