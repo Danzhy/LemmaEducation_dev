@@ -47,6 +47,8 @@ function main() {
   assertIncludes('app/api/livekit/tool-preview/route.ts', 'takeTutorApiRateLimit')
   assertIncludes('app/api/livekit/tool-preview/route.ts', 'LIVEKIT_TUTOR_TOOL_NAMES')
   assertIncludes('app/api/livekit/tool-preview/route.ts', 'MAX_TOOL_INPUT_BYTES')
+  assertIncludes('lib/livekit/tool-runner.ts', 'assertAllowedToolInputProperties')
+  assertIncludes('lib/livekit/tool-runner.ts', 'additionalProperties !== false')
   assertIncludes('workers/livekit-tutor-agent.ts', 'AutoSubscribe.AUDIO_ONLY')
   assertIncludes('workers/livekit-tutor-agent.ts', 'maxToolSteps: 6')
   assertIncludes('lib/livekit/worker-tools.ts', 'DEFAULT_MAX_TOOL_CALLS_PER_SESSION')
@@ -62,7 +64,7 @@ function main() {
       {
         ok: true,
         checkedClientFiles: clientFiles.length,
-        checkedServerGuards: 24,
+        checkedServerGuards: 26,
       },
       null,
       2

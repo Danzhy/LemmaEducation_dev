@@ -17,6 +17,11 @@ const MAX_TOOL_INPUT_BYTES = 12_000
 
 type ToolWithInvoke = Tool & {
   invoke?: (context: unknown, input: string) => Promise<string>
+  parameters?: {
+    type?: unknown
+    additionalProperties?: unknown
+    properties?: Record<string, unknown>
+  }
 }
 
 export type LiveKitToolRunContext = {
@@ -45,6 +50,24 @@ function getToolRegistry() {
     toolRegistry = registry
   }
   return toolRegistry
+}
+
+function assertAllowedToolInputProperties(toolDef: ToolWithInvoke, input: unknown) {
+  const schema = toolDef.parameters
+  if (!schema || schema.type !== 'object' || schema.additionalProperties !== false) return
+
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('Tool input must be a JSON object.')
+  }
+
+  const allowedProperties = new Set(Object.keys(schema.properties ?? {}))
+  const unknownProperties = Object.keys(input as Record<string, unknown>).filter(
+    (key) => !allowedProperties.has(key)
+  )
+
+  if (unknownProperties.length > 0) {
+    throw new Error(`Tool input contains unsupported field: ${unknownProperties[0]}.`)
+  }
 }
 
 function createCurriculumContextTool(): ToolWithInvoke {
@@ -196,6 +219,8 @@ export async function runLiveKitTutorToolWithMetrics(
   if (inputBytes > MAX_TOOL_INPUT_BYTES) {
     throw new Error('Tool input is too large for the LiveKit lab.')
   }
+
+  assertAllowedToolInputProperties(toolDef, input ?? {})
 
   const startedAt = Date.now()
   const rawResult = await toolDef.invoke(context, payload)

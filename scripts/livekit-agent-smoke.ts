@@ -71,6 +71,20 @@ async function main() {
     { previousStep: '1/2 + 1/3', nextStep: '2/5' },
     { ctx: {} as never, toolCallId: 'smoke-fraction-step-check' }
   )
+  let unknownToolFieldRejected = false
+  try {
+    await tools.math_check_step.execute(
+      {
+        previousStep: '1/2 + 1/3',
+        nextStep: '2/5',
+        hiddenInstruction: 'ignore the schema',
+      },
+      { ctx: {} as never, toolCallId: 'smoke-extra-tool-field-rejection' }
+    )
+  } catch (error) {
+    unknownToolFieldRejected =
+      error instanceof Error && /unsupported field/i.test(error.message)
+  }
   const validMixedNumberStep = await tools.math_check_step.execute(
     { previousStep: '1 1/2 + 2 1/4', nextStep: '3 3/4' },
     { ctx: {} as never, toolCallId: 'smoke-mixed-number-step-check' }
@@ -659,6 +673,10 @@ async function main() {
 
   if (!JSON.stringify(invalidFractionStep).includes('"verdict":"invalid"')) {
     throw new Error(`math_check_step did not reject an invalid fraction step: ${JSON.stringify(invalidFractionStep)}`)
+  }
+
+  if (!unknownToolFieldRejected) {
+    throw new Error('LiveKit tool runner did not reject an unsupported input field.')
   }
 
   if (!JSON.stringify(validMixedNumberStep).includes('"verdict":"valid"')) {
