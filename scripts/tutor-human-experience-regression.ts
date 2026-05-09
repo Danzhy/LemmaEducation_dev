@@ -74,6 +74,23 @@ const CASES: TutorExperienceCase[] = [
     expectedSubstrings: ['plannedSpokenTurn', 'voicePolicy', 'oneQuestionOnly'],
   },
   {
+    id: 'short-spoken-turn-formatter',
+    title: 'Trim long tutor drafts into interruptible voice chunks',
+    gradeBand: 'grades 3-7',
+    toolName: 'short_spoken_turn_formatter',
+    input: {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      draftTurn:
+        'Use a common denominator before adding. First find a denominator both fractions can share. Then rewrite each fraction. What is the whole? What denominator could both fractions use?',
+      requiredQuestion: '',
+      mustAskQuestion: true,
+      maxWordsPerChunk: 12,
+      maxChunks: 2,
+    },
+    expectedSubstrings: ['formattedTurn', 'extra_questions_removed', 'oneQuestionOnly'],
+  },
+  {
     id: 'turn-audit-one-question-policy',
     title: 'Reject multi-question voice turns before speaking',
     gradeBand: 'grades 3-7',

@@ -45,6 +45,7 @@ import {
   representationBridge,
   roundNumber,
   sessionMasterySnapshot,
+  shortSpokenTurnFormatter,
   socraticMovePlanner,
   slopeTriangleScene,
   statisticsSummaryScene,
@@ -816,6 +817,24 @@ assert(
     responsePlan.voicePolicy.waitsAfterQuestion &&
     responsePlan.auditChecklist.some((item) => item.includes('One student-facing question')),
   'tutor_response_planner should choose one checked next move before adding more explanation.'
+)
+
+const shortSpokenTurn = shortSpokenTurnFormatter({
+  topic: 'fractions',
+  gradeLevel: 'Grade 5',
+  draftTurn:
+    'Use a common denominator before adding. First find a denominator both fractions can share. Then rewrite each fraction. What is the whole? What denominator could both fractions use?',
+  mustAskQuestion: true,
+  maxWordsPerChunk: 12,
+  maxChunks: 2,
+})
+assert(
+  shortSpokenTurn.chunks.length === 2 &&
+    shortSpokenTurn.voicePolicy.oneQuestionOnly &&
+    shortSpokenTurn.voicePolicy.waitsAfterQuestion &&
+    shortSpokenTurn.removedSignals.includes('extra_questions_removed') &&
+    shortSpokenTurn.formattedWordCount < shortSpokenTurn.originalWordCount,
+  'short_spoken_turn_formatter should trim long drafts into interruptible chunks with one question.'
 )
 
 const coachedMove = nextStepCoach({

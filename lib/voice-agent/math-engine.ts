@@ -19,6 +19,7 @@ import type {
   TutorResponsePlannerResult,
   AdaptiveReviewPlanResult,
   SessionMasterySnapshotResult,
+  ShortSpokenTurnFormatterResult,
   TutorTurnAuditResult,
   PlotPointsResult,
   ValueTableResult,
@@ -8887,6 +8888,159 @@ function buildTutorVoicePolicyCheck(text: string) {
   }
 }
 
+function countSpokenWords(text: string) {
+  return text.trim().split(/\s+/).filter(Boolean).length
+}
+
+function cleanSpokenDraft(text: string) {
+  return text
+    .replace(/[*_`#>]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function splitSpokenSentences(text: string) {
+  const matches = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? []
+  return matches.map((sentence) => sentence.replace(/\s+/g, ' ').trim()).filter(Boolean)
+}
+
+function isStudentFacingQuestion(sentence: string) {
+  return /\?\s*$/.test(sentence.trim())
+}
+
+function defaultShortTurnQuestion(topic: CurriculumTopic) {
+  const questions: Record<CurriculumTopic, string> = {
+    place_value: 'Which place should we look at first?',
+    multiplication_division: 'What does one equal group represent?',
+    fractions: 'What is the whole in this problem?',
+    decimals_percents: 'Should we think in tenths, hundredths, or out of 100 first?',
+    ratios_rates: 'What two quantities need to scale together?',
+    expressions_equations: 'What operation should we undo first?',
+    geometry_measurement: 'What are we measuring: length, area, or angle?',
+    coordinate_graphing: 'What does the x-coordinate tell us first?',
+    data_probability: 'What total are we comparing to?',
+  }
+
+  return questions[topic]
+}
+
+function normalizeShortTurnQuestion(candidate: string | undefined, fallback: string) {
+  const cleaned = cleanSpokenDraft(candidate ?? '')
+  if (!cleaned) return fallback
+  if (/\?\s*$/.test(cleaned)) return cleaned
+  if (/^(what|which|why|how|where|when|who|can|could|do|does|did|is|are|would|should)\b/i.test(cleaned)) {
+    return `${cleaned.replace(/[.!]+$/, '')}?`
+  }
+  return fallback
+}
+
+function limitSpokenChunk(text: string, maxWords: number) {
+  const cleaned = cleanSpokenDraft(text)
+  const words = cleaned.split(/\s+/).filter(Boolean)
+  if (words.length <= maxWords) {
+    return { text: cleaned, trimmed: false }
+  }
+
+  const terminal = /\?\s*$/.test(cleaned) ? '?' : '.'
+  const shortened = words.slice(0, maxWords).join(' ').replace(/[,:;]+$/, '')
+  return { text: `${shortened}${terminal}`, trimmed: true }
+}
+
+export function shortSpokenTurnFormatter(input: {
+  topic: string
+  gradeLevel?: string
+  draftTurn: string
+  requiredQuestion?: string
+  mustAskQuestion?: boolean
+  maxWordsPerChunk?: number
+  maxChunks?: number
+}): ShortSpokenTurnFormatterResult {
+  const topic = resolveCurriculumTopic(input.topic || input.draftTurn || '')
+  const guide = CURRICULUM_GUIDE[topic]
+  const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
+  const draft = cleanSpokenDraft(input.draftTurn)
+  const sentences = splitSpokenSentences(draft)
+  const maxWordsPerChunk = clamp(
+    Number.isFinite(input.maxWordsPerChunk) ? Math.trunc(input.maxWordsPerChunk ?? 18) : 18,
+    8,
+    32
+  )
+  const maxChunks = clamp(Number.isFinite(input.maxChunks) ? Math.trunc(input.maxChunks ?? 2) : 2, 1, 3)
+  const mustAskQuestion = input.mustAskQuestion ?? true
+  const fallbackQuestion = defaultShortTurnQuestion(topic)
+  const questionCandidates = sentences.filter(isStudentFacingQuestion)
+  const askNext = mustAskQuestion
+    ? normalizeShortTurnQuestion(input.requiredQuestion || questionCandidates[0], fallbackQuestion)
+    : ''
+  const explanationSlots = mustAskQuestion ? Math.max(0, maxChunks - 1) : maxChunks
+  const explanationSentences = sentences.filter((sentence) => !isStudentFacingQuestion(sentence)).slice(0, explanationSlots)
+  const chunks: ShortSpokenTurnFormatterResult['chunks'] = []
+  let longChunkTrimmed = false
+
+  for (const sentence of explanationSentences) {
+    const limited = limitSpokenChunk(sentence, maxWordsPerChunk)
+    longChunkTrimmed ||= limited.trimmed
+    chunks.push({
+      order: chunks.length + 1,
+      say: limited.text,
+      pauseAfter: true,
+    })
+  }
+
+  if (mustAskQuestion) {
+    const limitedQuestion = limitSpokenChunk(askNext, maxWordsPerChunk)
+    longChunkTrimmed ||= limitedQuestion.trimmed
+    chunks.push({
+      order: chunks.length + 1,
+      say: limitedQuestion.text,
+      pauseAfter: true,
+    })
+  }
+
+  if (!chunks.length) {
+    const limited = limitSpokenChunk(fallbackQuestion, maxWordsPerChunk)
+    longChunkTrimmed ||= limited.trimmed
+    chunks.push({
+      order: 1,
+      say: limited.text,
+      pauseAfter: true,
+    })
+  }
+
+  const formattedTurn = chunks.map((chunk) => chunk.say).join(' ')
+  const removedSignals: string[] = []
+  if (sentences.length > explanationSentences.length + (mustAskQuestion ? 1 : 0)) {
+    removedSignals.push('extra_sentences_removed')
+  }
+  if (questionCandidates.length > 1) {
+    removedSignals.push('extra_questions_removed')
+  }
+  if (longChunkTrimmed) {
+    removedSignals.push('long_chunk_trimmed')
+  }
+  if (mustAskQuestion && !input.requiredQuestion?.trim() && questionCandidates.length === 0) {
+    removedSignals.push('student_question_added')
+  }
+
+  const originalWordCount = countSpokenWords(draft)
+  const formattedWordCount = countSpokenWords(formattedTurn)
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel,
+    originalWordCount,
+    formattedWordCount,
+    chunks,
+    formattedTurn,
+    askNext: mustAskQuestion ? chunks[chunks.length - 1]?.say ?? askNext : '',
+    voicePolicy: buildTutorVoicePolicyCheck(formattedTurn),
+    trimmed: draft !== formattedTurn || formattedWordCount !== originalWordCount || removedSignals.length > 0,
+    removedSignals: [...new Set(removedSignals)],
+    stopRule: 'Say one chunk at a time, pause after the student-facing question, and wait before adding another explanation.',
+  }
+}
+
 export function tutorResponsePlanner(input: {
   topic: string
   gradeLevel?: string
@@ -8997,7 +9151,16 @@ export function tutorResponsePlanner(input: {
     },
   }
   const selectedMoveCopy = moveCopy[recommendedMove]
-  const plannedSpokenTurn = `${selectedMoveCopy.sayFirst} ${selectedMoveCopy.askNext}`
+  const plannedTurnFormat = shortSpokenTurnFormatter({
+    topic,
+    gradeLevel,
+    draftTurn: `${selectedMoveCopy.sayFirst} ${selectedMoveCopy.askNext}`,
+    requiredQuestion: selectedMoveCopy.askNext,
+    mustAskQuestion: true,
+    maxWordsPerChunk: 24,
+    maxChunks: 2,
+  })
+  const plannedSpokenTurn = plannedTurnFormat.formattedTurn
 
   return {
     topic,
@@ -9009,7 +9172,7 @@ export function tutorResponsePlanner(input: {
     toolSequence: [...new Set(toolSequence)],
     ...selectedMoveCopy,
     plannedSpokenTurn,
-    voicePolicy: buildTutorVoicePolicyCheck(plannedSpokenTurn),
+    voicePolicy: plannedTurnFormat.voicePolicy,
     answerPolicy,
     auditChecklist: [
       'One student-facing question only.',

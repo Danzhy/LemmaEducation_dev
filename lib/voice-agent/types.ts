@@ -292,6 +292,25 @@ export type TutorVoicePolicyCheck = {
   waitsAfterQuestion: boolean
 }
 
+export type ShortSpokenTurnFormatterResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  originalWordCount: number
+  formattedWordCount: number
+  chunks: Array<{
+    order: number
+    say: string
+    pauseAfter: boolean
+  }>
+  formattedTurn: string
+  askNext: string
+  voicePolicy: TutorVoicePolicyCheck
+  trimmed: boolean
+  removedSignals: string[]
+  stopRule: string
+}
+
 export type StudentCheckQuestionResult = {
   topic: string
   label: string

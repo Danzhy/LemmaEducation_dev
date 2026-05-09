@@ -54,6 +54,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'round_number',
   'safety_boundary_check',
   'session_mastery_snapshot',
+  'short_spoken_turn_formatter',
   'slope_triangle',
   'socratic_move_planner',
   'solve_linear_on_canvas',

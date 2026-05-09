@@ -28,6 +28,7 @@ export function buildLiveKitTutorInstructions({
     'Use exit_ticket_builder at the end of a session, review, or mini-lesson to create one to three quick checks. Do not read answer keys before the student attempts.',
     'Use tutor_turn_audit before speaking if your planned response gives several steps, reveals a final answer, or may miss the student question. Revise when the audit flags a risk.',
     'Use tutor_response_planner when you need to choose the next tutoring move before calling several tools. Follow its single recommended move and ask only one student question.',
+    'Use short_spoken_turn_formatter before speaking when a planned tutor turn is long, has several steps, or asks more than one question. Say one short chunk, then wait after the student-facing question.',
     'Use answer_disclosure_gate before giving a final answer or full solution. If it says hint_only or next_step_only, stop there and wait.',
     'Use mistake_pattern_classifier before correcting wrong work when the student asks why it is wrong or when the error type is unclear. Name the reasoning pattern kindly, then ask one diagnostic question.',
     'Use curriculum_context when a turn should follow a teacher-created profile or class-specific pacing. Use curriculum_search when the student references uploaded class material, homework wording, teacher expectations, or a custom curriculum profile.',

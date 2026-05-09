@@ -50,6 +50,7 @@ import {
   representationBridge,
   roundNumber,
   sessionMasterySnapshot,
+  shortSpokenTurnFormatter,
   socraticMovePlanner,
   slopeTriangleScene,
   solveLinearOnCanvas,
@@ -335,6 +336,56 @@ export function createVoiceAgentTools() {
             recentToolResult: params.recentToolResult,
             hasStudentAttempt: params.hasStudentAttempt,
             attemptCount: params.attemptCount,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'short_spoken_turn_formatter',
+      description:
+        'Rewrite a planned tutor response into one or two short, interruptible spoken chunks with at most one student-facing question. Use before speaking when a draft turn is long, multi-step, or has stacked questions.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          topic: { type: 'string' },
+          gradeLevel: { type: 'string' },
+          draftTurn: { type: 'string' },
+          requiredQuestion: { type: 'string' },
+          mustAskQuestion: { type: 'boolean' },
+          maxWordsPerChunk: { type: 'number' },
+          maxChunks: { type: 'number' },
+        },
+        required: [
+          'topic',
+          'gradeLevel',
+          'draftTurn',
+          'requiredQuestion',
+          'mustAskQuestion',
+          'maxWordsPerChunk',
+          'maxChunks',
+        ],
+      },
+      async execute(input) {
+        const params = input as {
+          topic: string
+          gradeLevel?: string
+          draftTurn: string
+          requiredQuestion?: string
+          mustAskQuestion?: boolean
+          maxWordsPerChunk?: number
+          maxChunks?: number
+        }
+        return stringifyResult(
+          shortSpokenTurnFormatter({
+            topic: params.topic,
+            gradeLevel: params.gradeLevel,
+            draftTurn: params.draftTurn,
+            requiredQuestion: params.requiredQuestion,
+            mustAskQuestion: params.mustAskQuestion,
+            maxWordsPerChunk: params.maxWordsPerChunk,
+            maxChunks: params.maxChunks,
           })
         )
       },

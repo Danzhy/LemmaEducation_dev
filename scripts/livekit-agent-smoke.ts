@@ -27,6 +27,7 @@ async function main() {
     'exit_ticket_builder',
     'tutor_turn_audit',
     'tutor_response_planner',
+    'short_spoken_turn_formatter',
     'student_check_question',
     'answer_disclosure_gate',
     'mistake_pattern_classifier',
@@ -478,6 +479,19 @@ async function main() {
       attemptCount: 1,
     },
     { ctx: {} as never, toolCallId: 'smoke-tutor-response-planner' }
+  )
+  const shortSpokenTurn = await tools.short_spoken_turn_formatter.execute(
+    {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      draftTurn:
+        'Use a common denominator before adding. First find a denominator both fractions can share. Then rewrite each fraction. What is the whole? What denominator could both fractions use?',
+      requiredQuestion: '',
+      mustAskQuestion: true,
+      maxWordsPerChunk: 12,
+      maxChunks: 2,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-short-spoken-turn-formatter' }
   )
   const checkQuestion = await tools.student_check_question.execute(
     {
@@ -979,6 +993,14 @@ async function main() {
     !JSON.stringify(responsePlanner).includes('"oneQuestionOnly":true')
   ) {
     throw new Error(`tutor_response_planner did not choose a checked next move: ${JSON.stringify(responsePlanner)}`)
+  }
+
+  if (
+    !JSON.stringify(shortSpokenTurn).includes('"oneQuestionOnly":true') ||
+    !JSON.stringify(shortSpokenTurn).includes('extra_questions_removed') ||
+    !JSON.stringify(shortSpokenTurn).includes('formattedTurn')
+  ) {
+    throw new Error(`short_spoken_turn_formatter did not produce one interruptible question: ${JSON.stringify(shortSpokenTurn)}`)
   }
 
   if (!JSON.stringify(checkQuestion).includes('expectedEvidence')) {

@@ -23,6 +23,7 @@ const REQUIRED_TOOL_NAMES = [
   'exit_ticket_builder',
   'tutor_turn_audit',
   'tutor_response_planner',
+  'short_spoken_turn_formatter',
   'student_check_question',
   'safety_boundary_check',
   'socratic_move_planner',
