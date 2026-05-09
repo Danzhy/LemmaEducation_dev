@@ -20,6 +20,9 @@ import type { TutorCanvasAction } from '@/lib/tutor/session-adapter'
 const DEFAULT_AGENT_NAME = 'lemma-livekit-tutor'
 const DEFAULT_VOICE = 'marin'
 const CANVAS_RPC_METHOD = 'lemma_canvas_action'
+const LIVEKIT_DEFAULT_TURN_EAGERNESS = 'high'
+const LIVEKIT_DEFAULT_VOICE_SPEED = 1.06
+type LiveKitAudioMode = 'microphone' | 'silent'
 
 function loadLocalEnv(path = '.env.local') {
   if (!existsSync(path)) return
@@ -53,12 +56,16 @@ function parseJsonObject(value: string | undefined) {
 }
 
 function parseMetadata(ctx: JobContext) {
-  const metadata = parseJsonObject(ctx.info.acceptArguments.metadata)
+  const metadata = {
+    ...parseJsonObject(ctx.job.metadata),
+    ...parseJsonObject(ctx.info.acceptArguments.metadata),
+  }
+  const audioMode: LiveKitAudioMode = metadata.audioMode === 'silent' ? 'silent' : 'microphone'
   return {
     sessionId: typeof metadata.sessionId === 'string' ? metadata.sessionId : '',
     gradeLevel: typeof metadata.gradeLevel === 'string' ? metadata.gradeLevel : '',
     language: typeof metadata.language === 'string' ? metadata.language : 'en',
-    audioMode: metadata.audioMode === 'silent' ? 'silent' : 'microphone',
+    audioMode,
   }
 }
 
@@ -104,6 +111,35 @@ function getMessageText(item: unknown) {
   return typeof maybeMessage.textContent === 'string' ? maybeMessage.textContent.trim() : ''
 }
 
+function buildStudentTurnFromText(raw: string) {
+  const parsed = parseJsonObject(raw) as { text?: string; boardDescription?: string }
+  const text = typeof parsed.text === 'string' && parsed.text.trim() ? parsed.text.trim() : raw.trim()
+  if (!text) return ''
+
+  const boardDescription =
+    typeof parsed.boardDescription === 'string' ? parsed.boardDescription.trim().slice(0, 1800) : ''
+
+  return boardDescription
+    ? `${text}\n\nVisible board summary from the student's current canvas:\n${boardDescription}`
+    : text
+}
+
+function generateTutorReply(session: voice.AgentSession, userInput: string) {
+  session.generateReply({
+    userInput: userInput.slice(0, 4000),
+    instructions:
+      'Respond as Lemma. Keep the first spoken response short. Use one deterministic math or board tool when it clearly helps, but do not run planning or audit tools unless the turn is complex. If a visible board summary is included and the student references the board, use board_state_summarizer before solving.',
+  })
+}
+
+function handleLiveKitChatText(session: voice.AgentSession, rawText: string) {
+  const userInput = buildStudentTurnFromText(rawText)
+  if (!userInput) return
+
+  session.interrupt()
+  generateTutorReply(session, userInput)
+}
+
 async function dispatchCanvasActions(ctx: JobContext, student: RemoteParticipant, actions: TutorCanvasAction[]) {
   const localParticipant = ctx.agent
   if (!localParticipant || actions.length === 0) return
@@ -124,28 +160,12 @@ async function dispatchCanvasActions(ctx: JobContext, student: RemoteParticipant
 function registerIncomingTextHandlers(ctx: JobContext, session: voice.AgentSession) {
   ctx.room.registerTextStreamHandler(LIVEKIT_TOPICS.userText, async (reader) => {
     const raw = await reader.readAll()
-    const parsed = parseJsonObject(raw) as { type?: string; text?: string; boardDescription?: string }
-    const text = typeof parsed.text === 'string' ? parsed.text.trim() : ''
-    if (!text) return
-    const boardDescription =
-      typeof parsed.boardDescription === 'string' ? parsed.boardDescription.trim().slice(0, 1800) : ''
-    const userInput = boardDescription
-      ? `${text}\n\nVisible board summary from the student's current canvas:\n${boardDescription}`
-      : text
-
-    session.generateReply({
-      userInput: userInput.slice(0, 4000),
-      instructions:
-        'Respond as Lemma. If the prompt needs arithmetic, graphing, geometry, fractions, ratios, percents, data, or probability support, use your deterministic tools and render on the board when helpful. If a visible board summary is included and the student references the board, call board_state_summarizer before solving.',
-    })
+    handleLiveKitChatText(session, raw)
   })
 
   ctx.room.registerTextStreamHandler(LIVEKIT_TOPICS.canvasContext, async (reader) => {
     await reader.readAll()
-    session.generateReply({
-      userInput:
-        'The student shared their current board. Acknowledge it briefly and ask what part they want help with unless their last message already made that clear.',
-    })
+    // Passive board snapshots should enrich later turns, not interrupt the student with a new reply.
   })
 }
 
@@ -180,9 +200,29 @@ export default defineAgent({
         apiKey: process.env.OPENAI_API_KEY,
         model: realtimeModel.id,
         voice: process.env.OPENAI_LIVEKIT_VOICE || DEFAULT_VOICE,
+        modalities: metadata.audioMode === 'silent' ? ['text'] : ['text', 'audio'],
+        inputAudioTranscription: {
+          model: process.env.OPENAI_LIVEKIT_TRANSCRIPTION_MODEL || 'gpt-realtime-whisper',
+          language: metadata.language === 'en' ? 'en' : undefined,
+        },
+        turnDetection: {
+          type: 'semantic_vad',
+          eagerness:
+            process.env.OPENAI_LIVEKIT_TURN_EAGERNESS === 'low' ||
+            process.env.OPENAI_LIVEKIT_TURN_EAGERNESS === 'medium' ||
+            process.env.OPENAI_LIVEKIT_TURN_EAGERNESS === 'high' ||
+            process.env.OPENAI_LIVEKIT_TURN_EAGERNESS === 'auto'
+              ? process.env.OPENAI_LIVEKIT_TURN_EAGERNESS
+              : LIVEKIT_DEFAULT_TURN_EAGERNESS,
+          create_response: true,
+          interrupt_response: true,
+        },
+        inputAudioNoiseReduction: { type: 'near_field' },
+        speed: LIVEKIT_DEFAULT_VOICE_SPEED,
       }),
-      maxToolSteps: 6,
-      userAwayTimeout: 45,
+      maxToolSteps: 4,
+      userAwayTimeout: metadata.audioMode === 'silent' ? null : 45,
+      aecWarmupDuration: 800,
     })
 
     registerIncomingTextHandlers(ctx, session)
@@ -233,12 +273,33 @@ export default defineAgent({
         tools,
       }),
       room: ctx.room,
+      inputOptions: {
+        audioEnabled: metadata.audioMode !== 'silent',
+        textInputCallback: (_session, event) => {
+          handleLiveKitChatText(_session, event.text)
+        },
+      },
+      outputOptions: {
+        transcriptionEnabled: true,
+        audioEnabled: metadata.audioMode !== 'silent',
+        syncTranscription: false,
+        jsonFormat: false,
+        queueSizeMs: 120,
+      },
     })
 
-    await session.generateReply({
-      instructions:
-        'Greet the student in one sentence as Lemma, then invite them to say or type the math problem they want to work on.',
+    await sendTextToStudent(ctx, student, LIVEKIT_TOPICS.control, {
+      type: 'session_ready',
+      audioMode: metadata.audioMode,
+      createdAt: Date.now(),
     })
+
+    if (metadata.audioMode !== 'silent') {
+      await session.generateReply({
+        instructions:
+          'Greet the student in one sentence as Lemma, then invite them to say or type the math problem they want to work on.',
+      })
+    }
   },
 })
 

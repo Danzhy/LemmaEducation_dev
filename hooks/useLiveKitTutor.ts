@@ -63,6 +63,9 @@ type LiveKitSessionBootstrap = {
 const MAX_TOOL_EVENTS = 100
 const MAX_PENDING_CANVAS_ACTIONS = 180
 const MAX_CANVAS_ACTIONS_PER_RESULT = 80
+const LIVEKIT_TRANSCRIPTION_FINAL_ATTRIBUTE = 'lk.transcription_final'
+const LIVEKIT_TRANSCRIBED_TRACK_ATTRIBUTE = 'lk.transcribed_track_id'
+const LIVEKIT_SEGMENT_ID_ATTRIBUTE = 'lk.segment_id'
 
 function logErrorToServer(source: string, rawError?: string) {
   void fetch('/api/realtime/log-error', {
@@ -98,6 +101,38 @@ function parseRpcPayload(data: RpcInvocationData) {
 async function sendLiveKitText(room: Room | null, topic: string, payload: LiveKitTutorPayload) {
   if (!room || room.state !== ConnectionState.Connected) return
   await room.localParticipant.sendText(JSON.stringify(payload), { topic })
+}
+
+function getParticipantIdentity(participantInfo: unknown) {
+  if (typeof participantInfo === 'string') return participantInfo
+  if (participantInfo && typeof participantInfo === 'object') {
+    const identity = (participantInfo as { identity?: unknown }).identity
+    return typeof identity === 'string' ? identity : ''
+  }
+  return ''
+}
+
+function normalizeLiveKitTranscriptText(rawText: string) {
+  const trimmed = rawText.trim()
+  if (!trimmed) return ''
+
+  const jsonLines = trimmed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  if (jsonLines.length > 0 && jsonLines.every((line) => line.startsWith('{') && line.endsWith('}'))) {
+    const text = jsonLines
+      .map((line) => {
+        const parsed = parseJsonSafely(line) as { text?: unknown } | null
+        return typeof parsed?.text === 'string' ? parsed.text : ''
+      })
+      .join('')
+      .trim()
+    if (text) return text
+  }
+
+  return trimmed
 }
 
 async function callServerLiveKitTool(
@@ -194,15 +229,20 @@ export function useLiveKitTutor({
   const remoteAudioElementsRef = useRef<HTMLMediaElement[]>([])
   const usageIntervalRef = useRef<number | null>(null)
   const inactivityTimeoutRef = useRef<number | null>(null)
+  const transcriptSettleTimeoutRef = useRef<number | null>(null)
   const canvasRevealTimeoutsRef = useRef<number[]>([])
   const sessionIdRef = useRef<string | null>(null)
   const connectedRef = useRef(false)
   const pausedRef = useRef(false)
   const mutedRef = useRef(false)
   const agentNameRef = useRef('lemma-livekit-tutor')
+  const agentReadyRef = useRef(false)
+  const liveKitAudioModeRef = useRef<'microphone' | 'silent'>('microphone')
+  const liveKitIdentityRef = useRef('')
   const autoPauseRef = useRef<() => void>(() => {})
   const localToolModeRef = useRef(false)
   const gradeLevelRef = useRef('Grade 6')
+  const finalTranscriptSegmentsRef = useRef<Set<string>>(new Set())
 
   const clearUsageInterval = useCallback(() => {
     if (usageIntervalRef.current !== null) {
@@ -217,6 +257,27 @@ export function useLiveKitTutor({
       inactivityTimeoutRef.current = null
     }
   }, [])
+
+  const clearTranscriptSettleTimeout = useCallback(() => {
+    if (transcriptSettleTimeoutRef.current !== null) {
+      window.clearTimeout(transcriptSettleTimeoutRef.current)
+      transcriptSettleTimeoutRef.current = null
+    }
+  }, [])
+
+  const scheduleTranscriptSettle = useCallback(
+    (delayMs = 2200) => {
+      clearTranscriptSettleTimeout()
+      transcriptSettleTimeoutRef.current = window.setTimeout(() => {
+        transcriptSettleTimeoutRef.current = null
+        setTranscript('')
+        if (connectedRef.current && !pausedRef.current) {
+          setState('listening')
+        }
+      }, delayMs)
+    },
+    [clearTranscriptSettleTimeout]
+  )
 
   const clearCanvasRevealTimers = useCallback(() => {
     canvasRevealTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
@@ -235,6 +296,44 @@ export function useLiveKitTutor({
       ].slice(-MAX_TOOL_EVENTS)
     )
   }, [])
+
+  const appendChatMessage = useCallback((message: TutorChatMessage) => {
+    const content = message.content.trim()
+    if (!content) return
+
+    setChatHistory((prev) => {
+      const duplicateRecentMessage = prev
+        .slice(-4)
+        .some((recentMessage) => recentMessage.role === message.role && recentMessage.content.trim() === content)
+      if (duplicateRecentMessage) {
+        return prev
+      }
+
+      return [
+        ...prev,
+        {
+          ...message,
+          content,
+        },
+      ]
+    })
+  }, [])
+
+  const markLiveKitAgentReady = useCallback(
+    (audioMode: 'microphone' | 'silent' = liveKitAudioModeRef.current) => {
+      if (agentReadyRef.current) return
+      agentReadyRef.current = true
+      if (!pausedRef.current) setState('listening')
+      if (audioMode === 'silent') {
+        appendChatMessage({
+          role: 'assistant',
+          content: 'I am ready. Type a math problem or ask me to draw something on the board.',
+          source: 'assistant',
+        })
+      }
+    },
+    [appendChatMessage]
+  )
 
   const queueCanvasActions = useCallback(
     (actions: TutorCanvasAction[], sourceToolName = 'livekit_canvas') => {
@@ -340,6 +439,7 @@ export function useLiveKitTutor({
     (endedReason: 'user' | 'error' | 'quota' = 'user') => {
       finalizeTutorSession(endedReason)
 
+      clearTranscriptSettleTimeout()
       const room = roomRef.current
       if (room) {
         try {
@@ -358,6 +458,10 @@ export function useLiveKitTutor({
       pausedRef.current = false
       mutedRef.current = false
       localToolModeRef.current = false
+      agentReadyRef.current = false
+      liveKitAudioModeRef.current = 'microphone'
+      liveKitIdentityRef.current = ''
+      finalTranscriptSegmentsRef.current.clear()
 
       setCurrentSessionId(null)
       setIsConnected(false)
@@ -372,7 +476,7 @@ export function useLiveKitTutor({
       setPendingCanvasActions([])
       setState('idle')
     },
-    [cleanupLiveKitMedia, finalizeTutorSession]
+    [cleanupLiveKitMedia, clearTranscriptSettleTimeout, finalizeTutorSession]
   )
 
   const pause = useCallback(
@@ -686,16 +790,93 @@ export function useLiveKitTutor({
         let rawText = ''
         for await (const chunk of reader) {
           rawText += chunk
-          setTranscript(rawText)
-          setState('speaking')
+          if (!rawText.trimStart().startsWith('{')) {
+            setTranscript(rawText)
+            setState('speaking')
+            scheduleTranscriptSettle()
+          }
         }
         const parsed = parseJsonSafely(rawText) as LiveKitTutorPayload | null
+        if (parsed?.type === 'chat_message') {
+          appendChatMessage(parsed.message)
+          if (parsed.message.role === 'user') {
+            setCurrentUserTranscript('')
+          }
+          setTranscript('')
+          clearTranscriptSettleTimeout()
+          setState('listening')
+          return
+        }
         const content = coerceLiveKitAssistantText(parsed, rawText).trim()
         if (content) {
-          setChatHistory((prev) => [...prev, { role: 'assistant', content, source: 'assistant' }])
+          appendChatMessage({ role: 'assistant', content, source: 'assistant' })
         }
         setTranscript('')
+        clearTranscriptSettleTimeout()
         setState('listening')
+      })
+
+      room.registerTextStreamHandler(LIVEKIT_TOPICS.transcription, async (reader, participantInfo) => {
+        const attributes = reader.info?.attributes ?? {}
+        const segmentId =
+          typeof attributes[LIVEKIT_SEGMENT_ID_ATTRIBUTE] === 'string'
+            ? attributes[LIVEKIT_SEGMENT_ID_ATTRIBUTE]
+            : crypto.randomUUID()
+        const isFinal = attributes[LIVEKIT_TRANSCRIPTION_FINAL_ATTRIBUTE] === 'true'
+        const isTranscription = Boolean(attributes[LIVEKIT_TRANSCRIBED_TRACK_ATTRIBUTE])
+        const participantIdentity = getParticipantIdentity(participantInfo)
+        const localIdentity = liveKitIdentityRef.current || room.localParticipant.identity
+        const isUser =
+          participantIdentity === localIdentity ||
+          participantIdentity.startsWith('student-') ||
+          (isTranscription && participantIdentity !== agentNameRef.current && !participantIdentity.includes('agent'))
+
+        let rawText = ''
+        for await (const chunk of reader) {
+          rawText += chunk
+          const partial = normalizeLiveKitTranscriptText(rawText)
+          if (!partial) continue
+
+          if (isUser) {
+            setCurrentUserTranscript(partial)
+            setState('listening')
+          } else {
+            setTranscript(partial)
+            setState('speaking')
+            scheduleTranscriptSettle()
+          }
+        }
+
+        const content = normalizeLiveKitTranscriptText(rawText)
+        if (!content) return
+
+        const segmentKey = `${isUser ? 'user' : 'assistant'}:${segmentId}:${content}`
+        if (isFinal && finalTranscriptSegmentsRef.current.has(segmentKey)) {
+          return
+        }
+        if (isFinal) {
+          finalTranscriptSegmentsRef.current.add(segmentKey)
+          appendChatMessage({
+            role: isUser ? 'user' : 'assistant',
+            content,
+            source: isUser ? 'speech' : 'assistant',
+          })
+          if (isUser) {
+            setCurrentUserTranscript('')
+          } else {
+            setTranscript('')
+            clearTranscriptSettleTimeout()
+          }
+          if (!pausedRef.current) setState('listening')
+          return
+        }
+
+        if (isUser) {
+          setCurrentUserTranscript(content)
+        } else {
+          setTranscript(content)
+          scheduleTranscriptSettle()
+        }
       })
 
       room.registerTextStreamHandler(LIVEKIT_TOPICS.toolEvent, async (reader) => {
@@ -721,8 +902,16 @@ export function useLiveKitTutor({
         queueCanvasActions(actions, 'livekit_canvas_stream')
       })
 
+      room.registerTextStreamHandler(LIVEKIT_TOPICS.control, async (reader) => {
+        const rawText = await reader.readAll()
+        const parsed = parseJsonSafely(rawText) as LiveKitTutorPayload | null
+        if (parsed?.type === 'session_ready') {
+          markLiveKitAgentReady(parsed.audioMode)
+        }
+      })
+
       room.on(RoomEvent.Connected, () => {
-        setState('listening')
+        setState(agentReadyRef.current ? 'listening' : 'thinking')
       })
 
       room.on(RoomEvent.Reconnecting, () => {
@@ -730,10 +919,11 @@ export function useLiveKitTutor({
       })
 
       room.on(RoomEvent.Reconnected, () => {
-        if (!pausedRef.current) setState('listening')
+        if (!pausedRef.current) setState(agentReadyRef.current ? 'listening' : 'thinking')
       })
 
       room.on(RoomEvent.Disconnected, () => {
+        agentReadyRef.current = false
         setState('idle')
       })
 
@@ -763,7 +953,7 @@ export function useLiveKitTutor({
         if (topic === LIVEKIT_TOPICS.assistantText) {
           const content = coerceLiveKitAssistantText(parsed, new TextDecoder().decode(payload)).trim()
           if (content) {
-            setChatHistory((prev) => [...prev, { role: 'assistant', content, source: 'assistant' }])
+            appendChatMessage({ role: 'assistant', content, source: 'assistant' })
           }
         }
         if (parsed?.type === 'tool_event') {
@@ -771,7 +961,15 @@ export function useLiveKitTutor({
         }
       })
     },
-    [appendToolEvent, isSpeakerMuted, queueCanvasActions]
+    [
+      appendChatMessage,
+      appendToolEvent,
+      clearTranscriptSettleTimeout,
+      isSpeakerMuted,
+      markLiveKitAgentReady,
+      queueCanvasActions,
+      scheduleTranscriptSettle,
+    ]
   )
 
   const connect = useCallback(
@@ -783,8 +981,10 @@ export function useLiveKitTutor({
         setToolEvents([])
         setPendingCanvasActions([])
         setState('thinking')
+        agentReadyRef.current = false
         gradeLevelRef.current = options?.gradeLevel || 'Grade 6'
         const audioMode = options?.audioMode === 'silent' ? 'silent' : 'microphone'
+        liveKitAudioModeRef.current = audioMode
 
         const statusRes = await fetch('/api/livekit/status')
         const status = await statusRes.json().catch(() => ({}))
@@ -857,6 +1057,7 @@ export function useLiveKitTutor({
         }
 
         agentNameRef.current = liveKitData.agentName || 'lemma-livekit-tutor'
+        liveKitIdentityRef.current = liveKitData.identity || ''
 
         const room = new Room({
           adaptiveStream: true,
@@ -878,7 +1079,7 @@ export function useLiveKitTutor({
         setIsConnected(true)
         setIsPaused(false)
         setLastPauseReason(null)
-        setState('listening')
+        setState(agentReadyRef.current ? 'listening' : 'thinking')
         registerLocalActivity(false)
 
         appendToolEvent({
@@ -953,7 +1154,7 @@ export function useLiveKitTutor({
       if (pausedRef.current || !text.trim()) return
       registerLocalActivity(true)
       const message: TutorChatMessage = { role: 'user', content: text, source: 'text' }
-      setChatHistory((prev) => [...prev, message])
+      appendChatMessage(message)
       setCurrentUserTranscript('')
 
       if (localToolModeRef.current) {
@@ -963,7 +1164,7 @@ export function useLiveKitTutor({
 
       if (!roomRef.current) return
       setState('thinking')
-      void publishUserPayload(LIVEKIT_TOPICS.userText, {
+      void publishUserPayload(LIVEKIT_TOPICS.chat, {
         type: 'user_text',
         text,
         boardDescription: options?.boardDescription,
@@ -971,7 +1172,7 @@ export function useLiveKitTutor({
         createdAt: Date.now(),
       })
     },
-    [publishUserPayload, registerLocalActivity, runLocalToolTurn]
+    [appendChatMessage, publishUserPayload, registerLocalActivity, runLocalToolTurn]
   )
 
   const sendImage = useCallback(

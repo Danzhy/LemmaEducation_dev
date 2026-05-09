@@ -2,6 +2,8 @@ import type { TutorChatMessage, TutorToolEvent } from '@/lib/tutor/session-adapt
 import { TUTOR_SILENT_BOARD_CONTEXT_MARKER } from '@/lib/tutor/silent-board-context'
 
 export const LIVEKIT_TOPICS = {
+  chat: 'lk.chat',
+  transcription: 'lk.transcription',
   userText: 'lemma.user.text',
   userImage: 'lemma.user.image',
   canvasContext: 'lemma.canvas.context',
@@ -47,6 +49,11 @@ export type LiveKitTutorPayload =
   | {
       type: 'chat_message'
       message: TutorChatMessage
+      createdAt: number
+    }
+  | {
+      type: 'session_ready'
+      audioMode: 'microphone' | 'silent'
       createdAt: number
     }
 
