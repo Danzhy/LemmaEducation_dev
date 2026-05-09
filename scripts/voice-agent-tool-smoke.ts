@@ -439,6 +439,20 @@ assert(
 const equivalentRatioStep = mathCheckStep('6:8', '9:12')
 assert(equivalentRatioStep.verdict === 'valid', 'math_check_step should validate equivalent ratio comparisons.')
 
+const validUnitRateStep = mathCheckStep('3 notebooks cost 6 dollars', '$2 per notebook')
+assert(
+  validUnitRateStep.verdict === 'valid' &&
+    validUnitRateStep.hintTarget.includes('value for one unit'),
+  'math_check_step should validate unit-rate claims.'
+)
+
+const invalidUnitRateStep = mathCheckStep('150 miles in 3 hours', '30 miles per hour')
+assert(
+  invalidUnitRateStep.verdict === 'invalid' &&
+    invalidUnitRateStep.hintTarget.includes('unit rate'),
+  'math_check_step should catch unit-rate division mistakes.'
+)
+
 const invalidIntegerSignStep = mathCheckStep('-3 - 5', '2')
 assert(
   invalidIntegerSignStep.verdict === 'invalid' &&

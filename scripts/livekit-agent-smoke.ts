@@ -334,6 +334,14 @@ async function main() {
     { previousStep: '6:8', nextStep: '9:12' },
     { ctx: {} as never, toolCallId: 'smoke-equivalent-ratio-step-check' }
   )
+  const validUnitRateStep = await tools.math_check_step.execute(
+    { previousStep: '3 notebooks cost 6 dollars', nextStep: '$2 per notebook' },
+    { ctx: {} as never, toolCallId: 'smoke-unit-rate-step-check' }
+  )
+  const invalidUnitRateStep = await tools.math_check_step.execute(
+    { previousStep: '150 miles in 3 hours', nextStep: '30 miles per hour' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-unit-rate-step-check' }
+  )
   const invalidIntegerSignStep = await tools.math_check_step.execute(
     { previousStep: '-3 - 5', nextStep: '2' },
     { ctx: {} as never, toolCallId: 'smoke-integer-sign-step-check' }
@@ -1072,6 +1080,20 @@ async function main() {
 
   if (!JSON.stringify(equivalentRatioStep).includes('"verdict":"valid"')) {
     throw new Error(`math_check_step did not accept an equivalent ratio comparison: ${JSON.stringify(equivalentRatioStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validUnitRateStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validUnitRateStep).includes('value for one unit')
+  ) {
+    throw new Error(`math_check_step did not accept a valid unit-rate claim: ${JSON.stringify(validUnitRateStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidUnitRateStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidUnitRateStep).includes('unit rate')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid unit-rate claim: ${JSON.stringify(invalidUnitRateStep)}`)
   }
 
   if (

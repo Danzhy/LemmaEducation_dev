@@ -202,6 +202,21 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks unit-rate mistake prompts before classifying the error',
+    prompt: 'I got $3 per notebook. Is that right for 3 notebooks costing $6?',
+    expectedTools: ['math_check_step', 'unit_rate', 'double_number_line', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
+      assert.equal(input.previousStep, '3 notebooks cost 6 dollars')
+      assert.equal(input.nextStep, '$3 per notebook')
+      assert.equal(plans[1].input.quantity, 3)
+      assert.equal(plans[1].input.value, 6)
+      assert.deepEqual(plans[2].input.pairs, [
+        { top: 0, bottom: 0, label: 'start' },
+        { top: 3, bottom: 6, label: 'given' },
+      ])
+    },
+  },
+  {
     name: 'continues after a recipe ratio attempt with the target quantity',
     prompt: 'I got 4 cups. For the recipe, 3 cups make 12 muffins. How many cups for 20 muffins?',
     expectedTools: ['answer_disclosure_gate', 'double_number_line'],

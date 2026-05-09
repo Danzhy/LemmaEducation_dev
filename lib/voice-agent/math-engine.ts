@@ -1821,6 +1821,227 @@ function parseLastPlainNumber(text: string) {
   return numbers.length > 0 ? numbers[numbers.length - 1] : null
 }
 
+type UnitRatePair = {
+  quantity: number
+  quantityLabel: string
+  value: number
+  valueLabel: string
+}
+
+type UnitRateClaim = {
+  rate: number
+  quantityLabel?: string
+  valueLabel?: string
+}
+
+function normalizeUnitRateLabel(label?: string | null) {
+  const trimmed = label?.trim().toLowerCase().replace(/[^a-z$-]+/g, '')
+  if (!trimmed) return null
+  if (/^\$|^(?:dollars?|usd|cost|price)$/.test(trimmed)) return 'dollar'
+  if (/^(?:hrs?|hours?)$/.test(trimmed)) return 'hour'
+  if (/^(?:mins?|minutes?)$/.test(trimmed)) return 'minute'
+  if (/^(?:secs?|seconds?)$/.test(trimmed)) return 'second'
+  if (/^(?:kilometers?|kilometres?|km)$/.test(trimmed)) return 'kilometer'
+  if (/^(?:meters?|metres?|m)$/.test(trimmed)) return 'meter'
+  if (/^(?:miles?|mi)$/.test(trimmed)) return 'mile'
+  if (trimmed.endsWith('ies') && trimmed.length > 3) return `${trimmed.slice(0, -3)}y`
+  if (trimmed.endsWith('s') && trimmed.length > 1) return trimmed.slice(0, -1)
+  return trimmed
+}
+
+function unitRateLabelsMatch(left?: string | null, right?: string | null) {
+  const normalizedLeft = normalizeUnitRateLabel(left)
+  const normalizedRight = normalizeUnitRateLabel(right)
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight)
+}
+
+function isDistanceRateLabel(label: string) {
+  return /^(?:miles?|mi|kilometers?|kilometres?|km|meters?|metres?|m|feet|foot|yards?)$/i.test(label)
+}
+
+function isTimeRateLabel(label: string) {
+  return /^(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)$/i.test(label)
+}
+
+function cleanUnitRateDisplayLabel(label: string) {
+  return normalizeUnitRateLabel(label) ?? label.trim().toLowerCase()
+}
+
+function buildUnitRatePair(
+  quantity: number | null,
+  quantityLabel: string | undefined,
+  value: number | null,
+  valueLabel: string | undefined
+): UnitRatePair | null {
+  const normalizedQuantityLabel = cleanUnitRateDisplayLabel(quantityLabel ?? '')
+  const normalizedValueLabel = cleanUnitRateDisplayLabel(valueLabel ?? '')
+  if (
+    quantity === null ||
+    value === null ||
+    !Number.isFinite(quantity) ||
+    !Number.isFinite(value) ||
+    quantity <= 0 ||
+    !normalizedQuantityLabel ||
+    !normalizedValueLabel
+  ) {
+    return null
+  }
+
+  return {
+    quantity,
+    quantityLabel: normalizedQuantityLabel,
+    value,
+    valueLabel: normalizedValueLabel,
+  }
+}
+
+function extractUnitRatePair(text: string): UnitRatePair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const labelPattern = String.raw`[A-Za-z$][A-Za-z$-]*`
+
+  const speedMatch = normalized.match(
+    new RegExp(
+      String.raw`\b(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\s+(?:in|over|for)\s+(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\b`,
+      'i'
+    )
+  )
+  if (speedMatch && isDistanceRateLabel(speedMatch[2]) && isTimeRateLabel(speedMatch[4])) {
+    return buildUnitRatePair(
+      parsePlainNumber(speedMatch[3]),
+      speedMatch[4],
+      parsePlainNumber(speedMatch[1]),
+      speedMatch[2]
+    )
+  }
+
+  const currencyFirstMatch = normalized.match(
+    new RegExp(
+      String.raw`\$?\s*(${PLAIN_NUMBER_PATTERN})\s*(dollars?|usd)?\s+(?:for|over)\s+(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\b`,
+      'i'
+    )
+  )
+  if (currencyFirstMatch && (currencyFirstMatch[0].includes('$') || currencyFirstMatch[2])) {
+    return buildUnitRatePair(
+      parsePlainNumber(currencyFirstMatch[3]),
+      currencyFirstMatch[4],
+      parsePlainNumber(currencyFirstMatch[1]),
+      'dollars'
+    )
+  }
+
+  const makeMatch = normalized.match(
+    new RegExp(
+      String.raw`\b(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\s+(?:make|makes|making|serve|serves|yield|yields|produce|produces)\s+(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\b`,
+      'i'
+    )
+  )
+  if (makeMatch) {
+    return buildUnitRatePair(
+      parsePlainNumber(makeMatch[1]),
+      makeMatch[2],
+      parsePlainNumber(makeMatch[3]),
+      makeMatch[4]
+    )
+  }
+
+  const quantityFirstMatch = normalized.match(
+    new RegExp(
+      String.raw`\b(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\s+(?:costs?|costing|priced\s+at|for|are|is|=)\s+\$?\s*(${PLAIN_NUMBER_PATTERN})(?:\s+(${labelPattern})(?:s)?)?`,
+      'i'
+    )
+  )
+  if (quantityFirstMatch) {
+    const hasCurrency = /\$|dollars?|cost|price/i.test(quantityFirstMatch[0])
+    const valueLabel = hasCurrency ? 'dollars' : quantityFirstMatch[4]
+    return buildUnitRatePair(
+      parsePlainNumber(quantityFirstMatch[1]),
+      quantityFirstMatch[2],
+      parsePlainNumber(quantityFirstMatch[3]),
+      valueLabel
+    )
+  }
+
+  return null
+}
+
+function parseUnitRateClaim(text: string): UnitRateClaim | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const labelPattern = String.raw`[A-Za-z$][A-Za-z$-]*`
+  const perMatch = normalized.match(
+    new RegExp(
+      String.raw`\$?\s*(${PLAIN_NUMBER_PATTERN})(?:\s+(${labelPattern})(?:s)?)?\s+per\s+(?:one\s+|each\s+|1\s+)?(${labelPattern})(?:s)?\b`,
+      'i'
+    )
+  )
+  if (perMatch) {
+    const rate = parsePlainNumber(perMatch[1])
+    if (rate === null) return null
+    return {
+      rate,
+      valueLabel: perMatch[0].includes('$') ? 'dollars' : perMatch[2],
+      quantityLabel: perMatch[3],
+    }
+  }
+
+  if (!/\b(unit rate|rate|per one|per each|speed|cost)\b/i.test(text)) return null
+  const rate = parseLastPlainNumber(text)
+  return rate === null ? null : { rate }
+}
+
+function compareUnitRateClaim(pair: UnitRatePair, claim: UnitRateClaim) {
+  const usesReversedDirection =
+    claim.quantityLabel !== undefined && unitRateLabelsMatch(claim.quantityLabel, pair.valueLabel)
+  const usesDefaultDirection =
+    claim.quantityLabel === undefined || unitRateLabelsMatch(claim.quantityLabel, pair.quantityLabel)
+
+  if (!usesDefaultDirection && !usesReversedDirection) {
+    return null
+  }
+
+  const quantity = usesReversedDirection ? pair.value : pair.quantity
+  const value = usesReversedDirection ? pair.quantity : pair.value
+  const quantityLabel = usesReversedDirection ? pair.valueLabel : pair.quantityLabel
+  const valueLabel = usesReversedDirection ? pair.quantityLabel : pair.valueLabel
+
+  if (claim.valueLabel && !unitRateLabelsMatch(claim.valueLabel, valueLabel)) {
+    return null
+  }
+
+  return {
+    expectedRate: value / quantity,
+    studentRate: claim.rate,
+    quantity,
+    value,
+    quantityLabel,
+    valueLabel,
+  }
+}
+
+function checkUnitRateStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\b(unit rate|rate|per|each|speed|cost|for)\b/i.test(combined)) return null
+
+  const pair = extractUnitRatePair(previousStep)
+  const claim = parseUnitRateClaim(nextStep)
+  if (!pair || !claim) return null
+
+  const comparison = compareUnitRateClaim(pair, claim)
+  if (!comparison || isNearlyEqual(comparison.quantity, 0)) return null
+
+  const isValid = isNearlyEqual(comparison.studentRate, comparison.expectedRate)
+  const expectedLabel = `${formatNumber(comparison.expectedRate, 4)} ${formatUnitLabel(comparison.valueLabel, comparison.expectedRate)} per ${comparison.quantityLabel}`
+
+  return {
+    verdict: isValid ? 'valid' : 'invalid',
+    reason: isValid
+      ? `The unit rate is ${expectedLabel} because ${formatNumber(comparison.value, 4)} divided by ${formatNumber(comparison.quantity, 4)} equals ${formatNumber(comparison.expectedRate, 4)}.`
+      : `The claimed rate is ${formatNumber(comparison.studentRate, 4)}, but ${formatNumber(comparison.value, 4)} divided by ${formatNumber(comparison.quantity, 4)} equals ${formatNumber(comparison.expectedRate, 4)} ${formatUnitLabel(comparison.valueLabel, comparison.expectedRate)} per ${comparison.quantityLabel}.`,
+    hintTarget: isValid
+      ? 'explain the division that found the value for one unit'
+      : 'divide the paired value by the matching quantity to find the unit rate',
+  }
+}
+
 function extractRectangleDimensions(text: string) {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const byMatch = normalized.match(new RegExp(`(${PLAIN_NUMBER_PATTERN})\\s*(?:by|x|×)\\s*(${PLAIN_NUMBER_PATTERN})`, 'i'))
@@ -2957,6 +3178,9 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
       /\b(proportion|cross[- ]?multiply|cross[- ]?products?|equivalent\s+ratios?)\b/i.test(combined) ||
       Boolean(solveProportionEquation(previousStep)) ||
       Boolean(solveProportionEquation(nextStep)),
+    hasUnitRateWork:
+      /\b(unit rate|rate|per one|per each|speed|cost)\b/i.test(combined) &&
+      Boolean(extractUnitRatePair(previousStep)),
     hasRatioWork: /-?\d+(?:\.\d+)?\s*:\s*-?\d+(?:\.\d+)?/.test(combined),
     hasDecimalWork: /\d+\.\d+/.test(combined),
     hasIntegerSignWork: /(^|[=+\-*/(]\s*)-\d/.test(combined),
@@ -3036,6 +3260,9 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasProportionWork) {
     return 'set the cross products equal before solving for x'
+  }
+  if (features.hasUnitRateWork) {
+    return 'divide the paired value by the matching quantity to find the unit rate'
   }
   if (features.hasRatioWork) {
     return 'scale both parts of the ratio by the same factor'
@@ -4803,6 +5030,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const probabilityModelStep = checkProbabilityModelStep(previousStep, nextStep)
   if (probabilityModelStep) {
     return probabilityModelStep
+  }
+
+  const unitRateStep = checkUnitRateStep(previousStep, nextStep)
+  if (unitRateStep) {
+    return unitRateStep
   }
 
   const proportionStep = checkProportionStep(previousStep, nextStep)

@@ -1011,6 +1011,7 @@ function hasMathStructure(value: string) {
     /\b(angle|degrees?|complementary|complement|supplementary|supplement|linear\s+pair|straight\s+line)\b/i.test(value) ||
     /\b(probability|chance|outcomes?|favorable|out\s+of)\b/i.test(value) ||
     /\b(intercept|root|zero|x-axis|y-axis)\b/i.test(value) ||
+    /\b(unit rate|rate|per|speed|cost)\b/i.test(value) ||
     hasKnownUnitQuantity(value)
   )
 }
@@ -1736,6 +1737,80 @@ function extractLocalUnitRateRequest(text: string): LocalUnitRateRequest | null 
   }
 
   return null
+}
+
+function formatLocalUnitRateStepSetup(request: LocalUnitRateRequest) {
+  const quantity = formatLocalNumber(request.quantity)
+  const value = formatLocalNumber(request.value)
+  if (request.valueLabel === 'dollars') {
+    return `${quantity} ${request.quantityLabel} cost ${value} dollars`
+  }
+  if (isLocalTimeUnit(request.quantityLabel) && isLocalDistanceUnit(request.valueLabel)) {
+    return `${value} ${request.valueLabel} in ${quantity} ${request.quantityLabel}`
+  }
+  return `unit rate for ${quantity} ${request.quantityLabel} make ${value} ${request.valueLabel}`
+}
+
+function extractLocalUnitRateClaim(text: string) {
+  const normalized = normalizeLocalPromptText(text)
+  const rateClaimMatches = [
+    ...normalized.matchAll(
+      new RegExp(
+        String.raw`\$?\s*(${LOCAL_NUMBER_PATTERN})(?:\s+[A-Za-z][A-Za-z-]*(?:s)?)?\s+per\s+(?:one\s+|each\s+|1\s+)?[A-Za-z][A-Za-z-]*(?:s)?\b`,
+        'gi'
+      )
+    ),
+  ]
+  const claimMatch =
+    rateClaimMatches.find((match) => {
+      const index = match.index ?? 0
+      const before = normalized.slice(Math.max(0, index - 40), index)
+      return /\b(?:i\s+)?(?:got|found|calculated|think|answer(?:\s+is)?|rate(?:\s+is)?)\b/i.test(before)
+    }) ?? rateClaimMatches[0]
+
+  if (claimMatch) return claimMatch[0].trim()
+
+  const answerMatch = normalized.match(
+    new RegExp(`\\b(?:i\\s+)?(?:got|found|calculated|think|answer(?:\\s+is)?)\\s+\\$?\\s*(${LOCAL_NUMBER_PATTERN})\\b`, 'i')
+  )
+  if (!answerMatch) return null
+
+  return answerMatch[0].replace(/^\s*(?:i\s+)?(?:got|found|calculated|think|answer(?:\s+is)?)\s+/i, '').trim()
+}
+
+function extractUnitRateAttempt(text: string): StudentStepPair | null {
+  const request = extractLocalUnitRateRequest(text)
+  if (!request) return null
+  if (!/\b(unit rate|rate|per|each|speed|cost)\b/i.test(text)) return null
+
+  const claim = extractLocalUnitRateClaim(text)
+  if (!claim) return null
+
+  const nextStep = /\bper\b/i.test(claim) ? claim : `${claim} ${request.valueLabel} per ${request.quantityLabel}`
+  return buildStepPair(formatLocalUnitRateStepSetup(request), nextStep)
+}
+
+function buildLocalUnitRateVisualInputFromStepPair(pair: StudentStepPair) {
+  const request = extractLocalUnitRateRequest(pair.previousStep)
+  if (!request) return null
+
+  return {
+    unitRate: {
+      quantity: request.quantity,
+      value: request.value,
+      quantityLabel: request.quantityLabel,
+      valueLabel: request.valueLabel,
+    },
+    doubleNumberLine: {
+      topLabel: request.quantityLabel,
+      bottomLabel: request.valueLabel === 'dollars' ? 'cost' : request.valueLabel,
+      pairs: [
+        { top: 0, bottom: 0, label: 'start' },
+        { top: request.quantity, bottom: request.value, label: 'given' },
+      ],
+      title: 'Double number line',
+    },
+  }
 }
 
 function isLocalDistanceUnit(unit: string) {
@@ -3040,6 +3115,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
     if (pair) return pair
   }
 
+  const unitRateAttempt = extractUnitRateAttempt(normalized)
+  if (unitRateAttempt) return unitRateAttempt
+
   const proportionAttempt = extractProportionAttempt(normalized)
   if (proportionAttempt) return proportionAttempt
 
@@ -3562,6 +3640,17 @@ export function planLocalToolTurn(
         plans.push({
           toolName: 'probability_model',
           input: probabilityModelInput,
+        })
+      }
+      const unitRateVisualInput = buildLocalUnitRateVisualInputFromStepPair(studentStepPair)
+      if (unitRateVisualInput) {
+        plans.push({
+          toolName: 'unit_rate',
+          input: unitRateVisualInput.unitRate,
+        })
+        plans.push({
+          toolName: 'double_number_line',
+          input: unitRateVisualInput.doubleNumberLine,
         })
       }
       const crossProductTableInput = buildLocalCrossProductTableInputFromStepPair(studentStepPair)
