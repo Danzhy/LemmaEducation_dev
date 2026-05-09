@@ -283,6 +283,16 @@ function parseCoordinatePoint(text: string) {
   return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
 }
 
+function parseCoordinatePoints(text: string) {
+  return [...text.matchAll(/\(\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*\)/g)]
+    .map((match) => {
+      const x = Number(match[1])
+      const y = Number(match[2])
+      return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
+    })
+    .filter((point): point is { x: number; y: number } => Boolean(point))
+}
+
 function extractFunctionExpressionForPointCheck(text: string) {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const yEqualsMatch = normalized.match(
@@ -313,6 +323,63 @@ function checkCoordinatePointStep(previousStep: string, nextStep: string): MathS
     }
   } catch {
     return null
+  }
+}
+
+function parseDistanceValue(text: string) {
+  const withoutLabels = text
+    .replace(/[“”]/g, '"')
+    .replace(/[’]/g, "'")
+    .replace(/\b(?:distance|length|units?|unit)\b/gi, '')
+    .replace(/^\s*[dD]\s*=/, '')
+    .replace(/[?!.,;:]+$/g, '')
+    .trim()
+  const normalized = normalizeExpression(withoutLabels)
+  if (!normalized) return null
+
+  try {
+    return coerceFiniteNumber(safeEvaluate(normalized))
+  } catch {
+    const numberMatch = withoutLabels.match(
+      /-?(?:\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*-?(?:\d+(?:\.\d+)?|\.\d+))?/
+    )
+    if (!numberMatch) return null
+    try {
+      return coerceFiniteNumber(safeEvaluate(normalizeExpression(numberMatch[0])))
+    } catch {
+      return null
+    }
+  }
+}
+
+function checkCoordinateDistanceStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\bdistance|length|between|from\b/i.test(combined)) return null
+
+  const points = parseCoordinatePoints(previousStep)
+  if (points.length < 2 || parseCoordinatePoints(nextStep).length > 0) return null
+
+  const studentDistance = parseDistanceValue(nextStep)
+  if (studentDistance === null) return null
+
+  const [pointA, pointB] = points
+  const horizontalChange = Math.abs(pointB.x - pointA.x)
+  const verticalChange = Math.abs(pointB.y - pointA.y)
+  const expectedDistance = Math.sqrt(horizontalChange * horizontalChange + verticalChange * verticalChange)
+  const distanceMatches = isNearlyEqual(expectedDistance, studentDistance, 0.01)
+  const axisAligned = isNearlyEqual(horizontalChange, 0) || isNearlyEqual(verticalChange, 0)
+  const changeSummary = axisAligned
+    ? `The coordinate change is ${formatNumber(Math.max(horizontalChange, verticalChange), 4)} units.`
+    : `The horizontal change is ${formatNumber(horizontalChange, 4)} and the vertical change is ${formatNumber(verticalChange, 4)}.`
+
+  return {
+    verdict: distanceMatches ? 'valid' : 'invalid',
+    reason: distanceMatches
+      ? `${changeSummary} That gives a distance of ${formatNumber(expectedDistance, 4)}.`
+      : `${changeSummary} The distance is ${formatNumber(expectedDistance, 4)}, not ${formatNumber(studentDistance, 4)}.`,
+    hintTarget: distanceMatches
+      ? 'explain how the coordinate changes determine distance'
+      : 'use horizontal and vertical changes before deciding the distance',
   }
 }
 
@@ -357,6 +424,9 @@ function unitComparisonStatus(
 function detectStepFeatures(previousStep: string, nextStep: string) {
   const combined = `${previousStep} ${nextStep}`
   return {
+    hasCoordinateDistanceWork:
+      /\bdistance|length\b/i.test(combined) &&
+      /\(\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*\)/.test(combined),
     hasUnitConversionWork: hasKnownUnitQuantity(combined),
     hasFractionWork: /\d+\s*\/\s*\d+/.test(combined),
     hasPercentWork: /%|\bpercent\b/i.test(combined),
@@ -367,6 +437,9 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
 }
 
 function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures>) {
+  if (features.hasCoordinateDistanceWork) {
+    return 'use horizontal and vertical changes before deciding the distance'
+  }
   if (features.hasUnitConversionWork) {
     return 'use the conversion factor and keep the measurement type the same'
   }
@@ -2031,6 +2104,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const coordinatePointStep = checkCoordinatePointStep(previousStep, nextStep)
   if (coordinatePointStep) {
     return coordinatePointStep
+  }
+
+  const coordinateDistanceStep = checkCoordinateDistanceStep(previousStep, nextStep)
+  if (coordinateDistanceStep) {
+    return coordinateDistanceStep
   }
 
   if (!prev.includes('=') && !next.includes('=')) {

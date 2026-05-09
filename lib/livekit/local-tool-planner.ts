@@ -161,6 +161,27 @@ function extractGraphDomain(text: string) {
   return { start: Math.min(start, end), end: Math.max(start, end) }
 }
 
+function extractCoordinatePoints(text: string) {
+  return [...text.matchAll(/\(\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*\)/g)]
+    .map((match) => ({
+      x: Number(match[1]),
+      y: Number(match[2]),
+      raw: match[0],
+      index: match.index ?? -1,
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && point.index >= 0)
+}
+
+function extractCoordinateDistanceRequest(text: string) {
+  if (!/\bdistance|length|between|from\b/i.test(text)) return null
+  const points = extractCoordinatePoints(text)
+  if (points.length < 2) return null
+  return {
+    pointA: { x: points[0].x, y: points[0].y },
+    pointB: { x: points[1].x, y: points[1].y },
+  }
+}
+
 function pickPlaceValue(lower: string) {
   if (lower.includes('hundredth')) return 'hundredths'
   if (lower.includes('tenth')) return 'tenths'
@@ -235,6 +256,30 @@ function extractCoordinatePointAttempt(text: string): StudentStepPair | null {
   return buildStepPair(`y = ${expression}`, `(${pointMatch[1]}, ${pointMatch[2]})`)
 }
 
+function extractCoordinateDistanceAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const points = extractCoordinatePoints(normalized)
+  if (points.length < 2 || !/\bdistance|length|between|from\b/i.test(normalized)) return null
+
+  const firstPointIndex = points[0].index
+  const secondPointEnd = points[1].index + points[1].raw.length
+  const beforeFirstPoint = normalized.slice(0, firstPointIndex)
+  const afterSecondPoint = normalized.slice(secondPointEnd)
+  const answerAfter = afterSecondPoint.match(
+    /\b(?:is|equals?|was|=|to)\s*(-?(?:\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*-?(?:\d+(?:\.\d+)?|\.\d+))?)/i
+  )
+  const answerBefore = beforeFirstPoint.match(
+    /\b(?:got|found|answer(?: is)?|think)\s*(-?(?:\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*-?(?:\d+(?:\.\d+)?|\.\d+))?)\b/i
+  )
+  const answer = answerAfter?.[1] ?? answerBefore?.[1]
+  if (!answer) return null
+
+  return buildStepPair(
+    `distance from (${points[0].x}, ${points[0].y}) to (${points[1].x}, ${points[1].y})`,
+    answer
+  )
+}
+
 function extractStudentStepPair(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
@@ -244,6 +289,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
     const pair = buildStepPair(arrowMatch[1], arrowMatch[2])
     if (pair) return pair
   }
+
+  const coordinateDistanceAttempt = extractCoordinateDistanceAttempt(normalized)
+  if (coordinateDistanceAttempt) return coordinateDistanceAttempt
 
   const rewriteMatch = normalized.match(
     new RegExp(
@@ -274,7 +322,7 @@ function inferLocalTopic(text: string) {
   if (/\bequation|variable|solve for x|\bx\b/.test(lower)) return 'equations'
   if (/\bnegative|positive|integer|signed|minus\b|-\d/.test(lower)) return 'integers'
   if (/\barea|perimeter|angle|geometry|rectangle|triangle|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?\b/.test(lower)) return 'geometry'
-  if (/\bgraph|coordinate|slope|point|axis\b/.test(lower)) return 'graphing'
+  if (/\bgraph|coordinate|slope|point|axis|distance\b/.test(lower)) return 'graphing'
   if (/\bmean|median|mode|probability|chance|data\b/.test(lower)) return 'data'
   return text.slice(0, 120)
 }
@@ -284,19 +332,20 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const fractions = extractFractions(prompt)
   const numbers = extractNumbers(prompt)
   const unitConversionRequest = extractUnitConversionRequest(prompt)
+  const coordinateDistanceRequest = extractCoordinateDistanceRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
   const plans: LocalToolPlan[] = []
   const asksForFullSolution =
     /\b(just tell me|give me the answer|tell me the answer|full solution|show me the solution|solve it for me)\b/.test(lower)
   const hasStudentAttempt =
-    /\b(i tried|i got|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
+    /\b(i tried|i got|i found|my answer|i think|check this|i changed|changed|rewrote)\b/.test(lower) ||
     prompt.includes('=')
   const asksForCurriculumContext =
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?)\b/.test(lower)
+    /\b(graph|plot|parabola|function|coordinate|distance|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?)\b/.test(lower)
   const asksForMistakeHelp =
     /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|check this|is this right|is that right|am i right|is my step right|correct)\b/.test(lower)
   const needsSafetyBoundary =
@@ -517,6 +566,17 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
         showXIntercepts: /intercept|root|zero/.test(lower),
         showYIntercept: /intercept|y-axis|where it starts/.test(lower),
         showVertex: /vertex|parabola|\^2|squared/.test(lower),
+      },
+    })
+    return plans
+  }
+
+  if (coordinateDistanceRequest) {
+    plans.push({
+      toolName: 'coordinate_distance',
+      input: {
+        ...coordinateDistanceRequest,
+        title: 'Coordinate distance',
       },
     })
     return plans

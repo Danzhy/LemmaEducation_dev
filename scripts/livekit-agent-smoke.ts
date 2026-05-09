@@ -37,6 +37,7 @@ async function main() {
     'representation_bridge',
     'worked_example_fader',
     'graph_function',
+    'coordinate_distance',
     'fraction_strip',
     'percent_bar',
     'ratio_table',
@@ -93,6 +94,14 @@ async function main() {
   const invalidCoordinatePointStep = await tools.math_check_step.execute(
     { previousStep: 'y = 2x + 1', nextStep: '(2, 4)' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-point-step-check' }
+  )
+  const validCoordinateDistanceStep = await tools.math_check_step.execute(
+    { previousStep: 'distance from (2, 3) to (5, 7)', nextStep: '5' },
+    { ctx: {} as never, toolCallId: 'smoke-coordinate-distance-step-check' }
+  )
+  const invalidCoordinateDistanceStep = await tools.math_check_step.execute(
+    { previousStep: 'distance from (2, 3) to (5, 7)', nextStep: '4' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-coordinate-distance-step-check' }
   )
   const invalidNumericEqualityStep = await tools.math_check_step.execute(
     { previousStep: '3/4 = 6/8', nextStep: '3/4 = 7/8' },
@@ -303,6 +312,17 @@ async function main() {
     !JSON.stringify(invalidCoordinatePointStep).includes('x-coordinate')
   ) {
     throw new Error(`math_check_step did not reject an invalid plotted point: ${JSON.stringify(invalidCoordinatePointStep)}`)
+  }
+
+  if (!JSON.stringify(validCoordinateDistanceStep).includes('"verdict":"valid"')) {
+    throw new Error(`math_check_step did not accept a correct coordinate distance: ${JSON.stringify(validCoordinateDistanceStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidCoordinateDistanceStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidCoordinateDistanceStep).includes('horizontal and vertical changes')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid coordinate distance: ${JSON.stringify(invalidCoordinateDistanceStep)}`)
   }
 
   if (!JSON.stringify(invalidNumericEqualityStep).includes('"verdict":"invalid"')) {

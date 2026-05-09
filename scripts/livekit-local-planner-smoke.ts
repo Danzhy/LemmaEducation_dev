@@ -126,6 +126,24 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks coordinate distance claims before classifying the mistake',
+    prompt: 'I found the distance from (2, 3) to (5, 7) is 4. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, 'distance from (2, 3) to (5, 7)')
+      assert.equal(input.nextStep, '4')
+    },
+  },
+  {
+    name: 'routes coordinate distance requests to board model',
+    prompt: 'Find the distance from (2, 3) to (5, 7) on the coordinate plane.',
+    expectedTools: ['coordinate_distance'],
+    inspect: (input) => {
+      assert.deepEqual(input.pointA, { x: 2, y: 3 })
+      assert.deepEqual(input.pointB, { x: 5, y: 7 })
+    },
+  },
+  {
     name: 'routes unit-rate word problems to rate and double number line',
     prompt: 'A store sells 3 notebooks for $6. What is the unit rate?',
     expectedTools: ['unit_rate', 'double_number_line'],

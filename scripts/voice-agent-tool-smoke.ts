@@ -266,6 +266,20 @@ assert(
   'math_check_step should catch plotted points that do not fit a function.'
 )
 
+const validCoordinateDistanceStep = mathCheckStep('distance from (2, 3) to (5, 7)', '5')
+assert(
+  validCoordinateDistanceStep.verdict === 'valid' &&
+    validCoordinateDistanceStep.hintTarget.includes('coordinate changes'),
+  'math_check_step should validate coordinate distance claims.'
+)
+
+const invalidCoordinateDistanceStep = mathCheckStep('distance from (2, 3) to (5, 7)', '4')
+assert(
+  invalidCoordinateDistanceStep.verdict === 'invalid' &&
+    invalidCoordinateDistanceStep.hintTarget.includes('horizontal and vertical changes'),
+  'math_check_step should catch incorrect coordinate distance claims.'
+)
+
 const validNumericEqualityStep = mathCheckStep('3/4 = 6/8', '0.75 = 0.75')
 assert(
   validNumericEqualityStep.verdict === 'valid',
