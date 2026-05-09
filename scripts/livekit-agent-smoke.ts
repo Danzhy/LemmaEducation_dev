@@ -68,6 +68,22 @@ async function main() {
     { previousStep: '3 1/2 - 1 1/4', nextStep: '2 3/4' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-mixed-number-step-check' }
   )
+  const validDistributiveStep = await tools.math_check_step.execute(
+    { previousStep: '3(x + 4)', nextStep: '3x + 12' },
+    { ctx: {} as never, toolCallId: 'smoke-distributive-step-check' }
+  )
+  const invalidDistributiveStep = await tools.math_check_step.execute(
+    { previousStep: '3(x + 4)', nextStep: '3x + 4' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-distributive-step-check' }
+  )
+  const validLikeTermsStep = await tools.math_check_step.execute(
+    { previousStep: '2x + 3x + 4', nextStep: '5x + 4' },
+    { ctx: {} as never, toolCallId: 'smoke-like-terms-step-check' }
+  )
+  const invalidLikeTermsStep = await tools.math_check_step.execute(
+    { previousStep: '2x + 3x + 4', nextStep: '9x' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-like-terms-step-check' }
+  )
   const validLinearStep = await tools.math_check_step.execute(
     { previousStep: '2x + 3 = 11', nextStep: '2x = 8' },
     { ctx: {} as never, toolCallId: 'smoke-linear-step-check' }
@@ -297,6 +313,34 @@ async function main() {
     !JSON.stringify(invalidMixedNumberStep).includes('mixed numbers')
   ) {
     throw new Error(`math_check_step did not reject an invalid mixed-number step: ${JSON.stringify(invalidMixedNumberStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validDistributiveStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validDistributiveStep).includes('distributive property')
+  ) {
+    throw new Error(`math_check_step did not accept a distributive-property step: ${JSON.stringify(validDistributiveStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidDistributiveStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidDistributiveStep).includes('distributive property')
+  ) {
+    throw new Error(`math_check_step did not reject a distributive-property mistake: ${JSON.stringify(invalidDistributiveStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validLikeTermsStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validLikeTermsStep).includes('like terms')
+  ) {
+    throw new Error(`math_check_step did not accept a like-term step: ${JSON.stringify(validLikeTermsStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidLikeTermsStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidLikeTermsStep).includes('like terms')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid like-term step: ${JSON.stringify(invalidLikeTermsStep)}`)
   }
 
   if (!JSON.stringify(validLinearStep).includes('"verdict":"valid"')) {

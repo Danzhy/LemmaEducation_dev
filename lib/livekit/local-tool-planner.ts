@@ -378,6 +378,36 @@ function extractMixedNumberOperationAttempt(text: string): StudentStepPair | nul
   return null
 }
 
+function extractAlgebraExpressionAttempt(text: string): StudentStepPair | null {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
+  const connector = String.raw`(?:\s+(?:and\s+)?(?:got|gets|equals?|is)\s+|\s*(?:=|->|→|⇒)\s*|\s+(?:to|into|as)\s+)`
+
+  const actionMatch = normalized.match(
+    new RegExp(
+      `\\b(?:i\\s+)?(?:distributed|distribute|expanded|expand|simplified|simplify|rewrote|rewrite)\\s+(.{1,120}?)${connector}(.{1,120}?)${stopBeforeQuestion}`,
+      'i'
+    )
+  )
+  if (actionMatch) {
+    const pair = buildStepPair(actionMatch[1], actionMatch[2])
+    if (pair) return pair
+  }
+
+  const combineLikeTermsMatch = normalized.match(
+    new RegExp(
+      `\\b(?:i\\s+)?(?:combined|combine)\\s+(?:like\\s+terms\\s+(?:in\\s+)?)?(.{1,120}?)${connector}(.{1,120}?)${stopBeforeQuestion}`,
+      'i'
+    )
+  )
+  if (combineLikeTermsMatch) {
+    const pair = buildStepPair(combineLikeTermsMatch[1], combineLikeTermsMatch[2])
+    if (pair) return pair
+  }
+
+  return null
+}
+
 function extractStudentStepPair(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
@@ -390,6 +420,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
 
   const linearEquationAttempt = extractLinearEquationAttempt(normalized)
   if (linearEquationAttempt) return linearEquationAttempt
+
+  const algebraExpressionAttempt = extractAlgebraExpressionAttempt(normalized)
+  if (algebraExpressionAttempt) return algebraExpressionAttempt
 
   const mixedNumberOperationAttempt = extractMixedNumberOperationAttempt(normalized)
   if (mixedNumberOperationAttempt) return mixedNumberOperationAttempt

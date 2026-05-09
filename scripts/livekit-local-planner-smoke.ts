@@ -117,6 +117,24 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks distributive-property attempts before classifying the mistake',
+    prompt: 'I distributed 3(x + 4) and got 3x + 4. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '3(x + 4)')
+      assert.equal(input.nextStep, '3x + 4')
+    },
+  },
+  {
+    name: 'checks like-term attempts before classifying the mistake',
+    prompt: 'I combined like terms in 2x + 3x + 4 and got 9x. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '2x + 3x + 4')
+      assert.equal(input.nextStep, '9x')
+    },
+  },
+  {
     name: 'checks natural two-step equation balance attempts before classifying the mistake',
     prompt: 'I subtracted 3 from 2x + 3 = 11 and got 2x = 14. Is that right?',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],

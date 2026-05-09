@@ -222,6 +222,34 @@ assert(
   'math_check_step should catch mixed-number subtraction mistakes.'
 )
 
+const validDistributiveStep = mathCheckStep('3(x + 4)', '3x + 12')
+assert(
+  validDistributiveStep.verdict === 'valid' &&
+    validDistributiveStep.hintTarget.includes('distributive property'),
+  'math_check_step should validate distributive-property steps.'
+)
+
+const invalidDistributiveStep = mathCheckStep('3(x + 4)', '3x + 4')
+assert(
+  invalidDistributiveStep.verdict === 'invalid' &&
+    invalidDistributiveStep.hintTarget.includes('distributive property'),
+  'math_check_step should catch distributive-property mistakes.'
+)
+
+const validLikeTermsStep = mathCheckStep('2x + 3x + 4', '5x + 4')
+assert(
+  validLikeTermsStep.verdict === 'valid' &&
+    validLikeTermsStep.hintTarget.includes('like terms'),
+  'math_check_step should validate combining like terms.'
+)
+
+const invalidLikeTermsStep = mathCheckStep('2x + 3x + 4', '9x')
+assert(
+  invalidLikeTermsStep.verdict === 'invalid' &&
+    invalidLikeTermsStep.hintTarget.includes('like terms'),
+  'math_check_step should catch invalid like-term combinations.'
+)
+
 const validArithmeticStep = mathCheckStep('3 + 4 * 2', '11')
 assert(validArithmeticStep.verdict === 'valid', 'math_check_step should validate equivalent arithmetic steps.')
 

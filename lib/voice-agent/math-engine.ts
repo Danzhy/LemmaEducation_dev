@@ -522,8 +522,98 @@ function unitComparisonStatus(
     : 'different_measurement'
 }
 
+function hasOnlyXVariableExpression(expression: string) {
+  const variableTokens = expression.match(/[A-Za-z]+/g) ?? []
+  return variableTokens.length > 0 && variableTokens.every((token) => token.toLowerCase() === 'x')
+}
+
+function variableExpressionSuccessHintTarget(features: ReturnType<typeof detectStepFeatures>) {
+  if (features.hasDistributivePropertyWork) {
+    return 'explain how the distributive property multiplied every term'
+  }
+  if (features.hasLikeTermsWork) {
+    return 'explain how like terms combine by adding coefficients'
+  }
+  return 'explain why the expression stayed equivalent'
+}
+
+function variableExpressionSuccessReason(features: ReturnType<typeof detectStepFeatures>) {
+  if (features.hasDistributivePropertyWork) {
+    return 'The distributive step stays equivalent because the outside factor is applied to every term.'
+  }
+  if (features.hasLikeTermsWork) {
+    return 'The like-term step stays equivalent because only matching variable terms were combined.'
+  }
+  return 'The expressions give the same value for the checked x-values.'
+}
+
+function variableExpressionInvalidReason(
+  features: ReturnType<typeof detectStepFeatures>,
+  sample: { x: number; previousValue: number; nextValue: number }
+) {
+  const sampleReason = `At x = ${formatNumber(sample.x, 4)}, the previous expression equals ${formatNumber(
+    sample.previousValue,
+    4
+  )} but the next expression equals ${formatNumber(sample.nextValue, 4)}.`
+
+  if (features.hasDistributivePropertyWork) {
+    return `${sampleReason} The outside factor needs to multiply every term inside the parentheses.`
+  }
+  if (features.hasLikeTermsWork) {
+    return `${sampleReason} Like terms can combine only when the variable part matches, and constants stay separate.`
+  }
+  return `${sampleReason} The expression value changed.`
+}
+
+function checkVariableExpressionStep(
+  previousExpression: string,
+  nextExpression: string,
+  features: ReturnType<typeof detectStepFeatures>
+): MathStepCheckResult | null {
+  if (!features.hasAlgebraExpressionWork) return null
+  if (!hasOnlyXVariableExpression(previousExpression) || !hasOnlyXVariableExpression(nextExpression)) {
+    return null
+  }
+
+  const samples = [-3, -1, 0, 2, 5]
+  const comparisons: { x: number; previousValue: number; nextValue: number }[] = []
+
+  for (const x of samples) {
+    try {
+      comparisons.push({
+        x,
+        previousValue: coerceFiniteNumber(safeEvaluate(previousExpression, { x })),
+        nextValue: coerceFiniteNumber(safeEvaluate(nextExpression, { x })),
+      })
+    } catch {
+      // Some expressions may be undefined at a sample point. Other samples can still verify the step.
+    }
+  }
+
+  if (comparisons.length < 3) return null
+
+  const mismatch = comparisons.find(
+    (comparison) => !isNearlyEqual(comparison.previousValue, comparison.nextValue, 1e-6)
+  )
+
+  if (!mismatch) {
+    return {
+      verdict: 'valid',
+      reason: variableExpressionSuccessReason(features),
+      hintTarget: variableExpressionSuccessHintTarget(features),
+    }
+  }
+
+  return {
+    verdict: 'invalid',
+    reason: variableExpressionInvalidReason(features, mismatch),
+    hintTarget: expressionStepHintTarget(features),
+  }
+}
+
 function detectStepFeatures(previousStep: string, nextStep: string) {
   const combined = `${previousStep} ${nextStep}`
+  const compactCombined = normalizeExpression(combined)
   return {
     hasCoordinateDistanceWork:
       /\bdistance|length\b/i.test(combined) &&
@@ -538,6 +628,13 @@ function detectStepFeatures(previousStep: string, nextStep: string) {
     hasRatioWork: /-?\d+(?:\.\d+)?\s*:\s*-?\d+(?:\.\d+)?/.test(combined),
     hasDecimalWork: /\d+\.\d+/.test(combined),
     hasIntegerSignWork: /(^|[=+\-*/(]\s*)-\d/.test(combined),
+    hasAlgebraExpressionWork: /x/i.test(combined),
+    hasDistributivePropertyWork:
+      /(?:^|[=+\-*/(]\s*)-?(?:\d+(?:\.\d+)?|\.\d+)?\s*x?\s*\([^)]*[+\-][^)]*\)/i.test(combined),
+    hasLikeTermsWork:
+      /(?:^|[=+\-*/(])(?:-?(?:\d+(?:\.\d+)?|\.\d+)?)?x(?:[+\-](?:\d+(?:\.\d+)?|\.\d+)?x)+/i.test(
+        compactCombined
+      ),
   }
 }
 
@@ -565,6 +662,15 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   }
   if (features.hasDecimalWork) {
     return 'line up decimal place values before combining'
+  }
+  if (features.hasDistributivePropertyWork) {
+    return 'multiply every term inside the parentheses when using the distributive property'
+  }
+  if (features.hasLikeTermsWork) {
+    return 'combine only like terms and keep constants separate'
+  }
+  if (features.hasAlgebraExpressionWork) {
+    return 'compare the expressions with the same x-value'
   }
   if (features.hasIntegerSignWork) {
     return 'recheck the integer signs and direction of the operation'
@@ -2339,6 +2445,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
           : expressionStepHintTarget(stepFeatures),
       }
     } catch {
+      const variableExpressionStep = checkVariableExpressionStep(prev, next, stepFeatures)
+      if (variableExpressionStep) {
+        return variableExpressionStep
+      }
+
       try {
         const difference = simplify(`(${prev})-(${next})`).toString()
         if (difference === '0') {
