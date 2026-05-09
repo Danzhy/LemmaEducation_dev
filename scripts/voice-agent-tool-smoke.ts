@@ -215,6 +215,16 @@ const smokeCases: SmokeCase[] = [
     run: () => angleDiagramScene({ degrees: 75 }),
   },
   {
+    name: 'angle_relationship_diagram',
+    run: () =>
+      angleDiagramScene({
+        degrees: 35,
+        relationshipType: 'complementary',
+        knownAngle: 35,
+        missingAngle: 55,
+      }),
+  },
+  {
     name: 'equation_balance',
     run: () => equationBalanceScene({ leftExpression: 'x+3', rightExpression: '10' }),
   },
@@ -506,6 +516,31 @@ assert(
   invalidTriangleAngleStep.verdict === 'invalid' &&
     invalidTriangleAngleStep.hintTarget.includes('subtract from 180'),
   'math_check_step should catch triangle angle-sum mistakes.'
+)
+
+const complementaryAngleDiagram = angleDiagramScene({
+  degrees: 35,
+  relationshipType: 'complementary',
+  knownAngle: 35,
+  missingAngle: 55,
+})
+assert(
+  complementaryAngleDiagram.summary.includes('complementary angle relationship') &&
+    JSON.stringify(complementaryAngleDiagram).includes('35 degrees + 55 degrees = 90 degrees'),
+  'angle_diagram should draw complementary angle relationship notes.'
+)
+
+const triangleAngleDiagram = angleDiagramScene({
+  degrees: 70,
+  relationshipType: 'triangle_sum',
+  knownAngle: 50,
+  secondKnownAngle: 60,
+  missingAngle: 70,
+})
+assert(
+  triangleAngleDiagram.summary.includes('triangle angle-sum') &&
+    JSON.stringify(triangleAngleDiagram).includes('50 + 60 + ? = 180'),
+  'angle_diagram should draw triangle angle-sum relationship notes.'
 )
 
 const validCoordinatePointStep = mathCheckStep('y = 2x + 1', '(2, 5)')

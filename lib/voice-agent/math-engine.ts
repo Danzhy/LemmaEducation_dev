@@ -5120,7 +5120,208 @@ export function angleDiagramScene(input: {
   label?: string
   title?: string
   showRightAngleMarker?: boolean
+  relationshipType?: 'single' | 'complementary' | 'supplementary' | 'triangle_sum'
+  knownAngle?: number
+  secondKnownAngle?: number
+  missingAngle?: number
 }): CanvasActionResult {
+  const relationshipType = input.relationshipType ?? 'single'
+  if (relationshipType === 'complementary' || relationshipType === 'supplementary') {
+    const total = relationshipType === 'complementary' ? 90 : 180
+    const knownAngle = clamp(input.knownAngle ?? input.degrees, 0, total)
+    const missingAngle = clamp(input.missingAngle ?? total - knownAngle, 0, total)
+    const vertex = { x: TOOL_SCENE.x + 332, y: TOOL_SCENE.y + 350 }
+    const rayLength = 250
+    const arcRadius = 76
+    const anglePoint = (angleDegrees: number, length = rayLength) => {
+      const radians = (angleDegrees * Math.PI) / 180
+      return {
+        x: vertex.x + Math.cos(radians) * length,
+        y: vertex.y - Math.sin(radians) * length,
+      }
+    }
+    const arcBetween = (startDegrees: number, endDegrees: number, radius: number) => {
+      const steps = 16
+      return Array.from({ length: steps }, (_, index) => {
+        const theta = ((startDegrees + ((endDegrees - startDegrees) * index) / (steps - 1)) * Math.PI) / 180
+        return {
+          x: vertex.x + Math.cos(theta) * radius,
+          y: vertex.y - Math.sin(theta) * radius,
+        }
+      })
+    }
+    const labelAt = (startDegrees: number, endDegrees: number, radius: number) => {
+      const theta = (((startDegrees + endDegrees) / 2) * Math.PI) / 180
+      return {
+        x: vertex.x + Math.cos(theta) * radius,
+        y: vertex.y - Math.sin(theta) * radius,
+      }
+    }
+    const title =
+      input.title?.trim() ||
+      (relationshipType === 'complementary' ? 'Complementary angles' : 'Supplementary angles')
+    const totalLabel = relationshipType === 'complementary' ? '90 degree total' : '180 degree total'
+    const missingLabel = input.label?.trim() || `? = ${formatNumber(missingAngle, 1)} degrees`
+    const knownLabel = `${formatNumber(knownAngle, 1)} degrees`
+    const knownLabelPoint = labelAt(0, knownAngle, arcRadius + 52)
+    const missingLabelPoint = labelAt(knownAngle, total, arcRadius + 78)
+
+    const actions: TutorCanvasAction[] = [
+      clearToolLayer(),
+      ...buildSceneChrome(title),
+      point(vertex.x, vertex.y, { color: 'blue' }),
+      textLabel(vertex.x - 20, vertex.y + 14, 'V', {
+        width: 32,
+        color: 'blue',
+      }),
+      lineSegment(vertex, anglePoint(0), { color: 'blue', size: 'm', dash: 'solid' }),
+      lineSegment(vertex, anglePoint(total), { color: 'blue', size: 'm', dash: 'solid' }),
+      lineSegment(vertex, anglePoint(knownAngle), { color: 'orange', size: 'm', dash: 'solid' }),
+      polyline(arcBetween(0, knownAngle, arcRadius), { color: 'orange', size: 'm', dash: 'solid' }),
+      polyline(arcBetween(knownAngle, total, arcRadius + 24), { color: 'green', size: 'm', dash: 'solid' }),
+      textLabel(knownLabelPoint.x - 54, knownLabelPoint.y - 16, knownLabel, {
+        width: 130,
+        color: 'orange',
+      }),
+      textLabel(missingLabelPoint.x - 60, missingLabelPoint.y - 16, missingLabel, {
+        width: 150,
+        color: 'green',
+      }),
+      rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+        color: 'black',
+        dash: 'solid',
+        fill: 'semi',
+      }),
+      textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, totalLabel, {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+      }),
+      textLabel(
+        NOTE_FRAME.x + 16,
+        NOTE_FRAME.y + 62,
+        `${formatNumber(knownAngle, 1)} degrees + ${formatNumber(missingAngle, 1)} degrees = ${total} degrees`,
+        {
+          width: NOTE_FRAME.width - 32,
+          color: 'black',
+        }
+      ),
+      textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 124, `Missing: ${total} - ${formatNumber(knownAngle, 1)}`, {
+        width: NOTE_FRAME.width - 32,
+        color: 'green',
+      }),
+    ]
+
+    if (relationshipType === 'complementary') {
+      const markerSize = 34
+      actions.push(
+        polyline(
+          [
+            { x: vertex.x + markerSize, y: vertex.y },
+            { x: vertex.x + markerSize, y: vertex.y - markerSize },
+            { x: vertex.x, y: vertex.y - markerSize },
+          ],
+          { color: 'green', size: 's', dash: 'solid' }
+        )
+      )
+    }
+
+    actions.push(
+      focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132)
+    )
+
+    return {
+      summary: `Prepared a ${relationshipType} angle relationship diagram with a ${formatNumber(
+        knownAngle,
+        1
+      )} degree known angle and ${formatNumber(missingAngle, 1)} degree missing angle.`,
+      canvasActions: actions,
+    }
+  }
+
+  if (relationshipType === 'triangle_sum') {
+    const firstAngle = clamp(input.knownAngle ?? 0, 0, 180)
+    const secondAngle = clamp(input.secondKnownAngle ?? 0, 0, 180)
+    const missingAngle = clamp(input.missingAngle ?? 180 - firstAngle - secondAngle, 0, 180)
+    const a = { x: TOOL_SCENE.x + 152, y: TOOL_SCENE.y + 376 }
+    const b = { x: TOOL_SCENE.x + 610, y: TOOL_SCENE.y + 376 }
+    const c = { x: TOOL_SCENE.x + 382, y: TOOL_SCENE.y + 128 }
+    const vertexArc = (center: { x: number; y: number }, startDegrees: number, endDegrees: number, radius: number) => {
+      const steps = 12
+      return Array.from({ length: steps }, (_, index) => {
+        const theta = ((startDegrees + ((endDegrees - startDegrees) * index) / (steps - 1)) * Math.PI) / 180
+        return {
+          x: center.x + Math.cos(theta) * radius,
+          y: center.y - Math.sin(theta) * radius,
+        }
+      })
+    }
+    const actions: TutorCanvasAction[] = [
+      clearToolLayer(),
+      ...buildSceneChrome(input.title?.trim() || 'Triangle angle sum'),
+      lineSegment(a, b, { color: 'blue', size: 'm', dash: 'solid' }),
+      lineSegment(b, c, { color: 'blue', size: 'm', dash: 'solid' }),
+      lineSegment(c, a, { color: 'blue', size: 'm', dash: 'solid' }),
+      point(a.x, a.y, { label: 'A', color: 'blue' }),
+      point(b.x, b.y, { label: 'B', color: 'blue' }),
+      point(c.x, c.y, { label: 'C', color: 'blue' }),
+      polyline(vertexArc(a, 0, 46, 48), { color: 'orange', size: 'm', dash: 'solid' }),
+      polyline(vertexArc(b, 134, 180, 48), { color: 'orange', size: 'm', dash: 'solid' }),
+      polyline(vertexArc(c, 235, 305, 48), { color: 'green', size: 'm', dash: 'solid' }),
+      textLabel(a.x + 34, a.y - 44, `${formatNumber(firstAngle, 1)} degrees`, {
+        width: 116,
+        color: 'orange',
+      }),
+      textLabel(b.x - 146, b.y - 44, `${formatNumber(secondAngle, 1)} degrees`, {
+        width: 116,
+        color: 'orange',
+      }),
+      textLabel(c.x - 58, c.y + 54, `? = ${formatNumber(missingAngle, 1)} degrees`, {
+        width: 150,
+        color: 'green',
+      }),
+      rectangle(NOTE_FRAME.x, NOTE_FRAME.y, NOTE_FRAME.width, NOTE_FRAME.height, {
+        color: 'black',
+        dash: 'solid',
+        fill: 'semi',
+      }),
+      textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 16, 'Triangle angles total 180 degrees', {
+        width: NOTE_FRAME.width - 32,
+        color: 'black',
+      }),
+      textLabel(
+        NOTE_FRAME.x + 16,
+        NOTE_FRAME.y + 68,
+        `${formatNumber(firstAngle, 1)} + ${formatNumber(secondAngle, 1)} + ? = 180`,
+        {
+          width: NOTE_FRAME.width - 32,
+          color: 'black',
+        }
+      ),
+      textLabel(
+        NOTE_FRAME.x + 16,
+        NOTE_FRAME.y + 122,
+        `? = 180 - (${formatNumber(firstAngle, 1)} + ${formatNumber(secondAngle, 1)})`,
+        {
+          width: NOTE_FRAME.width - 32,
+          color: 'green',
+        }
+      ),
+      textLabel(NOTE_FRAME.x + 16, NOTE_FRAME.y + 184, 'Diagram is labeled for the relationship.', {
+        width: NOTE_FRAME.width - 32,
+        color: 'grey',
+      }),
+      focusRegion(TOOL_SCENE.x - 72, TOOL_SCENE.y - 60, TOOL_SCENE.width + 144, TOOL_SCENE.height + 132),
+    ]
+
+    return {
+      summary: `Prepared a triangle angle-sum diagram with known angles ${formatNumber(
+        firstAngle,
+        1
+      )} and ${formatNumber(secondAngle, 1)}, and missing angle ${formatNumber(missingAngle, 1)} degrees.`,
+      canvasActions: actions,
+    }
+  }
+
   const degrees = clamp(input.degrees, 5, 175)
   const radians = (degrees * Math.PI) / 180
   const vertex = { x: TOOL_SCENE.x + 332, y: TOOL_SCENE.y + 350 }

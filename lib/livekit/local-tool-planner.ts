@@ -899,6 +899,67 @@ function extractAngleRelationshipAttempt(text: string) {
   return extractTriangleAngleAttempt(text) ?? extractPairAngleAttempt(text)
 }
 
+function buildLocalAngleDiagramInputFromText(text: string) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const trianglePrompt = normalized.match(
+    new RegExp(
+      `\\b(?:triangle|triangular)\\b[^.?!]*?(${LOCAL_NUMBER_PATTERN})\\s*(?:degrees?|deg)?\\s*(?:and|,)\\s*(${LOCAL_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  if (trianglePrompt && /\b(angle|degrees?|missing|third)\b/i.test(normalized)) {
+    const firstAngle = parseLocalPlainNumber(trianglePrompt[1])
+    const secondAngle = parseLocalPlainNumber(trianglePrompt[2])
+    if (firstAngle !== null && secondAngle !== null && firstAngle >= 0 && secondAngle >= 0) {
+      const missingAngle = 180 - firstAngle - secondAngle
+      if (missingAngle >= 0) {
+        return {
+          degrees: missingAngle,
+          relationshipType: 'triangle_sum',
+          knownAngle: firstAngle,
+          secondKnownAngle: secondAngle,
+          missingAngle,
+          title: 'Triangle angle sum',
+        }
+      }
+    }
+  }
+
+  const isComplementary = /\b(complementary|complement)\b/i.test(normalized)
+  const isSupplementary = /\b(supplementary|supplement|linear\s+pair|straight\s+line)\b/i.test(normalized)
+  if (isComplementary === isSupplementary) return null
+
+  const directMatch = normalized.match(
+    new RegExp(
+      isComplementary
+        ? `\\b(?:complementary|complement)(?:\\s+angle)?\\s+(?:to|of|with)?\\s*(${LOCAL_NUMBER_PATTERN})`
+        : `\\b(?:supplementary|supplement)(?:\\s+angle)?\\s+(?:to|of|with)?\\s*(${LOCAL_NUMBER_PATTERN})`,
+      'i'
+    )
+  )
+  const oneAngleMatch = normalized.match(
+    new RegExp(`\\b(?:one\\s+)?angle\\s*(?:is|=|measures?|measured)?\\s*(${LOCAL_NUMBER_PATTERN})`, 'i')
+  )
+  const knownAngle = parseLocalPlainNumber((directMatch ?? oneAngleMatch)?.[1] ?? '')
+  if (knownAngle === null || knownAngle < 0) return null
+
+  const total = isComplementary ? 90 : 180
+  const missingAngle = total - knownAngle
+  if (missingAngle < 0) return null
+
+  return {
+    degrees: knownAngle,
+    relationshipType: isComplementary ? 'complementary' : 'supplementary',
+    knownAngle,
+    missingAngle,
+    title: isComplementary ? 'Complementary angles' : 'Supplementary angles',
+  }
+}
+
+function buildLocalAngleDiagramInputFromStepPair(pair: StudentStepPair) {
+  return buildLocalAngleDiagramInputFromText(pair.previousStep)
+}
+
 function extractLinearEquationSnippets(text: string) {
   const equationPattern =
     /(?:[+-]?(?:\d+(?:\.\d+)?)?\s*x\s*(?:[+-]\s*\d+(?:\.\d+)?)?\s*=\s*-?\d+(?:\.\d+)?|-?\d+(?:\.\d+)?\s*=\s*[+-]?(?:\d+(?:\.\d+)?)?\s*x\s*(?:[+-]\s*\d+(?:\.\d+)?)?)/gi
@@ -1474,6 +1535,13 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
           input: triangleAreaModelInput,
         })
       }
+      const angleDiagramInput = buildLocalAngleDiagramInputFromStepPair(studentStepPair)
+      if (angleDiagramInput) {
+        plans.push({
+          toolName: 'angle_diagram',
+          input: angleDiagramInput,
+        })
+      }
     }
     plans.push({
       toolName: 'mistake_pattern_classifier',
@@ -1760,6 +1828,15 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
+  const angleDiagramInput = buildLocalAngleDiagramInputFromText(prompt)
+  if (angleDiagramInput) {
+    plans.push({
+      toolName: 'angle_diagram',
+      input: angleDiagramInput,
+    })
+    return plans
+  }
+
   if (/area|perimeter|rectangle/.test(lower) && !/\b(triangle|triangular)\b/.test(lower) && numbers.length >= 2) {
     plans.push({
       toolName: 'area_perimeter_model',
@@ -1931,13 +2008,16 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
     const hasTriangleAreaModel = plans.some(
       (plan) => plan.toolName === 'geometry_figure' && plan.input.showTriangleAreaModel === true
     )
+    const hasAngleDiagram = plans.some((plan) => plan.toolName === 'angle_diagram')
     const boardCue = hasPlaceValueChart
       ? ' I also highlighted the place-value chart so the target column is visible.'
       : hasCompositeAreaModel
         ? ' I also put the whole rectangle and missing piece on the board.'
         : hasTriangleAreaModel
           ? ' I also put the half-rectangle triangle model on the board.'
-          : ''
+          : hasAngleDiagram
+            ? ' I also put the angle relationship diagram on the board.'
+            : ''
     if (checkedStep?.verdict === 'valid') {
       return `I checked that step first, and it stays equivalent. ${checkedStep.reason}${boardCue} What rule made that step work?`
     }
@@ -2005,6 +2085,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'slope_triangle') {
     return 'I put a slope triangle on the board. Compare rise to run first, then tell me what the slope means.'
+  }
+
+  if (firstTool === 'angle_diagram') {
+    return 'I put the angle relationship on the board. Use the total first, then tell me what angle is still missing.'
   }
 
   if (firstTool === 'double_number_line' || firstTool === 'unit_rate') {

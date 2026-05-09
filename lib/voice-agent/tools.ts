@@ -1771,7 +1771,7 @@ export function createVoiceAgentTools() {
     tool({
       name: 'angle_diagram',
       description:
-        'Create a clean angle diagram with two rays, an arc, and a degree label. Use this for acute, obtuse, right-angle, complementary-angle, or angle-estimation explanations.',
+        'Create a clean angle diagram with rays, arcs, labels, and optional relationship notes. Use this for acute, obtuse, right-angle, complementary-angle, supplementary-angle, triangle-angle-sum, or angle-estimation explanations.',
       strict: true,
       parameters: {
         type: 'object',
@@ -1781,6 +1781,10 @@ export function createVoiceAgentTools() {
           label: { type: 'string' },
           title: { type: 'string' },
           showRightAngleMarker: { type: 'boolean' },
+          relationshipType: { type: 'string', enum: ['single', 'complementary', 'supplementary', 'triangle_sum'] },
+          knownAngle: { type: 'number' },
+          secondKnownAngle: { type: 'number' },
+          missingAngle: { type: 'number' },
         },
         required: ['degrees'],
       },
@@ -1790,6 +1794,10 @@ export function createVoiceAgentTools() {
           label?: string
           title?: string
           showRightAngleMarker?: boolean
+          relationshipType?: 'single' | 'complementary' | 'supplementary' | 'triangle_sum'
+          knownAngle?: number
+          secondKnownAngle?: number
+          missingAngle?: number
         }
         return stringifyResult(
           angleDiagramScene({
@@ -1797,6 +1805,10 @@ export function createVoiceAgentTools() {
             label: params.label,
             title: params.title,
             showRightAngleMarker: params.showRightAngleMarker,
+            relationshipType: params.relationshipType,
+            knownAngle: params.knownAngle,
+            secondKnownAngle: params.secondKnownAngle,
+            missingAngle: params.missingAngle,
           })
         )
       },

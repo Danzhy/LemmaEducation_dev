@@ -332,19 +332,36 @@ const cases: PlannerCase[] = [
   {
     name: 'checks supplementary angle attempts before classifying the mistake',
     prompt: 'I think the supplementary angle to 110 is 80. Is that right?',
-    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
-    inspect: (input) => {
+    expectedTools: ['math_check_step', 'angle_diagram', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
       assert.equal(input.previousStep, 'supplementary angle to 110')
       assert.equal(input.nextStep, '80')
+      assert.equal(plans[1].input.relationshipType, 'supplementary')
+      assert.equal(plans[1].input.knownAngle, 110)
+      assert.equal(plans[1].input.missingAngle, 70)
     },
   },
   {
     name: 'checks triangle angle-sum attempts before classifying the mistake',
     prompt: 'I got the missing angle in a triangle with angles 50 and 60 as 80. Is that right?',
-    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
-    inspect: (input) => {
+    expectedTools: ['math_check_step', 'angle_diagram', 'mistake_pattern_classifier'],
+    inspect: (input, plans) => {
       assert.equal(input.previousStep, 'missing angle in triangle with angles 50 and 60')
       assert.equal(input.nextStep, '80')
+      assert.equal(plans[1].input.relationshipType, 'triangle_sum')
+      assert.equal(plans[1].input.knownAngle, 50)
+      assert.equal(plans[1].input.secondKnownAngle, 60)
+      assert.equal(plans[1].input.missingAngle, 70)
+    },
+  },
+  {
+    name: 'routes complementary angle requests to an angle diagram',
+    prompt: 'Show the complementary angle to 35 on the board.',
+    expectedTools: ['angle_diagram'],
+    inspect: (input) => {
+      assert.equal(input.relationshipType, 'complementary')
+      assert.equal(input.knownAngle, 35)
+      assert.equal(input.missingAngle, 55)
     },
   },
   {
@@ -575,6 +592,14 @@ assert.match(
 )
 assert.match(
   buildLocalAssistantReply(
+    'is this angle right',
+    [{ toolName: 'math_check_step', input: {} }, { toolName: 'angle_diagram', input: {} }],
+    [{ verdict: 'invalid', reason: 'Supplementary angles sum to 180 degrees.', hintTarget: 'subtract from 180 degrees' }]
+  ),
+  /angle relationship diagram/
+)
+assert.match(
+  buildLocalAssistantReply(
     'which 2',
     [{ toolName: 'math_check_step', input: {} }],
     [
@@ -602,6 +627,14 @@ assert.match(
     [{ summary: 'Prepared a slope triangle with rise 4, run 4, and slope 1.' }]
   ),
   /slope triangle/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'show complementary angles',
+    [{ toolName: 'angle_diagram', input: {} }],
+    [{ summary: 'Prepared a complementary angle relationship diagram.' }]
+  ),
+  /angle relationship/
 )
 assert.match(
   buildLocalAssistantReply(

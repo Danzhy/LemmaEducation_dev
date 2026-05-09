@@ -39,6 +39,7 @@ async function main() {
     'graph_function',
     'coordinate_distance',
     'slope_triangle',
+    'angle_diagram',
     'fraction_strip',
     'percent_bar',
     'ratio_table',
@@ -262,6 +263,25 @@ async function main() {
       showTriangleAreaModel: true,
     },
     { ctx: {} as never, toolCallId: 'smoke-triangle-area-model' }
+  )
+  const supplementaryAngleDiagramResult = await tools.angle_diagram.execute(
+    {
+      degrees: 110,
+      relationshipType: 'supplementary',
+      knownAngle: 110,
+      missingAngle: 70,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-supplementary-angle-diagram' }
+  )
+  const triangleAngleDiagramResult = await tools.angle_diagram.execute(
+    {
+      degrees: 70,
+      relationshipType: 'triangle_sum',
+      knownAngle: 50,
+      secondKnownAngle: 60,
+      missingAngle: 70,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-triangle-angle-diagram' }
   )
   const teachingResult = await tools.tutor_teaching_sequence.execute(
     {
@@ -717,6 +737,20 @@ async function main() {
     !JSON.stringify(triangleAreaModelResult).includes('area 30 square cm')
   ) {
     throw new Error('geometry_figure did not return a triangle area half-rectangle model.')
+  }
+
+  if (
+    !JSON.stringify(supplementaryAngleDiagramResult).includes('supplementary angle relationship') ||
+    !JSON.stringify(supplementaryAngleDiagramResult).includes('110 degrees + 70 degrees = 180 degrees')
+  ) {
+    throw new Error('angle_diagram did not return a supplementary angle relationship model.')
+  }
+
+  if (
+    !JSON.stringify(triangleAngleDiagramResult).includes('triangle angle-sum') ||
+    !JSON.stringify(triangleAngleDiagramResult).includes('50 + 60 + ? = 180')
+  ) {
+    throw new Error('angle_diagram did not return a triangle angle-sum model.')
   }
 
   if (!JSON.stringify(teachingResult).includes('boardPlan')) {
