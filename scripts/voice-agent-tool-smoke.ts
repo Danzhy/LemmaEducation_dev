@@ -1023,6 +1023,26 @@ assert(
   'voice_interruption_recovery_plan should repeat the last short chunk without restarting the full explanation.'
 )
 
+const interruptionAttemptCheck = voiceInterruptionRecoveryPlan({
+  topic: 'fractions',
+  gradeLevel: 'Grade 5',
+  plannedTurn: shortSpokenTurn.formattedTurn,
+  studentInterruption: 'I got 2/5 for 1/2 + 1/3.',
+  lastCompletedChunkOrder: 1,
+  interruptedDuringChunk: true,
+  requiredQuestion: 'What denominator could both fractions use?',
+  currentToolName: 'short_spoken_turn_formatter',
+  maxWordsPerChunk: 18,
+})
+assert(
+  interruptionAttemptCheck.interruptionIntent === 'student_attempt' &&
+    interruptionAttemptCheck.recommendedTool === 'math_check_step' &&
+    interruptionAttemptCheck.remainingChunks.length === 0 &&
+    interruptionAttemptCheck.voicePolicy.oneQuestionOnly &&
+    interruptionAttemptCheck.recoverySteps.some((step) => step.includes('before confirming')),
+  'voice_interruption_recovery_plan should pause planned speech and route new math attempts to math_check_step.'
+)
+
 const coachedMove = nextStepCoach({
   topic: 'fractions',
   gradeLevel: 'Grade 5',

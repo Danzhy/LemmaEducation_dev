@@ -7,6 +7,7 @@ async function main() {
   const events: ToolEventDraft[] = []
   const canvasActions: TutorCanvasAction[] = []
   const tools = createLiveKitTutorToolContext({
+    maxToolCallsPerSession: 128,
     sendToolEvent: async (event) => {
       events.push(event)
     },
@@ -606,6 +607,20 @@ async function main() {
       maxWordsPerChunk: 18,
     },
     { ctx: {} as never, toolCallId: 'smoke-voice-interruption-recovery-plan' }
+  )
+  const interruptionAttemptCheck = await tools.voice_interruption_recovery_plan.execute(
+    {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      plannedTurn: JSON.parse(JSON.stringify(shortSpokenTurn)).formattedTurn ?? '',
+      studentInterruption: 'I got 2/5 for 1/2 + 1/3.',
+      lastCompletedChunkOrder: 1,
+      interruptedDuringChunk: true,
+      requiredQuestion: 'What denominator could both fractions use?',
+      currentToolName: 'short_spoken_turn_formatter',
+      maxWordsPerChunk: 18,
+    },
+    { ctx: {} as never, toolCallId: 'smoke-voice-interruption-attempt-check' }
   )
   const checkQuestion = await tools.student_check_question.execute(
     {
@@ -1213,6 +1228,19 @@ async function main() {
   ) {
     throw new Error(
       `voice_interruption_recovery_plan did not resume from the interrupted short chunk: ${JSON.stringify(interruptionRecovery)}`
+    )
+  }
+
+  if (
+    !JSON.stringify(interruptionAttemptCheck).includes('"interruptionIntent":"student_attempt"') ||
+    !JSON.stringify(interruptionAttemptCheck).includes('"recommendedTool":"math_check_step"') ||
+    !JSON.stringify(interruptionAttemptCheck).includes('"remainingChunks":[]') ||
+    !JSON.stringify(interruptionAttemptCheck).includes('before confirming')
+  ) {
+    throw new Error(
+      `voice_interruption_recovery_plan did not route interrupted student attempts to a step check: ${JSON.stringify(
+        interruptionAttemptCheck
+      )}`
     )
   }
 

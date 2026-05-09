@@ -9930,13 +9930,29 @@ function inferInterruptionIntent(interruption: string): VoiceInterruptionRecover
 
 function recoveryToolForIntent(intent: VoiceInterruptionRecoveryResult['interruptionIntent'], interruption: string) {
   if (intent === 'student_attempt') {
-    return /[=<>]|\b(step|changed|rewrote|from .* to )\b/i.test(interruption)
+    return hasCheckableMathAttemptSignal(interruption)
       ? 'math_check_step'
       : 'student_check_question'
   }
   if (intent === 'clarification') return 'student_check_question'
   if (intent === 'pause') return 'none'
   return 'short_spoken_turn_formatter'
+}
+
+function hasCheckableMathAttemptSignal(interruption: string) {
+  const lower = interruption.toLowerCase()
+  if (/[=<>]|\b(step|changed|rewrote|from .* to )\b/i.test(interruption)) return true
+
+  const hasAttemptLanguage =
+    /\b(i got|i found|my answer|i think|i tried|i wrote|i solved|would it be|is it)\b/.test(lower)
+  if (!hasAttemptLanguage) return false
+
+  const numberMatches = interruption.match(new RegExp(PLAIN_NUMBER_PATTERN, 'g')) ?? []
+  const hasOperation =
+    /[+\-*×÷/]|\b(plus|minus|times|multiplied|divided|over|percent|of|equals?)\b/i.test(interruption)
+  const hasFraction = /\d+\s*\/\s*\d+/.test(interruption)
+
+  return numberMatches.length >= 2 || hasOperation || hasFraction
 }
 
 function buildInterruptionRecoveryLine(input: {
@@ -9949,8 +9965,8 @@ function buildInterruptionRecoveryLine(input: {
     return 'No rush. Tell me when you are ready.'
   }
   if (input.intent === 'student_attempt') {
-    const question = /[=<>]/.test(input.interruption)
-      ? 'What changed from the previous line to this line?'
+    const question = hasCheckableMathAttemptSignal(input.interruption)
+      ? 'What changed between your setup and your answer?'
       : defaultShortTurnQuestion(input.topic)
     return `Thanks, let us check that one step. ${question}`
   }
@@ -10003,7 +10019,8 @@ export function voiceInterruptionRecoveryPlan(input: {
       ? Math.max(0, lastCompletedChunkOrder - 1)
       : Math.min(chunks.length - 1, lastCompletedChunkOrder)
   const resumeChunk = chunks[resumeIndex]?.say ?? ''
-  const remainingChunks = intent === 'pause' ? [] : chunks.slice(Math.max(0, resumeIndex))
+  const remainingChunks =
+    intent === 'pause' || intent === 'student_attempt' ? [] : chunks.slice(Math.max(0, resumeIndex))
   const rawNextLine = buildInterruptionRecoveryLine({
     intent,
     topic,
@@ -10018,23 +10035,30 @@ export function voiceInterruptionRecoveryPlan(input: {
           'Stop speaking immediately.',
           'Do not call another tool until the student restarts.',
         ]
-      : [
-          'Acknowledge the interruption in one short line.',
-          'Resume from the next unfinished chunk instead of restarting the whole explanation.',
-          currentToolName
-            ? `Do not rerun ${currentToolName} unless the student asks for a fresh check.`
-            : 'Do not rerun the prior tool unless the student asks for a fresh check.',
-          recommendedTool === 'none'
-            ? 'Wait for the student.'
-            : `Use ${recommendedTool} only if the student needs another check before continuing.`,
-        ]
+      : intent === 'student_attempt'
+        ? [
+            'Stop the planned explanation and listen to the new attempt.',
+            `Use ${recommendedTool} before confirming or correcting the attempt.`,
+            'Ask one check question, then wait for the student.',
+            'Only resume the prior explanation after the attempt is checked or the student asks to continue.',
+          ]
+        : [
+            'Acknowledge the interruption in one short line.',
+            'Resume from the next unfinished chunk instead of restarting the whole explanation.',
+            currentToolName
+              ? `Do not rerun ${currentToolName} unless the student asks for a fresh check.`
+              : 'Do not rerun the prior tool unless the student asks for a fresh check.',
+            recommendedTool === 'none'
+              ? 'Wait for the student.'
+              : `Use ${recommendedTool} only if the student needs another check before continuing.`,
+          ]
 
   return {
     topic,
     label: guide.label,
     gradeLevel,
     interruptionIntent: intent,
-    resumeFromChunk: intent === 'pause' ? 0 : (chunks[resumeIndex]?.order ?? 0),
+    resumeFromChunk: intent === 'pause' || intent === 'student_attempt' ? 0 : (chunks[resumeIndex]?.order ?? 0),
     nextSpokenChunk: limitedNextLine,
     remainingChunks,
     recommendedTool,
@@ -10044,7 +10068,9 @@ export function voiceInterruptionRecoveryPlan(input: {
     stopRule:
       intent === 'pause'
         ? 'Stop and listen until the student explicitly continues.'
-        : 'Say only the recovery chunk, then wait for the student before continuing the remaining chunks.',
+        : intent === 'student_attempt'
+          ? 'Say only the recovery chunk, run the recommended check if needed, and wait before returning to the prior explanation.'
+          : 'Say only the recovery chunk, then wait for the student before continuing the remaining chunks.',
   }
 }
 

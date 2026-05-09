@@ -168,6 +168,25 @@ const CASES: TutorExperienceCase[] = [
     expectedSubstrings: ['repeat', 'resumeFromChunk', 'shouldRestartExplanation'],
   },
   {
+    id: 'voice-interruption-student-attempt-check',
+    title: 'Pause a spoken explanation when the student interrupts with a new math attempt',
+    gradeBand: 'grades 4-6',
+    toolName: 'voice_interruption_recovery_plan',
+    input: {
+      topic: 'fractions',
+      gradeLevel: 'Grade 5',
+      plannedTurn:
+        'Use a common denominator before adding. What denominator could both fractions use?',
+      studentInterruption: 'I got 2/5 for 1/2 + 1/3.',
+      lastCompletedChunkOrder: 1,
+      interruptedDuringChunk: true,
+      requiredQuestion: 'What denominator could both fractions use?',
+      currentToolName: 'short_spoken_turn_formatter',
+      maxWordsPerChunk: 18,
+    },
+    expectedSubstrings: ['student_attempt', 'math_check_step', 'remainingChunks', 'before confirming'],
+  },
+  {
     id: 'turn-audit-one-question-policy',
     title: 'Reject multi-question voice turns before speaking',
     gradeBand: 'grades 3-7',
