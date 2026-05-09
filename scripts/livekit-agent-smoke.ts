@@ -64,6 +64,10 @@ async function main() {
     { previousStep: '2x + 3 = 11', nextStep: '2x = 8' },
     { ctx: {} as never, toolCallId: 'smoke-linear-step-check' }
   )
+  const invalidLinearBalanceStep = await tools.math_check_step.execute(
+    { previousStep: '2x + 3 = 11', nextStep: '2x = 14' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-linear-balance-step-check' }
+  )
   const validPercentStep = await tools.math_check_step.execute(
     { previousStep: '25% of 80', nextStep: '20' },
     { ctx: {} as never, toolCallId: 'smoke-percent-step-check' }
@@ -278,6 +282,13 @@ async function main() {
 
   if (!JSON.stringify(validLinearStep).includes('"verdict":"valid"')) {
     throw new Error(`math_check_step did not accept a balanced linear step: ${JSON.stringify(validLinearStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidLinearBalanceStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidLinearBalanceStep).includes('changed differently')
+  ) {
+    throw new Error(`math_check_step did not explain an invalid linear balance step: ${JSON.stringify(invalidLinearBalanceStep)}`)
   }
 
   if (!JSON.stringify(validPercentStep).includes('"verdict":"valid"')) {

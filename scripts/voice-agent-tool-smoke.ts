@@ -319,6 +319,14 @@ assert(
   'math_check_step should validate balanced linear equation steps.'
 )
 
+const invalidLinearBalanceStep = mathCheckStep('2x + 3 = 11', '2x = 14')
+assert(
+  invalidLinearBalanceStep.verdict === 'invalid' &&
+    invalidLinearBalanceStep.reason.includes('changed differently') &&
+    invalidLinearBalanceStep.hintTarget.includes('both sides'),
+  'math_check_step should explain two-step equation balance mistakes.'
+)
+
 const coach = curriculumCoach({ topic: 'ratios', gradeLevel: 'Grade 6' })
 assert(
   (coach.recommendedTools as readonly string[]).includes('double_number_line'),
@@ -550,4 +558,4 @@ assert(
   'common_denominator should convert 1/2 and 1/3 to sixths.'
 )
 
-console.log(`Voice agent tool smoke test passed (${smokeCases.length + 22} checks).`)
+console.log(`Voice agent tool smoke test passed (${smokeCases.length + 23} checks).`)

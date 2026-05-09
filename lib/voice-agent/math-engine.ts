@@ -540,6 +540,66 @@ function expressionStepHintTarget(features: ReturnType<typeof detectStepFeatures
   return 'compare the value before and after the step'
 }
 
+function describeEquationSideChange(previousSide: string, nextSide: string) {
+  const change = simplify(`(${nextSide})-(${previousSide})`).toString()
+  const normalizedChange = normalizeExpression(change)
+
+  try {
+    const numericChange = coerceFiniteNumber(safeEvaluate(normalizedChange))
+    if (isNearlyEqual(numericChange, 0)) {
+      return {
+        changed: false,
+        phrase: 'stayed the same',
+      }
+    }
+
+    return {
+      changed: true,
+      phrase: `changed by ${numericChange > 0 ? '+' : ''}${formatNumber(numericChange, 4)}`,
+    }
+  } catch {
+    if (normalizedChange === '0') {
+      return {
+        changed: false,
+        phrase: 'stayed the same',
+      }
+    }
+
+    return {
+      changed: true,
+      phrase: `changed by ${change}`,
+    }
+  }
+}
+
+function explainLinearEquationMismatch(
+  prevLeft: string,
+  prevRight: string,
+  nextLeft: string,
+  nextRight: string
+) {
+  try {
+    const leftChange = describeEquationSideChange(prevLeft, nextLeft)
+    const rightChange = describeEquationSideChange(prevRight, nextRight)
+
+    if (leftChange.changed && !rightChange.changed) {
+      return `Only the left side changed: it ${leftChange.phrase}, while the right side stayed the same.`
+    }
+
+    if (!leftChange.changed && rightChange.changed) {
+      return `Only the right side changed: it ${rightChange.phrase}, while the left side stayed the same.`
+    }
+
+    if (leftChange.changed && rightChange.changed) {
+      return `The two sides changed differently: the left side ${leftChange.phrase}, while the right side ${rightChange.phrase}.`
+    }
+  } catch {
+    // Fall through to the generic equation-balance explanation.
+  }
+
+  return 'The next line does not stay equivalent to the previous equation.'
+}
+
 function formatNumber(value: number, digits = 2) {
   if (isNearlyEqual(value, Math.round(value), 1e-9)) {
     return String(Math.round(value))
@@ -2342,6 +2402,12 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
         reason: `Both equations keep the same solution, ${prevSolved.variable} = ${formatNumber(prevSolved.solution, 4)}.`,
         hintTarget: 'explain which inverse operation preserved the solution',
       }
+    }
+
+    return {
+      verdict: 'invalid',
+      reason: explainLinearEquationMismatch(prevLeft, prevRight, nextLeft, nextRight),
+      hintTarget: 'apply the same inverse operation to both sides',
     }
   } catch {
     return {

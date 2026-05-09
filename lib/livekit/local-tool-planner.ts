@@ -316,6 +316,30 @@ function extractSlopeAttempt(text: string): StudentStepPair | null {
   )
 }
 
+function extractLinearEquationSnippets(text: string) {
+  const equationPattern =
+    /(?:[+-]?(?:\d+(?:\.\d+)?)?\s*x\s*(?:[+-]\s*\d+(?:\.\d+)?)?\s*=\s*-?\d+(?:\.\d+)?|-?\d+(?:\.\d+)?\s*=\s*[+-]?(?:\d+(?:\.\d+)?)?\s*x\s*(?:[+-]\s*\d+(?:\.\d+)?)?)/gi
+
+  return [...text.matchAll(equationPattern)]
+    .map((match) => cleanStepText(match[0]))
+    .filter(Boolean)
+}
+
+function extractLinearEquationAttempt(text: string): StudentStepPair | null {
+  if (
+    !/\b(?:got|gets|became|becomes|changed|rewrote|ended|subtracted|added|divided|multiplied|both sides|is that|is this|right|correct|mistake|wrong)\b/i.test(
+      text
+    )
+  ) {
+    return null
+  }
+
+  const equations = extractLinearEquationSnippets(text)
+  if (equations.length < 2) return null
+
+  return buildStepPair(equations[0], equations[1])
+}
+
 function extractStudentStepPair(text: string): StudentStepPair | null {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const stopBeforeQuestion = String.raw`(?=\s*(?:[?!]|$|[.](?:\s|$)|\b(?:why|where|what|is that|is this|was that|was this)\b))`
@@ -325,6 +349,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
     const pair = buildStepPair(arrowMatch[1], arrowMatch[2])
     if (pair) return pair
   }
+
+  const linearEquationAttempt = extractLinearEquationAttempt(normalized)
+  if (linearEquationAttempt) return linearEquationAttempt
 
   const slopeAttempt = extractSlopeAttempt(normalized)
   if (slopeAttempt) return slopeAttempt

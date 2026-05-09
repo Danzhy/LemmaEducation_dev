@@ -99,6 +99,15 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'checks natural two-step equation balance attempts before classifying the mistake',
+    prompt: 'I subtracted 3 from 2x + 3 = 11 and got 2x = 14. Is that right?',
+    expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
+    inspect: (input) => {
+      assert.equal(input.previousStep, '2x + 3 = 11')
+      assert.equal(input.nextStep, '2x = 14')
+    },
+  },
+  {
     name: 'checks decimal answer claims before correcting place-value mistakes',
     prompt: 'Check this: 0.4 + 0.08 = 0.12',
     expectedTools: ['math_check_step', 'mistake_pattern_classifier'],
