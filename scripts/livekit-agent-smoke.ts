@@ -48,6 +48,7 @@ async function main() {
     'angle_diagram',
     'fraction_strip',
     'percent_bar',
+    'bar_model',
     'ratio_table',
     'unit_conversion',
     'place_value_chart',
@@ -303,6 +304,21 @@ async function main() {
   const probabilityModelResult = await tools.probability_model.execute(
     { favorableOutcomes: 3, totalOutcomes: 8, title: 'Probability model' },
     { ctx: {} as never, toolCallId: 'smoke-probability-model' }
+  )
+  const tapeDiagramResult = await tools.bar_model.execute(
+    {
+      title: 'Tape diagram',
+      bars: [
+        {
+          label: 'Whole 36',
+          segments: [
+            { label: 'Known 14', value: 14, shaded: true },
+            { label: 'Unknown 22', value: 22, shaded: false },
+          ],
+        },
+      ],
+    },
+    { ctx: {} as never, toolCallId: 'smoke-tape-diagram' }
   )
   const highlightedTableResult = await tools.table_of_values.execute(
     {
@@ -929,6 +945,10 @@ async function main() {
 
   if (!JSON.stringify(probabilityModelResult).includes('3/8') || !JSON.stringify(probabilityModelResult).includes('canvas')) {
     throw new Error('probability_model did not return a probability board model.')
+  }
+
+  if (!JSON.stringify(tapeDiagramResult).includes('Tape diagram') || !JSON.stringify(tapeDiagramResult).includes('Unknown 22')) {
+    throw new Error('bar_model did not return a tape diagram board model.')
   }
 
   if (

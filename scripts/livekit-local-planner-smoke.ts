@@ -117,6 +117,33 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes explicit fraction-bar requests to fraction strip',
+    prompt: 'Show a fraction bar for 5/4.',
+    expectedTools: ['fraction_strip'],
+    inspect: (input) => {
+      assert.equal(input.numerator, 5)
+      assert.equal(input.denominator, 4)
+      assert.equal(input.title, 'Fraction bar')
+    },
+  },
+  {
+    name: 'routes explicit tape-diagram requests to bar model',
+    prompt: 'Draw a tape diagram for 36 stickers total with 14 used and the rest unknown.',
+    expectedTools: ['bar_model'],
+    inspect: (input) => {
+      const bars = input.bars as Array<{
+        label: string
+        segments: Array<{ label: string; value: number | string; shaded: boolean }>
+      }>
+      assert.equal(input.title, 'Tape diagram')
+      assert.equal(bars[0].label, 'Whole 36')
+      assert.equal(bars[0].segments[0].value, 14)
+      assert.equal(bars[0].segments[0].shaded, true)
+      assert.equal(bars[0].segments[1].value, 22)
+      assert.equal(bars[0].segments[1].shaded, false)
+    },
+  },
+  {
     name: 'routes percent-of-number to calculator plus visual bar',
     prompt: 'What is 25% of 80? Show me the thinking.',
     expectedTools: ['percent_of_number', 'percent_bar'],
@@ -791,6 +818,14 @@ assert.match(
     [{ summary: 'Prepared statistics summary: mean 6, median 7, range 6.' }]
   ),
   /data summary/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'draw a tape diagram',
+    [{ toolName: 'bar_model', input: {} }],
+    [{ summary: 'Prepared a bar model.' }]
+  ),
+  /tape diagram/
 )
 assert.match(
   buildLocalAssistantReply(

@@ -218,6 +218,26 @@ const CASES: TutorExperienceCase[] = [
     minCanvasActions: 8,
     expectedSubstrings: ['Probability', '3/8'],
   },
+  {
+    id: 'tape-diagram-word-problem',
+    title: 'Set up a part-whole word problem with a tape diagram',
+    gradeBand: 'grades 3-6',
+    toolName: 'bar_model',
+    input: {
+      title: 'Tape diagram',
+      bars: [
+        {
+          label: 'Whole 36',
+          segments: [
+            { label: 'Known 14', value: 14, shaded: true },
+            { label: 'Unknown 22', value: 22, shaded: false },
+          ],
+        },
+      ],
+    },
+    minCanvasActions: 5,
+    expectedSubstrings: ['Tape diagram', 'Unknown 22', 'canvasActions'],
+  },
 ]
 
 function assert(condition: unknown, message: string): asserts condition {

@@ -299,6 +299,115 @@ function extractFractions(text: string) {
   }))
 }
 
+function wantsLocalFractionStrip(prompt: string) {
+  const lower = prompt.toLowerCase()
+  return (
+    /\bfraction\s+(?:bar|strip|model)\b/.test(lower) ||
+    /\b(?:show|draw|model|visualize)\b.{0,80}\bfraction\b/.test(lower) ||
+    /\bfraction\b.{0,80}\b(?:bar|strip|model|visual)\b/.test(lower)
+  )
+}
+
+function wantsLocalTapeDiagram(prompt: string) {
+  const lower = prompt.toLowerCase()
+  return /\b(?:tape\s+diagram|tape\s+model|bar\s+model|part[- ]?whole\s+model|comparison\s+(?:bar|model))\b/.test(
+    lower
+  )
+}
+
+function buildLocalTapeDiagramInput(prompt: string) {
+  if (!wantsLocalTapeDiagram(prompt)) return null
+
+  const lower = prompt.toLowerCase()
+  const values = extractNumbers(prompt).filter((value) => Number.isFinite(value) && value >= 0).slice(0, 5)
+  const title = /comparison/.test(lower) ? 'Comparison tape diagram' : 'Tape diagram'
+
+  if (values.length === 0) {
+    return {
+      title,
+      bars: [
+        {
+          label: 'Whole',
+          segments: [
+            { label: 'Known part', value: 'known', shaded: true },
+            { label: 'Unknown part', value: '?', shaded: false },
+          ],
+        },
+      ],
+    }
+  }
+
+  if (values.length >= 2) {
+    const hasWholeCue = /\b(total|altogether|in all|whole)\b/.test(lower)
+    const whole = values[0]
+    const known = values[1]
+    if (hasWholeCue && whole >= known) {
+      const unknown = Number((whole - known).toFixed(6))
+      return {
+        title,
+        bars: [
+          {
+            label: `Whole ${formatLocalNumber(whole)}`,
+            segments: [
+              { label: `Known ${formatLocalNumber(known)}`, value: known, shaded: true },
+              {
+                label: unknown > 0 ? `Unknown ${formatLocalNumber(unknown)}` : 'Unknown',
+                value: unknown > 0 ? unknown : '?',
+                shaded: false,
+              },
+            ],
+          },
+        ],
+      }
+    }
+
+    const remainingValues = values.slice(1)
+    const remainingTotal = remainingValues.reduce((sum, value) => sum + value, 0)
+    if (remainingValues.length >= 2 && Math.abs(whole - remainingTotal) < 1e-6) {
+      return {
+        title,
+        bars: [
+          {
+            label: `Whole ${formatLocalNumber(whole)}`,
+            segments: remainingValues.map((value, index) => ({
+              label: `Part ${index + 1}`,
+              value,
+              shaded: index === 0,
+            })),
+          },
+        ],
+      }
+    }
+
+    return {
+      title,
+      bars: [
+        {
+          label: 'Parts',
+          segments: values.slice(0, 4).map((value, index) => ({
+            label: index === 0 ? `Known ${formatLocalNumber(value)}` : `Part ${index + 1}`,
+            value,
+            shaded: index === 0,
+          })),
+        },
+      ],
+    }
+  }
+
+  return {
+    title,
+    bars: [
+      {
+        label: 'Whole',
+        segments: [
+          { label: `Known ${formatLocalNumber(values[0])}`, value: values[0], shaded: true },
+          { label: 'Unknown', value: '?', shaded: false },
+        ],
+      },
+    ],
+  }
+}
+
 function extractGraphExpression(text: string) {
   const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
   const equationMatch = normalized.match(/(?:graph|plot|draw)\s+(?:the\s+)?(?:function\s+)?(?:y\s*=\s*)?([^.,;\n]+?)(?:\s+from|\s+for|\s+and|\s+with|$)/i)
@@ -1687,6 +1796,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const statisticsSummaryRequest = extractStatisticsSummaryRequest(prompt)
   const probabilityModelRequest = extractProbabilityModelRequest(prompt)
   const studentStepPair = extractStudentStepPair(prompt)
+  const tapeDiagramInput = buildLocalTapeDiagramInput(prompt)
   const plans: LocalToolPlan[] = []
   const asksForFullSolution = isLocalAnswerDisclosureRequest(prompt)
   const hasExplicitStudentAttempt =
@@ -1703,7 +1813,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
   const hasSpecificMathAction =
-    /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
+    /\b(graph|plot|parabola|function|coordinate|distance|intercept|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|area|perimeter|rectangle|triangle|base|height|word problem|plan|tape|bar\s+model|part[- ]?whole|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
   const asksForResponsePlanning =
     /\b(what should (?:we|i|you) do next|how should (?:we|i|you) start|choose the next move|plan the next move|best next step|how should you help|what is the next tutoring move)\b/.test(lower)
   const asksForMistakeHelp =
@@ -2100,6 +2210,19 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     return plans
   }
 
+  if (wantsLocalFractionStrip(prompt) && fractions.length >= 1) {
+    plans.push({
+      toolName: 'fraction_strip',
+      input: {
+        numerator: fractions[0].numerator,
+        denominator: fractions[0].denominator,
+        title: 'Fraction bar',
+        label: `${fractions[0].numerator}/${fractions[0].denominator}`,
+      },
+    })
+    return plans
+  }
+
   if (/simplify|reduce|equivalent fraction/.test(lower) && fractions.length >= 1) {
     plans.push({
       toolName: 'fraction_simplify',
@@ -2107,6 +2230,14 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
         numerator: fractions[0].numerator,
         denominator: fractions[0].denominator,
       },
+    })
+    return plans
+  }
+
+  if (tapeDiagramInput) {
+    plans.push({
+      toolName: 'bar_model',
+      input: tapeDiagramInput,
     })
     return plans
   }
@@ -2586,6 +2717,10 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
 
   if (firstTool === 'probability_model') {
     return 'I put the probability model on the board. Start with favorable outcomes over total outcomes, then tell me what the denominator represents.'
+  }
+
+  if (firstTool === 'bar_model') {
+    return 'I set up a tape diagram on the board. Point to the known part first, then tell me what the unknown part represents.'
   }
 
   if (firstTool === 'angle_diagram') {
