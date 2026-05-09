@@ -21,7 +21,7 @@ const route = 'app/api/tutor/learner-context/route.ts'
 const library = 'lib/tutor/learner-context.ts'
 const liveKitRunner = 'lib/livekit/tool-runner.ts'
 const browserTools = 'lib/voice-agent/tools.ts'
-const instructions = 'app/api/voice-agent/session/route.ts'
+const instructions = 'lib/voice-agent/session-api-route.ts'
 
 assertIncludes(route, 'getSessionUser()')
 assertIncludes(route, 'takeTutorApiRateLimit')

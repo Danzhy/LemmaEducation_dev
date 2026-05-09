@@ -123,7 +123,7 @@ assert(
   'canvas_action.actionType enum drifted from the safe structured action allowlist.'
 )
 
-const instructionSource = readFileSync(new URL('../app/api/voice-agent/session/route.ts', import.meta.url), 'utf8')
+const instructionSource = readFileSync(new URL('../lib/voice-agent/session-api-route.ts', import.meta.url), 'utf8')
 for (const toolName of names) {
   assert(
     instructionSource.includes(toolName),

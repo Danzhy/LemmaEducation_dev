@@ -711,6 +711,7 @@ export function useVoiceAgentTutor({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            sessionId: startedSessionId,
             language: options?.language ?? 'en',
             gradeLevel: options?.gradeLevel ?? '',
           }),
