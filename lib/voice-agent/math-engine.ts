@@ -2017,6 +2017,79 @@ function compareUnitRateClaim(pair: UnitRatePair, claim: UnitRateClaim) {
   }
 }
 
+function extractUnitRateTargetQuantity(text: string, pair: UnitRatePair) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const labelPattern = String.raw`[A-Za-z$][A-Za-z$-]*`
+  const targetMatches = [
+    ...normalized.matchAll(
+      new RegExp(
+        String.raw`\b(?:target|for|at|when|if|to|make|makes|making|costs?|costing)\s+\$?\s*(${PLAIN_NUMBER_PATTERN})\s+(${labelPattern})(?:s)?\b`,
+        'gi'
+      )
+    ),
+  ]
+
+  for (const match of targetMatches) {
+    if (!unitRateLabelsMatch(match[2], pair.quantityLabel)) continue
+    const target = parsePlainNumber(match[1])
+    if (target !== null && target > 0 && !isNearlyEqual(target, pair.quantity)) {
+      return target
+    }
+  }
+
+  return null
+}
+
+function parseUnitRateTargetClaim(text: string, pair: UnitRatePair) {
+  const normalized = text.replace(/[“”]/g, '"').replace(/[’]/g, "'")
+  const labelPattern = String.raw`[A-Za-z$][A-Za-z$-]*`
+  const labeledMatches = [
+    ...normalized.matchAll(
+      new RegExp(String.raw`\$?\s*(${PLAIN_NUMBER_PATTERN})(?:\s+(${labelPattern})(?:s)?)?`, 'gi')
+    ),
+  ]
+
+  const labeledClaim = labeledMatches.find((match) => {
+    const rawLabel = match[0].includes('$') ? 'dollars' : match[2]
+    return rawLabel === undefined || unitRateLabelsMatch(rawLabel, pair.valueLabel)
+  })
+  if (labeledClaim) {
+    const value = parsePlainNumber(labeledClaim[1])
+    if (value !== null) return value
+  }
+
+  return null
+}
+
+function checkUnitRateScalingStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
+  const combined = `${previousStep} ${nextStep}`
+  if (!/\b(unit rate|rate|per|each|speed|cost|for|target|how much|how many|how far)\b/i.test(combined)) return null
+
+  const pair = extractUnitRatePair(previousStep)
+  if (!pair) return null
+
+  const targetQuantity = extractUnitRateTargetQuantity(previousStep, pair)
+  if (targetQuantity === null) return null
+
+  const studentValue = parseUnitRateTargetClaim(nextStep, pair)
+  if (studentValue === null) return null
+
+  const rate = pair.value / pair.quantity
+  const expectedValue = rate * targetQuantity
+  const isValid = isNearlyEqual(studentValue, expectedValue)
+  const expectedLabel = `${formatNumber(expectedValue, 4)} ${formatUnitLabel(pair.valueLabel, expectedValue)}`
+
+  return {
+    verdict: isValid ? 'valid' : 'invalid',
+    reason: isValid
+      ? `The target value is ${expectedLabel}: ${formatNumber(pair.value, 4)} divided by ${formatNumber(pair.quantity, 4)} is ${formatNumber(rate, 4)} per ${pair.quantityLabel}, then ${formatNumber(rate, 4)} times ${formatNumber(targetQuantity, 4)} equals ${formatNumber(expectedValue, 4)}.`
+      : `The target value should be ${expectedLabel}, not ${formatNumber(studentValue, 4)}. First find ${formatNumber(rate, 4)} ${formatUnitLabel(pair.valueLabel, rate)} per ${pair.quantityLabel}, then multiply by ${formatNumber(targetQuantity, 4)} ${formatUnitLabel(pair.quantityLabel, targetQuantity)}.`,
+    hintTarget: isValid
+      ? 'explain the unit rate and target scaling'
+      : 'find the unit rate first, then multiply by the target quantity',
+  }
+}
+
 function checkUnitRateStep(previousStep: string, nextStep: string): MathStepCheckResult | null {
   const combined = `${previousStep} ${nextStep}`
   if (!/\b(unit rate|rate|per|each|speed|cost|for)\b/i.test(combined)) return null
@@ -5030,6 +5103,11 @@ export function mathCheckStep(previousStep: string, nextStep: string): MathStepC
   const probabilityModelStep = checkProbabilityModelStep(previousStep, nextStep)
   if (probabilityModelStep) {
     return probabilityModelStep
+  }
+
+  const unitRateScalingStep = checkUnitRateScalingStep(previousStep, nextStep)
+  if (unitRateScalingStep) {
+    return unitRateScalingStep
   }
 
   const unitRateStep = checkUnitRateStep(previousStep, nextStep)

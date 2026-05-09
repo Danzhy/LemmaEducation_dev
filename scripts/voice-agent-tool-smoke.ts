@@ -453,6 +453,20 @@ assert(
   'math_check_step should catch unit-rate division mistakes.'
 )
 
+const validUnitRateScalingStep = mathCheckStep('3 notebooks cost 6 dollars; target 20 notebooks', '$40')
+assert(
+  validUnitRateScalingStep.verdict === 'valid' &&
+    validUnitRateScalingStep.hintTarget.includes('target scaling'),
+  'math_check_step should validate unit-rate target scaling.'
+)
+
+const invalidUnitRateScalingStep = mathCheckStep('3 notebooks cost 6 dollars; target 20 notebooks', '$54')
+assert(
+  invalidUnitRateScalingStep.verdict === 'invalid' &&
+    invalidUnitRateScalingStep.hintTarget.includes('multiply by the target quantity'),
+  'math_check_step should catch unit-rate target scaling mistakes.'
+)
+
 const invalidIntegerSignStep = mathCheckStep('-3 - 5', '2')
 assert(
   invalidIntegerSignStep.verdict === 'invalid' &&

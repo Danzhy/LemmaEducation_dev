@@ -1751,6 +1751,50 @@ function formatLocalUnitRateStepSetup(request: LocalUnitRateRequest) {
   return `unit rate for ${quantity} ${request.quantityLabel} make ${value} ${request.valueLabel}`
 }
 
+function formatLocalUnitRateScalingSetup(request: LocalUnitRateRequest) {
+  const setup = formatLocalUnitRateStepSetup(request)
+  if (typeof request.target !== 'number') return setup
+  return `${setup}; target ${formatLocalNumber(request.target)} ${request.quantityLabel}`
+}
+
+function extractLocalRateTargetValueClaim(text: string, valueLabel: string) {
+  const normalized = normalizeLocalPromptText(text)
+  const valuePattern = localUnitMatchPattern(valueLabel)
+  const labelPattern = String.raw`[A-Za-z$][A-Za-z$-]*`
+  const claimMatch =
+    normalized.match(
+      new RegExp(
+        String.raw`\b(?:i\s+)?(?:got|found|calculated|think|answer(?:\s+is)?|that\s+(?:is|was)|it\s+(?:costs?|will\s+cost|would\s+cost)|equals?|is|was)\s+\$?\s*(${LOCAL_NUMBER_PATTERN})(?:\s+(${labelPattern})(?:s)?)?\b`,
+        'i'
+      )
+    ) ?? normalized.match(new RegExp(String.raw`=\s*\$?\s*(${LOCAL_NUMBER_PATTERN})(?:\s+(${labelPattern})(?:s)?)?\b`, 'i'))
+
+  if (!claimMatch) return null
+
+  const rawLabel = claimMatch[0].includes('$') ? 'dollars' : normalizeLocalUnitLabel(claimMatch[2])
+  if (rawLabel && valuePattern && !new RegExp(`^${valuePattern}$`, 'i').test(rawLabel)) {
+    return null
+  }
+
+  const value = parseLocalPlainNumber(claimMatch[1])
+  if (value === null) return null
+
+  return `${formatLocalNumber(value)} ${valueLabel}`
+}
+
+function extractUnitRateScalingAttempt(text: string): StudentStepPair | null {
+  const request = extractLocalUnitRateRequest(text)
+  if (!request || typeof request.target !== 'number') return null
+  if (!/\b(i got|i found|i calculated|i think|my answer|answer is|is that right|is this right|check my work|correct)\b/i.test(text)) {
+    return null
+  }
+
+  const claim = extractLocalRateTargetValueClaim(text, request.valueLabel)
+  if (!claim) return null
+
+  return buildStepPair(formatLocalUnitRateScalingSetup(request), claim)
+}
+
 function extractLocalUnitRateClaim(text: string) {
   const normalized = normalizeLocalPromptText(text)
   const rateClaimMatches = [
@@ -1807,6 +1851,9 @@ function buildLocalUnitRateVisualInputFromStepPair(pair: StudentStepPair) {
       pairs: [
         { top: 0, bottom: 0, label: 'start' },
         { top: request.quantity, bottom: request.value, label: 'given' },
+        ...(typeof request.target === 'number'
+          ? [{ top: request.target, bottom: (request.value / request.quantity) * request.target, label: 'target' }]
+          : []),
       ],
       title: 'Double number line',
     },
@@ -3114,6 +3161,9 @@ function extractStudentStepPair(text: string): StudentStepPair | null {
     const pair = buildStepPair(arrowMatch[1], arrowMatch[2])
     if (pair) return pair
   }
+
+  const unitRateScalingAttempt = extractUnitRateScalingAttempt(normalized)
+  if (unitRateScalingAttempt) return unitRateScalingAttempt
 
   const unitRateAttempt = extractUnitRateAttempt(normalized)
   if (unitRateAttempt) return unitRateAttempt

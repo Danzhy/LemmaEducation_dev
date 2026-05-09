@@ -342,6 +342,14 @@ async function main() {
     { previousStep: '150 miles in 3 hours', nextStep: '30 miles per hour' },
     { ctx: {} as never, toolCallId: 'smoke-invalid-unit-rate-step-check' }
   )
+  const validUnitRateScalingStep = await tools.math_check_step.execute(
+    { previousStep: '3 notebooks cost 6 dollars; target 20 notebooks', nextStep: '$40' },
+    { ctx: {} as never, toolCallId: 'smoke-unit-rate-scaling-step-check' }
+  )
+  const invalidUnitRateScalingStep = await tools.math_check_step.execute(
+    { previousStep: '3 notebooks cost 6 dollars; target 20 notebooks', nextStep: '$54' },
+    { ctx: {} as never, toolCallId: 'smoke-invalid-unit-rate-scaling-step-check' }
+  )
   const invalidIntegerSignStep = await tools.math_check_step.execute(
     { previousStep: '-3 - 5', nextStep: '2' },
     { ctx: {} as never, toolCallId: 'smoke-integer-sign-step-check' }
@@ -1094,6 +1102,20 @@ async function main() {
     !JSON.stringify(invalidUnitRateStep).includes('unit rate')
   ) {
     throw new Error(`math_check_step did not reject an invalid unit-rate claim: ${JSON.stringify(invalidUnitRateStep)}`)
+  }
+
+  if (
+    !JSON.stringify(validUnitRateScalingStep).includes('"verdict":"valid"') ||
+    !JSON.stringify(validUnitRateScalingStep).includes('target scaling')
+  ) {
+    throw new Error(`math_check_step did not accept a valid unit-rate scaling claim: ${JSON.stringify(validUnitRateScalingStep)}`)
+  }
+
+  if (
+    !JSON.stringify(invalidUnitRateScalingStep).includes('"verdict":"invalid"') ||
+    !JSON.stringify(invalidUnitRateScalingStep).includes('target quantity')
+  ) {
+    throw new Error(`math_check_step did not reject an invalid unit-rate scaling claim: ${JSON.stringify(invalidUnitRateScalingStep)}`)
   }
 
   if (
