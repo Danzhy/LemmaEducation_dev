@@ -37,6 +37,7 @@ import type {
   TutorCanvasAction,
   TutorChatMessage,
   TutorConnectOptions,
+  TutorSendTextOptions,
   TutorSessionAdapter,
   TutorToolEvent,
 } from '@/lib/tutor/session-adapter'
@@ -531,10 +532,12 @@ export function useLiveKitTutor({
   )
 
   const runLocalToolTurn = useCallback(
-    async (text: string) => {
+    async (text: string, options?: TutorSendTextOptions) => {
       setState('thinking')
       setTranscript('Choosing the right math tool...')
-      const plans = planLocalToolTurn(text, gradeLevelRef.current)
+      const plans = planLocalToolTurn(text, gradeLevelRef.current, {
+        boardDescription: options?.boardDescription,
+      })
       const outputs: unknown[] = []
 
       try {
@@ -937,7 +940,7 @@ export function useLiveKitTutor({
   )
 
   const sendText = useCallback(
-    (text: string) => {
+    (text: string, options?: TutorSendTextOptions) => {
       if (pausedRef.current || !text.trim()) return
       registerLocalActivity(true)
       const message: TutorChatMessage = { role: 'user', content: text, source: 'text' }
@@ -945,7 +948,7 @@ export function useLiveKitTutor({
       setCurrentUserTranscript('')
 
       if (localToolModeRef.current) {
-        void runLocalToolTurn(text)
+        void runLocalToolTurn(text, options)
         return
       }
 
@@ -954,6 +957,7 @@ export function useLiveKitTutor({
       void publishUserPayload(LIVEKIT_TOPICS.userText, {
         type: 'user_text',
         text,
+        boardDescription: options?.boardDescription,
         sessionId: sessionIdRef.current,
         createdAt: Date.now(),
       })

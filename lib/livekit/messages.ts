@@ -14,6 +14,7 @@ export type LiveKitTutorPayload =
   | {
       type: 'user_text'
       text: string
+      boardDescription?: string
       sessionId: string | null
       createdAt: number
     }

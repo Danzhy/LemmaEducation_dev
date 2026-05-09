@@ -12,6 +12,10 @@ export type TutorUserMessageSource =
   | 'image_only'
   | 'speech'
 
+export type TutorSendTextOptions = {
+  boardDescription?: string
+}
+
 export type TutorChatMessage = {
   role: 'user' | 'assistant'
   content: string
@@ -176,7 +180,7 @@ export type TutorSessionAdapter = {
   pendingCanvasActions: TutorCanvasAction[]
   connect: (options?: TutorConnectOptions) => Promise<void>
   disconnect: (endedReason?: 'user' | 'error' | 'quota') => void
-  sendText: (text: string) => void
+  sendText: (text: string, options?: TutorSendTextOptions) => void
   sendImage: (base64Data: string, mimeType: string) => void
   sendTextWithImage: (text: string, base64Data: string, mimeType: string) => void
   sendCanvasImage: (base64: string, mimeType?: string) => void

@@ -124,14 +124,19 @@ async function dispatchCanvasActions(ctx: JobContext, student: RemoteParticipant
 function registerIncomingTextHandlers(ctx: JobContext, session: voice.AgentSession) {
   ctx.room.registerTextStreamHandler(LIVEKIT_TOPICS.userText, async (reader) => {
     const raw = await reader.readAll()
-    const parsed = parseJsonObject(raw) as { type?: string; text?: string }
+    const parsed = parseJsonObject(raw) as { type?: string; text?: string; boardDescription?: string }
     const text = typeof parsed.text === 'string' ? parsed.text.trim() : ''
     if (!text) return
+    const boardDescription =
+      typeof parsed.boardDescription === 'string' ? parsed.boardDescription.trim().slice(0, 1800) : ''
+    const userInput = boardDescription
+      ? `${text}\n\nVisible board summary from the student's current canvas:\n${boardDescription}`
+      : text
 
     session.generateReply({
-      userInput: text.slice(0, 4000),
+      userInput: userInput.slice(0, 4000),
       instructions:
-        'Respond as Lemma. If the prompt needs arithmetic, graphing, geometry, fractions, ratios, percents, data, or probability support, use your deterministic tools and render on the board when helpful.',
+        'Respond as Lemma. If the prompt needs arithmetic, graphing, geometry, fractions, ratios, percents, data, or probability support, use your deterministic tools and render on the board when helpful. If a visible board summary is included and the student references the board, call board_state_summarizer before solving.',
     })
   })
 

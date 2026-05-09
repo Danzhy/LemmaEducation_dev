@@ -4,12 +4,54 @@ import {
   hydrateLocalToolPlanInput,
   planLocalToolTurn,
 } from '@/lib/livekit/local-tool-planner'
+import {
+  serializeTutorBoardState,
+  type BoardStateReader,
+} from '@/lib/tutor/board-state-serialization'
 
 type PlannerCase = {
   name: string
   prompt: string
   expectedTools: string[]
   inspect?: (firstInput: Record<string, unknown>, plans: ReturnType<typeof planLocalToolTurn>) => void
+}
+
+const mockBoardShapes = {
+  'base-label': {
+    type: 'text',
+    props: {
+      richText: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Base 8 cm' }] }],
+      },
+    },
+    meta: { lemmaToolOwned: true, lemmaArtifactGroupId: 'tool:geometry_figure' },
+  },
+  'height-label': {
+    type: 'text',
+    props: {
+      richText: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Height 5 cm' }] }],
+      },
+    },
+    meta: { lemmaToolOwned: true, lemmaArtifactGroupId: 'tool:geometry_figure' },
+  },
+  'student-note': {
+    type: 'math-block',
+    props: { latex: 'A=\\frac{1}{2}bh' },
+    meta: {},
+  },
+} satisfies Record<string, { type: string; props: Record<string, unknown>; meta: Record<string, unknown> }>
+
+const mockBoardReader: BoardStateReader<keyof typeof mockBoardShapes> = {
+  getCurrentPageShapeIds: () => Object.keys(mockBoardShapes) as Array<keyof typeof mockBoardShapes>,
+  getShape: (shapeId) => mockBoardShapes[shapeId],
+  getShapePageBounds: (shapeId) => {
+    if (shapeId === 'base-label') return { x: 100, y: 240, w: 110, h: 30 }
+    if (shapeId === 'height-label') return { x: 210, y: 130, w: 120, h: 30 }
+    return { x: 140, y: 285, w: 180, h: 60 }
+  },
 }
 
 const cases: PlannerCase[] = [
@@ -796,6 +838,21 @@ for (const testCase of cases) {
   )
   testCase.inspect?.(plans[0].input, plans)
 }
+
+const serializedBoardState = serializeTutorBoardState(mockBoardReader)
+assert.match(serializedBoardState, /geometry figure/)
+assert.match(serializedBoardState, /Base 8 cm/)
+assert.match(serializedBoardState, /A=\\frac\{1\}\{2\}bh/)
+
+const boardAwarePlans = planLocalToolTurn('How do I find the area from this diagram?', '6', {
+  boardDescription: serializedBoardState,
+})
+assert.deepEqual(
+  boardAwarePlans.map((plan) => plan.toolName),
+  ['board_state_summarizer']
+)
+assert.equal(boardAwarePlans[0].input.boardDescription, serializedBoardState)
+assert.equal(boardAwarePlans[0].input.studentRequest, 'How do I find the area from this diagram?')
 
 assert.match(
   buildLocalAssistantReply('graph y = x', [{ toolName: 'graph_function', input: {} }], []),

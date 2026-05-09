@@ -11,6 +11,7 @@ import EmbeddedBoard, { type EmbeddedBoardRef } from '@/components/EmbeddedBoard
 import GuidedTutorialOverlay, { type TutorialStep } from '@/components/GuidedTutorialOverlay'
 import { useCanvasChangeDetection } from '@/hooks/useCanvasChangeDetection'
 import { authClient } from '@/lib/auth/client'
+import { serializeTutorBoardState } from '@/lib/tutor/board-state-serialization'
 import { applyTutorCanvasAction } from '@/lib/voice-agent/canvas-actions'
 import type {
   TutorSessionAdapter,
@@ -434,6 +435,12 @@ export default function TutorWorkspace({
     [mode, uploadedDocument]
   )
 
+  const buildLabBoardDescription = useCallback(() => {
+    if ((mode !== 'agent-lab' && mode !== 'livekit-lab') || !streamCanvas || !editor) return undefined
+    const description = serializeTutorBoardState(editor)
+    return description || undefined
+  }, [editor, mode, streamCanvas])
+
   const handleSendImageOnly = () => {
     if (session.isPaused) return
     if (uploadedImage) {
@@ -452,12 +459,13 @@ export default function TutorWorkspace({
   const handleTextSend = (text: string) => {
     if (session.isPaused) return
     if (streamCanvas && session.isConnected && editor) void sendCanvasToTutor(true)
+    const boardDescription = buildLabBoardDescription()
     if (uploadedImage) {
       session.sendTextWithImage(buildUploadedDocumentContext(text), uploadedImage.base64, uploadedImage.mimeType)
       setUploadedImage(null)
       setUploadedDocument(null)
     } else {
-      session.sendText(text)
+      session.sendText(text, boardDescription ? { boardDescription } : undefined)
     }
   }
 

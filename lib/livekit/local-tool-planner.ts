@@ -3,6 +3,10 @@ export type LocalToolPlan = {
   input: Record<string, unknown>
 }
 
+type LocalToolPlannerContext = {
+  boardDescription?: string
+}
+
 type LearnerContextOutput = {
   likelyTopics?: unknown
   struggleSignals?: unknown
@@ -2202,8 +2206,13 @@ function isLocalAnswerDisclosureRequest(prompt: string) {
   return false
 }
 
-export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalToolPlan[] {
+export function planLocalToolTurn(
+  prompt: string,
+  gradeLevel: string,
+  context: LocalToolPlannerContext = {}
+): LocalToolPlan[] {
   const lower = prompt.toLowerCase()
+  const liveBoardDescription = context.boardDescription?.trim().slice(0, 1800) ?? ''
   const fractions = extractFractions(prompt)
   const visualFractions = extractVisualFractions(prompt)
   const numbers = extractNumbers(prompt)
@@ -2339,7 +2348,7 @@ export function planLocalToolTurn(prompt: string, gradeLevel: string): LocalTool
     plans.push({
       toolName: 'board_state_summarizer',
       input: {
-        boardDescription: prompt.slice(0, 800),
+        boardDescription: liveBoardDescription || prompt.slice(0, 800),
         studentRequest: prompt.slice(0, 300),
         gradeLevel,
         studentWork: hasStudentAttempt ? prompt.slice(0, 500) : '',
