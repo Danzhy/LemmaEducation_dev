@@ -41,10 +41,24 @@ export type LearnerContextResponse = {
   likelyTopics: string[]
   struggleSignals: string[]
   misconceptionTimeline: LearnerMisconceptionTimelineItem[]
+  reviewSummaries: LearnerReviewSummaries
   recentExcerpts: Array<{ role: 'user' | 'assistant'; content: string }>
   recentTools: Array<{ toolName: string; count: number }>
   suggestedTutorAdjustments: string[]
   instruction: string
+}
+
+export type LearnerMemoryReviewSummary = {
+  headline: string
+  focusAreas: string[]
+  evidenceSummary: string
+  suggestedNextSteps: string[]
+  privacyNote: string
+}
+
+export type LearnerReviewSummaries = {
+  teacher: LearnerMemoryReviewSummary
+  parent: LearnerMemoryReviewSummary
 }
 
 const TOPIC_PATTERNS: Array<[string, RegExp]> = [
@@ -313,6 +327,142 @@ function buildSuggestedAdjustments(input: {
   return [...adjustments].slice(0, 5)
 }
 
+function formatSessionCount(count: number) {
+  return `${count} prior session${count === 1 ? '' : 's'}`
+}
+
+function compactLearningSignal(value: string, maxLength = 140) {
+  return value.replace(/\s+/g, ' ').trim().slice(0, maxLength)
+}
+
+function reviewPriorityLabel(priority: LearnerMisconceptionTimelineItem['priority']) {
+  if (priority === 'blocker') return 'priority review'
+  if (priority === 'reteach') return 'reteach'
+  return 'watch'
+}
+
+function buildTeacherFocusAreas(input: {
+  likelyTopics: string[]
+  misconceptionTimeline: LearnerMisconceptionTimelineItem[]
+}) {
+  const timelineAreas = input.misconceptionTimeline.slice(0, 3).map((item) => {
+    const count = item.count > 1 ? `, ${item.count} signals` : ''
+    return `${compactLearningSignal(item.topic, 48)}: ${compactLearningSignal(item.signal)} (${reviewPriorityLabel(
+      item.priority
+    )}${count})`
+  })
+  if (timelineAreas.length > 0) return timelineAreas
+
+  const topicAreas = input.likelyTopics
+    .slice(0, 3)
+    .map((topic) => `${topic}: start with a fresh diagnostic before moving faster.`)
+  if (topicAreas.length > 0) return topicAreas
+
+  return ['Start with one diagnostic question and collect current-work evidence before adapting.']
+}
+
+function buildParentFocusAreas(input: {
+  likelyTopics: string[]
+  misconceptionTimeline: LearnerMisconceptionTimelineItem[]
+}) {
+  const timelineAreas = input.misconceptionTimeline.slice(0, 2).map((item) => {
+    const signal = compactLearningSignal(item.signal.replace(/^Needs review:\s*/i, '').replace(/^Recurring\s+/i, ''))
+    return `${compactLearningSignal(item.topic, 48)}: practice explaining ${signal.toLowerCase()}.`
+  })
+  if (timelineAreas.length > 0) return timelineAreas
+
+  const topicAreas = input.likelyTopics
+    .slice(0, 2)
+    .map((topic) => `${topic}: ask your student to explain the first step, not just the answer.`)
+  if (topicAreas.length > 0) return topicAreas
+
+  return ['Use one short warmup problem and ask your student to explain how they started.']
+}
+
+function buildParentNextSteps(input: {
+  likelyTopics: string[]
+  misconceptionTimeline: LearnerMisconceptionTimelineItem[]
+}) {
+  const topic = input.misconceptionTimeline[0]?.topic || input.likelyTopics[0] || 'the current math topic'
+  return [
+    `Do one short ${topic.toLowerCase()} practice item at a time.`,
+    'Ask what the first step means before checking the final answer.',
+    'Stop after a few minutes if frustration rises and bring that evidence back to the tutor.',
+  ]
+}
+
+export function buildLearnerReviewSummaries(input: {
+  hasHistory: boolean
+  recentSessionCount: number
+  recentActiveMinutes: number
+  likelyTopics: string[]
+  struggleSignals: string[]
+  misconceptionTimeline: LearnerMisconceptionTimelineItem[]
+  recentTools: Array<{ toolName: string; count: number }>
+  suggestedTutorAdjustments: string[]
+}): LearnerReviewSummaries {
+  if (!input.hasHistory) {
+    return {
+      teacher: {
+        headline: 'No prior learner history is available yet.',
+        focusAreas: ['Begin with one diagnostic question and save evidence from the current work.'],
+        evidenceSummary: 'No prior sessions, transcript excerpts, or structured tool signals were used.',
+        suggestedNextSteps: ['Use the current problem to establish topic, confidence, and misconception evidence.'],
+        privacyNote:
+          'Teacher review should summarize learning evidence only and avoid personal details or raw transcript quotes.',
+      },
+      parent: {
+        headline: 'No prior tutor history is available yet.',
+        focusAreas: ['Start with one short practice problem and ask for the first step aloud.'],
+        evidenceSummary: 'There is not enough saved tutoring evidence for a progress pattern yet.',
+        suggestedNextSteps: [
+          'Encourage your student to explain what they tried first.',
+          'Use the next saved session summary for a more specific practice focus.',
+        ],
+        privacyNote:
+          'Parent summaries should share progress and next practice only, not raw transcripts or private details.',
+      },
+    }
+  }
+
+  const topicText =
+    input.likelyTopics.length > 0 ? ` Recent topics: ${input.likelyTopics.slice(0, 3).join(', ')}.` : ''
+  const structuredSignalText =
+    input.misconceptionTimeline.length > 0
+      ? ` ${input.misconceptionTimeline.length} structured misconception signal${
+          input.misconceptionTimeline.length === 1 ? '' : 's'
+        } are available.`
+      : ''
+  const teacherFocusAreas = buildTeacherFocusAreas(input)
+  const teacherNextSteps =
+    input.suggestedTutorAdjustments.length > 0
+      ? input.suggestedTutorAdjustments.slice(0, 4)
+      : ['Ask one diagnostic question, then choose a visual tool only if the student needs it.']
+  const parentFocusAreas = buildParentFocusAreas(input)
+
+  return {
+    teacher: {
+      headline: `Use ${formatSessionCount(input.recentSessionCount)} to plan one targeted warm start.`,
+      focusAreas: teacherFocusAreas,
+      evidenceSummary: `Based on ${formatSessionCount(input.recentSessionCount)}, about ${input.recentActiveMinutes} active minute${
+        input.recentActiveMinutes === 1 ? '' : 's'
+      }, recent tool categories, and structured learning signals.${topicText}${structuredSignalText}`,
+      suggestedNextSteps: teacherNextSteps,
+      privacyNote:
+        'Teacher review should use these learning patterns for pacing and follow-up, not expose raw transcript lines, tool payloads, or personal details.',
+    },
+    parent: {
+      headline: `Recent tutor history suggests one short practice focus, not a long recap.`,
+      focusAreas: parentFocusAreas,
+      evidenceSummary:
+        'This summary is based on saved tutoring activity and structured math signals. It intentionally omits transcript quotes and internal tool details.',
+      suggestedNextSteps: buildParentNextSteps(input),
+      privacyNote:
+        'Parent summaries should share progress and next practice only. Do not include sensitive personal details, raw chat, or internal tool output.',
+    },
+  }
+}
+
 export async function getLearnerContextUserId(input: {
   userId?: string | null
   sessionId?: string | null
@@ -426,6 +576,16 @@ export async function getLearnerContextForUser(input: {
     signals: struggleSignals,
     recentTools,
   })
+  const reviewSummaries = buildLearnerReviewSummaries({
+    hasHistory: sessions.length > 0 || messages.length > 0 || misconceptionTimeline.length > 0,
+    recentSessionCount: sessions.length,
+    recentActiveMinutes,
+    likelyTopics,
+    struggleSignals,
+    misconceptionTimeline,
+    recentTools,
+    suggestedTutorAdjustments,
+  })
 
   const responseWithoutInstruction = {
     hasHistory: sessions.length > 0 || messages.length > 0 || misconceptionTimeline.length > 0,
@@ -435,6 +595,7 @@ export async function getLearnerContextForUser(input: {
     likelyTopics,
     struggleSignals,
     misconceptionTimeline,
+    reviewSummaries,
     recentExcerpts,
     recentTools,
     suggestedTutorAdjustments,

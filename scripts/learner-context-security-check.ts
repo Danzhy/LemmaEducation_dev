@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { buildLearnerMisconceptionTimeline } from '@/lib/tutor/learner-context'
+import { buildLearnerMisconceptionTimeline, buildLearnerReviewSummaries } from '@/lib/tutor/learner-context'
 
 function read(path: string) {
   return readFileSync(path, 'utf8')
@@ -35,6 +35,7 @@ assertIncludes(library, 'WHERE s.user_id = ${input.userId}')
 assertIncludes(library, 'WHERE user_id = ${input.userId}')
 assertIncludes(library, 'MAX_EXCERPT_CHARS')
 assertIncludes(library, 'misconceptionTimeline')
+assertIncludes(library, 'reviewSummaries')
 assertIncludes(library, 'Do not quote old session history')
 
 assertIncludes(liveKitRunner, "registry.set('learner_context'")
@@ -77,4 +78,33 @@ assert(
   'Learner timeline should not copy raw classifier evidence into memory summaries.'
 )
 
-console.log(JSON.stringify({ ok: true, checked: 9, timelineItems: timeline.length }))
+const reviewSummaries = buildLearnerReviewSummaries({
+  hasHistory: true,
+  recentSessionCount: 2,
+  recentActiveMinutes: 34,
+  likelyTopics: ['fractions'],
+  struggleSignals: ['student says they are stuck'],
+  misconceptionTimeline: timeline,
+  recentTools: [{ toolName: 'math_check_step', count: 3 }],
+  suggestedTutorAdjustments: ['Use a visual fraction model before symbolic steps.'],
+})
+
+assert(
+  reviewSummaries.teacher.focusAreas.some((item) => /denominator|common denominator/i.test(item)),
+  'Teacher memory summary should surface structured learning patterns.'
+)
+assert(
+  reviewSummaries.parent.focusAreas.some((item) => /practice/i.test(item)),
+  'Parent memory summary should turn history into practice guidance.'
+)
+assert(
+  reviewSummaries.teacher.privacyNote.includes('raw transcript') &&
+    reviewSummaries.parent.privacyNote.includes('raw chat'),
+  'Adult memory summaries should include explicit privacy boundaries.'
+)
+assert(
+  !JSON.stringify(reviewSummaries).includes('Student wrote a prior step'),
+  'Adult memory summaries should not leak raw classifier evidence.'
+)
+
+console.log(JSON.stringify({ ok: true, checked: 10, timelineItems: timeline.length }))

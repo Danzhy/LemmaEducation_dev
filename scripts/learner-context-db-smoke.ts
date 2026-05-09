@@ -181,8 +181,17 @@ async function main() {
       context.misconceptionTimeline.some((item) => /common denominator/.test(item.signal)),
       'Learner context should include prior structured misconception timeline signals.'
     )
+    assert(
+      context.reviewSummaries.teacher.focusAreas.some((item) => /common denominator/i.test(item)),
+      'Teacher memory summary should include structured misconception focus areas.'
+    )
+    assert(
+      context.reviewSummaries.parent.privacyNote.includes('raw chat'),
+      'Parent memory summary should include a privacy boundary.'
+    )
     assert(!JSON.stringify(context.recentExcerpts).includes('current session should be excluded'))
     assert(!JSON.stringify(context.misconceptionTimeline).includes('current session should be excluded'))
+    assert(!JSON.stringify(context.reviewSummaries).includes('current session should be excluded'))
     assert.match(context.instruction, /Use this learner history quietly/i)
 
     console.log(
@@ -191,6 +200,7 @@ async function main() {
         topics: context.likelyTopics,
         signals: context.struggleSignals.length,
         timelineItems: context.misconceptionTimeline.length,
+        hasReviewSummaries: Boolean(context.reviewSummaries.teacher.headline && context.reviewSummaries.parent.headline),
       })
     )
   } finally {
