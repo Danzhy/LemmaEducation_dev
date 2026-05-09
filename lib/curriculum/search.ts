@@ -215,7 +215,7 @@ export function buildCurriculumSearchInstruction(
   ].join('\n\n')
 }
 
-function prepareCurriculumSearchResponse(input: {
+export function prepareCurriculumSearchResponse(input: {
   query: string
   matchType: 'vector' | 'keyword'
   results: CurriculumSearchResult[]

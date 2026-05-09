@@ -11,6 +11,7 @@ import {
 import {
   assessCurriculumSearchQuality,
   buildCurriculumSearchInstruction,
+  prepareCurriculumSearchResponse,
   type CurriculumSearchResult,
 } from '@/lib/curriculum/search'
 
@@ -101,5 +102,70 @@ assert(
   'Weak curriculum matches should tell the tutor to clarify or fall back safely.'
 )
 assert(!weakVectorInstruction.includes('Answer key'), 'Weak curriculum matches should not expose unrelated private excerpts.')
+
+const strongVectorResult: CurriculumSearchResult = {
+  documentId: 'doc-decimals',
+  documentTitle: 'Decimal Division Lesson',
+  sourceName: 'lesson slides',
+  chunkIndex: 2,
+  content: 'Students divide decimals by first estimating the quotient, then checking place value in the final answer.',
+  score: 0.32,
+  matchType: 'vector',
+}
+const strongVectorResponse = prepareCurriculumSearchResponse({
+  query: 'divide decimals with hundredths',
+  matchType: 'vector',
+  results: [strongVectorResult],
+})
+assert.equal(strongVectorResponse.assessment.quality, 'strong', 'High-score vector matches should stay usable.')
+assert.equal(strongVectorResponse.matchType, 'vector', 'Strong vector responses should preserve vector match type.')
+assert.equal(strongVectorResponse.results.length, 1, 'Strong vector responses should keep matching excerpts.')
+assert(
+  strongVectorResponse.instruction.includes('Use these teacher-provided curriculum excerpts') &&
+    strongVectorResponse.instruction.includes('divide decimals'),
+  'Strong vector responses should produce student-turn guidance grounded in curriculum excerpts.'
+)
+
+const weakVectorResponse = prepareCurriculumSearchResponse({
+  query: 'divide decimals with hundredths',
+  matchType: 'vector',
+  results: [weakVectorResult],
+})
+assert.equal(weakVectorResponse.assessment.quality, 'weak', 'Weak vector responses should preserve weak retrieval quality.')
+assert.equal(weakVectorResponse.matchType, 'none', 'Weak vector responses should not report a usable match type.')
+assert.equal(weakVectorResponse.results.length, 0, 'Weak vector responses should drop unrelated excerpts.')
+assert(
+  weakVectorResponse.instruction.includes('Ask one clarifying question') &&
+    weakVectorResponse.instruction.includes('Do not claim the class materials covered this'),
+  'Weak vector responses should guide the tutor toward clarification or general tutoring.'
+)
+assert(!weakVectorResponse.instruction.includes('Answer key'), 'Weak vector responses should not include private unrelated text.')
+
+const keywordFallbackResponse = prepareCurriculumSearchResponse({
+  query: 'equivalent fractions fraction strip',
+  matchType: 'keyword',
+  results: [strongKeywordResult],
+})
+assert.equal(keywordFallbackResponse.assessment.quality, 'strong', 'Keyword fallback responses should mark term matches strong.')
+assert.equal(keywordFallbackResponse.matchType, 'keyword', 'Keyword fallback responses should preserve keyword match type.')
+assert.equal(keywordFallbackResponse.results.length, 1, 'Keyword fallback responses should keep relevant excerpts.')
+assert(
+  keywordFallbackResponse.instruction.includes('fraction strips'),
+  'Keyword fallback responses should keep teacher-provided matching text.'
+)
+
+const noMatchResponse = prepareCurriculumSearchResponse({
+  query: 'integer exponents practice',
+  matchType: 'keyword',
+  results: [],
+})
+assert.equal(noMatchResponse.assessment.quality, 'none', 'Empty searches should report no retrieval quality.')
+assert.equal(noMatchResponse.matchType, 'none', 'Empty searches should not report vector or keyword matches.')
+assert.equal(noMatchResponse.results.length, 0, 'Empty searches should return no excerpts.')
+assert(
+  noMatchResponse.instruction.includes('No teacher-provided curriculum match was found') &&
+    !noMatchResponse.instruction.includes('Use these teacher-provided curriculum excerpts'),
+  'Empty searches should fall back without pretending curriculum grounding exists.'
+)
 
 console.log('Curriculum RAG smoke test passed.')
