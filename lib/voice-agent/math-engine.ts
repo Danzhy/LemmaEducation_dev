@@ -4675,7 +4675,7 @@ export function plotPointsOnPlane(input: {
       y: yDomain,
     },
     noteLines,
-    canvasActions,
+    canvasActions: withSemanticSceneArtifactIds('plot_points_on_plane', canvasActions),
   }
 }
 
@@ -5081,7 +5081,7 @@ export function graphFunction(input: {
     features,
     noteLines,
     featureCoordinates: scene.featureCoordinates,
-    canvasActions,
+    canvasActions: withSemanticSceneArtifactIds('graph_function', canvasActions),
   }
 }
 
@@ -5150,7 +5150,7 @@ export function annotateGraphFeatures(input: {
     yDomain: scene.yDomain,
     requestedFeatures,
     featureCoordinates: scene.featureCoordinates,
-    canvasActions: appendFocusForActions(actions),
+    canvasActions: withSemanticSceneArtifactIds('annotate_graph_features', appendFocusForActions(actions)),
     summary:
       requestedFeatures.length === 1
         ? `Annotated ${requestedFeatures[0]} on the current graph.`
@@ -5475,7 +5475,7 @@ export function numberLineScene(input: {
       highlighted.length > 0
         ? 'Prepared a number line with highlighted values.'
         : 'Prepared a number line on the canvas.',
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('number_line', actions),
   }
 }
 
@@ -6163,7 +6163,7 @@ export function equationBalanceScene(input: {
 
   return {
     summary: 'Prepared an equation balance model on the canvas.',
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('equation_balance', actions),
   }
 }
 
@@ -6944,7 +6944,7 @@ export function integerOperationScene(input: {
       zeroPairs,
     },
     suggestedQuestion: 'Which direction did the signed change move us, and why?',
-    canvasActions: numberLine.canvasActions,
+    canvasActions: withSemanticSceneArtifactIds('integer_operation_scene', numberLine.canvasActions),
   }
 }
 
@@ -7487,7 +7487,7 @@ export function slopeTriangleScene(input: {
 
   return {
     summary: `Prepared a slope triangle with rise ${formatNumber(rise)}, run ${formatNumber(run)}, and slope ${slopeText}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('slope_triangle', actions),
   }
 }
 
@@ -10309,7 +10309,7 @@ export function doubleNumberLineScene(input: {
 
   return {
     summary: 'Prepared a double number line for proportional reasoning.',
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('double_number_line', actions),
   }
 }
 
@@ -10531,6 +10531,6 @@ export function coordinateDistanceScene(input: {
 
   return {
     summary: `Prepared a coordinate-distance model with distance ${formatNumber(distance, 3)}.`,
-    canvasActions: actions,
+    canvasActions: withSemanticSceneArtifactIds('coordinate_distance', actions),
   }
 }

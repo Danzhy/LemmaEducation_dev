@@ -11,10 +11,19 @@ import {
 import { extractCanvasActionsFromToolResult } from '@/lib/tutor/canvas-action-parser'
 import type { TutorCanvasAction } from '@/lib/tutor/session-adapter'
 import {
+  annotateGraphFeatures,
   angleDiagramScene,
   barModelScene,
+  coordinateDistanceScene,
+  doubleNumberLineScene,
+  equationBalanceScene,
   fractionCompareScene,
   fractionStripScene,
+  graphFunction,
+  integerOperationScene,
+  numberLineScene,
+  plotPointsOnPlane,
+  slopeTriangleScene,
 } from '@/lib/voice-agent/math-engine'
 
 const clearAction: TutorCanvasAction = { id: 'clear', type: 'clear_tool_layer' }
@@ -297,6 +306,96 @@ assertStableSemanticArtifactIds(
   })
 )
 
+assertStableSemanticArtifactIds(
+  'graph_function',
+  graphFunction({ expression: 'x^2 + 2*x - 3', showXIntercepts: true, showYIntercept: true, showVertex: true }),
+  graphFunction({ expression: 'x^2 + 4*x + 3', showXIntercepts: true, showYIntercept: true, showVertex: true })
+)
+
+assertStableSemanticArtifactIds(
+  'annotate_graph_features',
+  annotateGraphFeatures({
+    expression: 'x^2 + 2*x - 3',
+    features: ['x-intercepts', 'y-intercept', 'vertex', 'axis-of-symmetry'],
+  }),
+  annotateGraphFeatures({
+    expression: 'x^2 + 4*x + 3',
+    features: ['x-intercepts', 'y-intercept', 'vertex', 'axis-of-symmetry'],
+  })
+)
+
+assertStableSemanticArtifactIds(
+  'plot_points_on_plane',
+  plotPointsOnPlane({
+    points: [
+      { x: 0, y: 1 },
+      { x: 2, y: 5 },
+    ],
+    connectPoints: true,
+    equationLabel: '2*x+1',
+  }),
+  plotPointsOnPlane({
+    points: [
+      { x: 0, y: 2 },
+      { x: 2, y: 6 },
+    ],
+    connectPoints: true,
+    equationLabel: '2*x+2',
+  })
+)
+
+assertStableSemanticArtifactIds(
+  'number_line',
+  numberLineScene({ start: -5, end: 5, highlightValues: [-3, 2], hopPairs: [{ from: -3, to: 2 }] }),
+  numberLineScene({ start: -5, end: 5, highlightValues: [-2, 3], hopPairs: [{ from: -2, to: 3 }] })
+)
+
+assertStableSemanticArtifactIds(
+  'integer_operation_scene',
+  integerOperationScene({ left: -3, right: 5, operation: 'add' }),
+  integerOperationScene({ left: -2, right: 4, operation: 'add' })
+)
+
+assertStableSemanticArtifactIds(
+  'equation_balance',
+  equationBalanceScene({ leftExpression: '2x + 3', rightExpression: '11', balanced: true }),
+  equationBalanceScene({ leftExpression: '2x', rightExpression: '8', balanced: true })
+)
+
+assertStableSemanticArtifactIds(
+  'slope_triangle',
+  slopeTriangleScene({ pointA: { x: 1, y: 2 }, pointB: { x: 5, y: 6 } }),
+  slopeTriangleScene({ pointA: { x: 0, y: 1 }, pointB: { x: 4, y: 7 } })
+)
+
+assertStableSemanticArtifactIds(
+  'coordinate_distance',
+  coordinateDistanceScene({ pointA: { x: 2, y: 3 }, pointB: { x: 5, y: 7 } }),
+  coordinateDistanceScene({ pointA: { x: 1, y: 2 }, pointB: { x: 4, y: 6 } })
+)
+
+assertStableSemanticArtifactIds(
+  'double_number_line',
+  doubleNumberLineScene({
+    topLabel: 'notebooks',
+    bottomLabel: 'dollars',
+    pairs: [
+      { top: 0, bottom: 0 },
+      { top: 3, bottom: 12 },
+      { top: 6, bottom: 24 },
+    ],
+  }),
+  doubleNumberLineScene({
+    topLabel: 'notebooks',
+    bottomLabel: 'dollars',
+    pairs: [
+      { top: 0, bottom: 0 },
+      { top: 2, bottom: 10 },
+      { top: 4, bottom: 20 },
+    ],
+  })
+)
+
 const lookupEditor = new MockArtifactEditor()
 lookupEditor.createToolShape('tool:fraction_strip:scene:0', 'tool:fraction_strip', 'main')
 lookupEditor.createToolShape('tool:fraction_strip:scene:0:label', 'tool:fraction_strip', 'label')
@@ -356,6 +455,24 @@ assertMockRendererReplacesRepeatedArtifact(
     missingAngle: 80,
     attemptedAngle: 75,
   })
+)
+
+assertMockRendererReplacesRepeatedArtifact(
+  'annotate_graph_features',
+  annotateGraphFeatures({
+    expression: 'x^2 + 2*x - 3',
+    features: ['x-intercepts', 'y-intercept', 'vertex', 'axis-of-symmetry'],
+  }),
+  annotateGraphFeatures({
+    expression: 'x^2 + 4*x + 3',
+    features: ['x-intercepts', 'y-intercept', 'vertex', 'axis-of-symmetry'],
+  })
+)
+
+assertMockRendererReplacesRepeatedArtifact(
+  'number_line',
+  numberLineScene({ start: -5, end: 5, highlightValues: [-3, 2], hopPairs: [{ from: -3, to: 2 }] }),
+  numberLineScene({ start: -5, end: 5, highlightValues: [-2, 3], hopPairs: [{ from: -2, to: 3 }] })
 )
 
 console.log('Canvas action reveal smoke passed.')
