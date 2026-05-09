@@ -47,19 +47,23 @@ function main() {
   assertIncludes('app/api/livekit/session/route.ts', 'RoomAgentDispatch')
   assertIncludes('app/api/livekit/session/route.ts', 'canPublishSources')
   assertIncludes('app/api/livekit/session/route.ts', 'canPublishData: true')
-  assertIncludes('app/api/livekit/tool/route.ts', 'getSessionUserId()')
-  assertIncludes('app/api/livekit/tool/route.ts', 'takeTutorApiRateLimit')
-  assertIncludes('app/api/livekit/tool/route.ts', 'getQuotaSnapshot')
-  assertIncludes('app/api/livekit/tool/route.ts', 'LIVEKIT_TUTOR_TOOL_NAMES')
-  assertIncludes('app/api/livekit/tool/route.ts', 'MAX_TOOL_INPUT_BYTES')
-  assertIncludes('app/api/livekit/tool-preview/route.ts', 'getSessionUserId()')
-  assertIncludes('app/api/livekit/tool-preview/route.ts', 'takeTutorApiRateLimit')
-  assertIncludes('app/api/livekit/tool-preview/route.ts', 'getQuotaSnapshot')
-  assertIncludes('app/api/livekit/tool-preview/route.ts', 'sessionId and toolName are required')
-  assertIncludes('app/api/livekit/tool-preview/route.ts', 'SESSION_REQUIRED')
-  assertIncludes('app/api/livekit/tool-preview/route.ts', 'QUOTA_EXCEEDED')
-  assertIncludes('app/api/livekit/tool-preview/route.ts', 'LIVEKIT_TUTOR_TOOL_NAMES')
-  assertIncludes('app/api/livekit/tool-preview/route.ts', 'MAX_TOOL_INPUT_BYTES')
+  assertIncludes('app/api/livekit/tool/route.ts', 'handleLiveKitToolRequest')
+  assertIncludes('app/api/livekit/tool/route.ts', 'LIVEKIT_TOOL_ENDPOINT_CONFIGS.worker')
+  assertIncludes('app/api/livekit/tool-preview/route.ts', 'handleLiveKitToolRequest')
+  assertIncludes('app/api/livekit/tool-preview/route.ts', 'LIVEKIT_TOOL_ENDPOINT_CONFIGS.preview')
+  assertIncludes('lib/livekit/tool-api-route.ts', 'getSessionUserIdDefault')
+  assertIncludes('lib/livekit/tool-api-route.ts', 'takeTutorApiRateLimitDefault')
+  assertIncludes('lib/livekit/tool-api-route.ts', 'getQuotaSnapshotDefault')
+  assertIncludes('lib/livekit/tool-api-route.ts', 'sessionId and toolName are required')
+  assertIncludes('lib/livekit/tool-api-route.ts', 'SESSION_REQUIRED')
+  assertIncludes('lib/livekit/tool-api-route.ts', 'QUOTA_EXCEEDED')
+  assertIncludes('lib/livekit/tool-api-route.ts', 'LIVEKIT_TUTOR_TOOL_NAMES')
+  assertIncludes('lib/livekit/tool-api-route.ts', 'MAX_TOOL_INPUT_BYTES')
+  assertIncludes('lib/livekit/tool-api-route.ts', 'includeRetryAfterHeader')
+  assertIncludes('scripts/livekit-tool-route-abuse-smoke.ts', 'RATE_LIMITED')
+  assertIncludes('scripts/livekit-tool-route-abuse-smoke.ts', 'SESSION_REQUIRED')
+  assertIncludes('scripts/livekit-tool-route-abuse-smoke.ts', 'QUOTA_EXCEEDED')
+  assertIncludes('scripts/livekit-tool-route-abuse-smoke.ts', 'TOOL_INPUT_TOO_LARGE')
   assertIncludes('hooks/useLiveKitTutor.ts', 'const startedSessionId = await startServerTutorSession(options)')
   assertIncludes('hooks/useLiveKitTutor.ts', 'startedSessionId = await startLocalTypedLabSession(options)')
   assertIncludes('hooks/useLiveKitTutor.ts', 'callServerLiveKitTool(sessionIdRef.current, plan.toolName, input, {')
@@ -178,7 +182,7 @@ function main() {
       {
         ok: true,
         checkedClientFiles: clientFiles.length,
-        checkedServerGuards: 45,
+        checkedServerGuards: 53,
         checkedStudentVisibleLiveKitMessages: 6,
       },
       null,

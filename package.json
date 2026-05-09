@@ -19,7 +19,7 @@
     "test:voice-agent-coverage": "node --import tsx scripts/voice-agent-curriculum-coverage.ts",
     "test:livekit-agent": "node --import tsx scripts/livekit-agent-smoke.ts",
     "test:livekit-planner": "node --import tsx scripts/livekit-local-planner-smoke.ts",
-    "test:livekit-security": "node --import tsx scripts/livekit-security-check.ts",
+    "test:livekit-security": "node --import tsx scripts/livekit-security-check.ts && node --import tsx scripts/livekit-tool-route-abuse-smoke.ts",
     "test:canvas-reveal": "node --import tsx scripts/canvas-action-reveal-smoke.ts",
     "test:realtime-model-policy": "node --import tsx scripts/realtime-model-policy-smoke.ts",
     "test:tutor-strategies": "node --import tsx scripts/tutor-strategy-eval.ts",
