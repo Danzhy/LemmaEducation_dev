@@ -234,6 +234,57 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'continues after a muffins-per-cup attempt with the requested rate direction',
+    prompt: 'I got 4 muffins per cup. What is the muffins per cup rate if 3 cups make 12 muffins?',
+    expectedTools: ['answer_disclosure_gate', 'unit_rate', 'double_number_line'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.equal(plans[1].input.quantity, 3)
+      assert.equal(plans[1].input.value, 12)
+      assert.equal(plans[1].input.quantityLabel, 'cups')
+      assert.equal(plans[1].input.valueLabel, 'muffins')
+      assert.deepEqual(plans[2].input.pairs, [
+        { top: 0, bottom: 0, label: 'start' },
+        { top: 3, bottom: 12, label: 'given' },
+      ])
+    },
+  },
+  {
+    name: 'continues after a recipe scale-down attempt with the target input quantity',
+    prompt: 'I got 3 cups. For the recipe, 3 cups make 12 muffins. How many muffins for 5 cups?',
+    expectedTools: ['answer_disclosure_gate', 'double_number_line'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.equal(plans[1].input.topLabel, 'cups')
+      assert.equal(plans[1].input.bottomLabel, 'muffins')
+      assert.deepEqual(plans[1].input.pairs, [
+        { top: 0, bottom: 0, label: 'start' },
+        { top: 3, bottom: 12, label: 'given' },
+        { top: 5, bottom: 20, label: 'target' },
+      ])
+    },
+  },
+  {
+    name: 'continues after a speed target attempt with the target time',
+    prompt: 'I got 230 miles. A car travels 150 miles in 3 hours. How far in 5 hours?',
+    expectedTools: ['answer_disclosure_gate', 'unit_rate', 'double_number_line'],
+    inspect: (input, plans) => {
+      assert.equal(input.hasStudentAttempt, true)
+      assert.equal(input.askedForFullSolution, true)
+      assert.equal(plans[1].input.quantity, 3)
+      assert.equal(plans[1].input.value, 150)
+      assert.equal(plans[1].input.quantityLabel, 'hours')
+      assert.equal(plans[1].input.valueLabel, 'miles')
+      assert.deepEqual(plans[2].input.pairs, [
+        { top: 0, bottom: 0, label: 'start' },
+        { top: 3, bottom: 150, label: 'given' },
+        { top: 5, bottom: 250, label: 'target' },
+      ])
+    },
+  },
+  {
     name: 'routes explicit next-move planning to tutor response planner',
     prompt: 'I got 1/2 + 1/3 = 2/5. What should we do next?',
     expectedTools: ['tutor_response_planner'],

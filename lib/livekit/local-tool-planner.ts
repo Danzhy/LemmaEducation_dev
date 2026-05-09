@@ -1357,16 +1357,35 @@ function extractLocalUnitRateRequest(text: string): LocalUnitRateRequest | null 
     const hasCurrency = /\$|dollars?|cost|price/i.test(quantityFirstMatch[0])
     if (firstValue !== null && secondValue !== null && firstValue > 0 && firstLabel) {
       if (secondLabel && !hasCurrency) {
+        const afterIndex = (quantityFirstMatch.index ?? 0) + quantityFirstMatch[0].length
+        const firstLabelTarget = extractLocalRateTarget(normalized, afterIndex, firstLabel)
+        const secondLabelTarget = extractLocalRateTarget(normalized, afterIndex, secondLabel)
+        const asksForSecondPerFirst = hasLocalPerDirection(normalized, secondLabel, firstLabel)
+        const asksForFirstPerSecond = hasLocalPerDirection(normalized, firstLabel, secondLabel)
+        const asksForGenericRecipeRate =
+          /\bunit rate\b/i.test(normalized) &&
+          /\b(?:make|makes|making|serves|yields?)\b/i.test(quantityFirstMatch[0])
+
+        if (
+          asksForSecondPerFirst ||
+          asksForGenericRecipeRate ||
+          (firstLabelTarget.target !== undefined && !asksForFirstPerSecond)
+        ) {
+          return {
+            quantity: firstValue,
+            value: secondValue,
+            quantityLabel: firstLabel,
+            valueLabel: secondLabel,
+            ...firstLabelTarget,
+          }
+        }
+
         return {
           quantity: secondValue,
           value: firstValue,
           quantityLabel: secondLabel,
           valueLabel: firstLabel,
-          ...extractLocalRateTarget(
-            normalized,
-            (quantityFirstMatch.index ?? 0) + quantityFirstMatch[0].length,
-            secondLabel
-          ),
+          ...secondLabelTarget,
         }
       }
 
@@ -1432,6 +1451,17 @@ function localUnitMatchPattern(unitLabel: string) {
   }
 
   return `(?:${[...variants].map(escapeLocalRegex).join('|')})`
+}
+
+function hasLocalPerDirection(text: string, valueLabel: string, quantityLabel: string) {
+  const valuePattern = localUnitMatchPattern(valueLabel)
+  const quantityPattern = localUnitMatchPattern(quantityLabel)
+  if (!valuePattern || !quantityPattern) return false
+
+  return new RegExp(
+    `\\b${valuePattern}\\s+per\\s+(?:one\\s+|each\\s+|1\\s+)?${quantityPattern}\\b`,
+    'i'
+  ).test(text)
 }
 
 function extractLocalRateTarget(text: string, afterIndex: number, quantityLabel: string): { target?: number } {
@@ -2469,10 +2499,10 @@ function isLocalAnswerDisclosureRequest(prompt: string) {
   }
 
   const directRatioRateQuestion =
-    /\b(?:what(?:'s| is)|find|calculate|compute|how much|how many)\b/.test(lower) &&
+    /\b(?:what(?:'s| is)|find|calculate|compute|how much|how many|how far|how long|how fast)\b/.test(lower) &&
     /\b(?:unit rate|rate|ratio|proportion|scale factor|per one|per each)\b/.test(lower)
   const directRateSetupQuestion =
-    /\b(?:what(?:'s| is)|find|calculate|compute|how much|how many)\b/.test(lower) &&
+    /\b(?:what(?:'s| is)|find|calculate|compute|how much|how many|how far|how long|how fast)\b/.test(lower) &&
     /\b(?:recipe|muffins?|cups?|notebooks?|cost|priced?|miles?|kilometers?|kilometres?|hours?|minutes?|seconds?)\b/.test(
       lower
     ) &&
@@ -3075,16 +3105,22 @@ export function planLocalToolTurn(
     return plans
   }
 
-  if (
-    /\b(double number line|unit rate|cost|ratio|notebook|recipe|muffin)s?\b/.test(lower) &&
-    (unitRateRequest || numbers.length >= 2)
-  ) {
+  const hasRateVisualRequest =
+    /\b(double number line|unit rate|cost|ratio|notebook|recipe|muffin)s?\b/.test(lower) ||
+    Boolean(
+      unitRateRequest &&
+        /\b(rate|speed|per|how far|how long|how fast|travel|travels|drive|drives|walk|walks|run|runs|miles?|kilometers?|kilometres?|meters?|metres?|hours?|minutes?|seconds?)\b/.test(
+          lower
+        )
+    )
+
+  if (hasRateVisualRequest && (unitRateRequest || numbers.length >= 2)) {
     const quantity = unitRateRequest?.quantity ?? numbers[0]
     const value = unitRateRequest?.value ?? numbers[1]
     const target = unitRateRequest ? unitRateRequest.target : numbers[2]
     const quantityLabel = unitRateRequest?.quantityLabel ?? (/notebook/.test(lower) ? 'notebooks' : 'units')
     const valueLabel = unitRateRequest?.valueLabel ?? (/\$|cost/.test(lower) ? 'dollars' : 'value')
-    if (/unit rate|cost/.test(lower)) {
+    if (/\b(unit rate|rate|cost|per|speed|how far|how long|how fast)\b/.test(lower)) {
       plans.push({
         toolName: 'unit_rate',
         input: {
