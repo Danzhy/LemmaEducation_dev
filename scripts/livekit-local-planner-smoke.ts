@@ -1293,6 +1293,16 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes session review prompts to a mastery snapshot',
+    prompt: 'Can you summarize this session on fractions and tell me what I should practice next?',
+    expectedTools: ['session_mastery_snapshot'],
+    inspect: (input) => {
+      assert.equal(input.topic, 'fractions')
+      assert.equal(input.gradeLevel, '6')
+      assert.match(String(input.transcriptExcerpt), /summarize this session/)
+    },
+  },
+  {
     name: 'routes wrap-up prompts to an exit ticket',
     prompt: 'Can we wrap up with a two question exit ticket on ratios?',
     expectedTools: ['exit_ticket_builder'],
@@ -1691,6 +1701,20 @@ assert.match(
     ]
   ),
   /First check: Which quantity is the whole/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'how did i do',
+    [{ toolName: 'session_mastery_snapshot', input: {} }],
+    [
+      {
+        confidence: 'medium',
+        nextPractice: [{ prompt: 'Add 2/3 + 1/4.' }],
+        suggestedNextTutorMove: 'Give one nearby fraction problem.',
+      },
+    ]
+  ),
+  /learning snapshot.*Next practice: Add 2\/3 \+ 1\/4/
 )
 assert.match(
   buildLocalAssistantReply(

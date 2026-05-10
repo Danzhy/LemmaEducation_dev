@@ -3679,6 +3679,10 @@ export function planLocalToolTurn(
     /\b(homework|worksheet|teacher|class notes|uploaded|lesson|curriculum|rubric|directions|from class|my class)\b/.test(lower)
   const asksForLearnerContext =
     /\b(last time|previous session|continue|remember|review what|what did i struggle|my progress|again like before|same as yesterday)\b/.test(lower)
+  const asksForMasterySnapshot =
+    /\b(how did i do|how am i doing|summari[sz]e (?:this|our) session|save (?:this )?(?:session|progress)|progress snapshot|learning snapshot|mastery snapshot|what should i practice next|what should i work on next)\b/.test(
+      lower
+    )
   const hasSpecificMathAction =
     /\b(graph|plot|parabola|function|coordinate|distance|intercept|axis\s+of\s+symmetry|symmetry\s+axis|vertex|turning\s+point|minimum|maximum|table|values?|rows?|fraction|percent|decimal|round|linear|equation|solve|ratio|rate|proportion|proportional|area|perimeter|rectangle|triangle|base|height|word problem|plan|tape|bar\s+model|bar\s+chart|line\s+plot|line\s+graph|data\s+display|part[- ]?whole|integer|negative|positive|signed|convert|measurement|meters?|centimeters?|kilometers?|grams?|kilograms?|liters?|milliliters?|seconds?|minutes?|hours?|mean|average|median|mode|range|data|statistics|probability|chance)\b/.test(lower)
   const referencesVisibleBoard =
@@ -3852,6 +3856,20 @@ export function planLocalToolTurn(
         recentToolResult: '',
       },
     })
+  }
+
+  if (asksForMasterySnapshot) {
+    plans.push({
+      toolName: 'session_mastery_snapshot',
+      input: {
+        topic: inferLocalTopic(prompt),
+        gradeLevel,
+        transcriptExcerpt: prompt.slice(0, 800),
+        studentWork: hasStudentAttempt ? prompt.slice(0, 500) : '',
+        toolSummary: liveBoardDescription ? `Visible board context: ${liveBoardDescription.slice(0, 500)}` : '',
+      },
+    })
+    return plans
   }
 
   if (asksForResponsePlanning) {
@@ -4999,6 +5017,24 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
         ? ` First we will focus on ${firstStep.toLowerCase()}.`
         : ' First I will ask one quick diagnostic question.'
     return `${opening}${boardCue}${diagnostic}`
+  }
+
+  if (firstTool === 'session_mastery_snapshot') {
+    const snapshot = outputs.find(
+      (output): output is {
+        confidence?: string
+        nextPractice?: Array<{ prompt?: string }>
+        suggestedNextTutorMove?: string
+      } => Boolean(output && typeof output === 'object' && 'confidence' in output)
+    )
+    const practicePrompt = snapshot?.nextPractice?.find((item) => item.prompt)?.prompt
+    const confidence = snapshot?.confidence ? ` Confidence looks ${snapshot.confidence}.` : ''
+    const nextMove = practicePrompt
+      ? ` Next practice: ${practicePrompt}`
+      : snapshot?.suggestedNextTutorMove
+        ? ` Next move: ${snapshot.suggestedNextTutorMove}`
+        : ' Next, I will choose one short practice item from the evidence.'
+    return `I made a learning snapshot from this session.${confidence}${nextMove}`
   }
 
   if (firstTool === 'exit_ticket_builder') {
