@@ -1221,7 +1221,7 @@ const cases: PlannerCase[] = [
   {
     name: 'routes review prompts through learner context before planning',
     prompt: 'Can we continue from last time and review what I struggled with?',
-    expectedTools: ['learner_context', 'adaptive_review_plan', 'socratic_move_planner'],
+    expectedTools: ['learner_context', 'adaptive_review_plan', 'write_on_canvas'],
     inspect: (input) => {
       assert.match(String(input.reason), /last time/)
     },
@@ -1697,6 +1697,39 @@ assert.deepEqual(hydratedReviewInput.misconceptionTimeline, [
     lastSeen: '2026-05-09T19:00:00.000Z',
   },
 ])
+
+const hydratedWarmStartBoardInput = hydrateLocalToolPlanInput(
+  {
+    toolName: 'write_on_canvas',
+    input: {
+      mode: 'learner_warm_start',
+      title: 'Quick review start',
+      textLines: ['placeholder'],
+      clearExisting: true,
+    },
+  },
+  [
+    {
+      warmStartLine: 'Let us start with one quick ratios and rates check about scale factors.',
+      firstStudentQuestion: 'Which two quantities should stay paired as we scale?',
+      firstBoardTool: 'double_number_line',
+      historyFocus: 'Revisit one structured timeline pattern: scale both quantities by the same factor (2x).',
+      avoid: ['Do not quote exact old transcript lines.'],
+    },
+  ],
+  'continue from last time',
+  '6'
+)
+assert.deepEqual(hydratedWarmStartBoardInput, {
+  title: 'Quick review start',
+  textLines: [
+    'Let us start with one quick ratios and rates check about scale factors.',
+    'Which two quantities should stay paired as we scale?',
+    'Focus: scale both quantities by the same factor (2x).',
+    'Board tool if needed: double number line.',
+  ],
+  clearExisting: true,
+})
 
 const hydratedTableInput = hydrateLocalToolPlanInput(
   {

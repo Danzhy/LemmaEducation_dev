@@ -14,6 +14,14 @@ type LearnerContextOutput = {
   misconceptionTimeline?: unknown
 }
 
+type AdaptiveReviewOutput = {
+  warmStartLine?: unknown
+  firstStudentQuestion?: unknown
+  diagnosticQuestion?: unknown
+  firstBoardTool?: unknown
+  historyFocus?: unknown
+}
+
 type StudentStepPair = {
   previousStep: string
   nextStep: string
@@ -3759,12 +3767,12 @@ export function planLocalToolTurn(
 
     if (!hasSpecificMathAction && !asksForCurriculumContext) {
       plans.push({
-        toolName: 'socratic_move_planner',
+        toolName: 'write_on_canvas',
         input: {
-          topic: 'review from recent learner history',
-          gradeLevel,
-          studentWork: '',
-          tutorGoal: 'diagnose',
+          mode: 'learner_warm_start',
+          title: 'Quick review start',
+          textLines: ['I will choose one recent pattern to revisit.', 'Try the first question aloud before we add steps.'],
+          clearExisting: true,
         },
       })
       return plans
@@ -4492,6 +4500,15 @@ function findTableRowBoardFocus(outputs: unknown[]) {
   )
 }
 
+function findAdaptiveReviewOutput(outputs: unknown[]): AdaptiveReviewOutput | null {
+  return (
+    outputs.find(
+      (output): output is AdaptiveReviewOutput =>
+        Boolean(output && typeof output === 'object' && 'warmStartLine' in output)
+    ) ?? null
+  )
+}
+
 function stringArray(value: unknown, limit: number) {
   return Array.isArray(value)
     ? value
@@ -4546,6 +4563,46 @@ export function hydrateLocalToolPlanInput(
   prompt: string,
   gradeLevel: string
 ) {
+  if (plan.toolName === 'write_on_canvas' && plan.input.mode === 'learner_warm_start') {
+    const reviewPlan = findAdaptiveReviewOutput(previousOutputs)
+    if (!reviewPlan) {
+      return {
+        title: 'Quick review start',
+        textLines: ['Let us start with one quick review check.', 'What is one small first step you can try?'],
+        clearExisting: true,
+      }
+    }
+
+    const warmStartLine =
+      typeof reviewPlan.warmStartLine === 'string' ? reviewPlan.warmStartLine.trim() : ''
+    const firstQuestion =
+      typeof reviewPlan.firstStudentQuestion === 'string' && reviewPlan.firstStudentQuestion.trim()
+        ? reviewPlan.firstStudentQuestion.trim()
+        : typeof reviewPlan.diagnosticQuestion === 'string'
+          ? reviewPlan.diagnosticQuestion.trim()
+          : ''
+    const firstBoardTool =
+      typeof reviewPlan.firstBoardTool === 'string' ? reviewPlan.firstBoardTool.replace(/_/g, ' ') : ''
+    const historyFocus =
+      typeof reviewPlan.historyFocus === 'string'
+        ? reviewPlan.historyFocus
+            .replace(/^Revisit one structured timeline pattern:\s*/i, '')
+            .replace(/^Revisit one learning pattern:\s*/i, '')
+            .trim()
+        : ''
+
+    return {
+      title: 'Quick review start',
+      textLines: [
+        warmStartLine || 'Let us start with one quick review check.',
+        firstQuestion || 'What is one small first step you can try?',
+        historyFocus && historyFocus.length <= 90 ? `Focus: ${historyFocus}` : '',
+        firstBoardTool ? `Board tool if needed: ${firstBoardTool}.` : '',
+      ].filter(Boolean),
+      clearExisting: true,
+    }
+  }
+
   if (plan.toolName === 'table_of_values') {
     const focus = findTableRowBoardFocus(previousOutputs)
     if (!focus) return plan.input
@@ -4614,12 +4671,15 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
   }
 
   if (firstTool === 'learner_context') {
-    const reviewPlan = outputs.find(
-      (output): output is { warmStartLine?: string; firstStudentQuestion?: string; diagnosticQuestion?: string } =>
-        Boolean(output && typeof output === 'object' && 'warmStartLine' in output)
-    )
-    const warmStartLine = reviewPlan?.warmStartLine?.trim()
-    const firstQuestion = reviewPlan?.firstStudentQuestion?.trim() || reviewPlan?.diagnosticQuestion?.trim()
+    const reviewPlan = findAdaptiveReviewOutput(outputs)
+    const warmStartLine =
+      typeof reviewPlan?.warmStartLine === 'string' ? reviewPlan.warmStartLine.trim() : ''
+    const firstQuestion =
+      typeof reviewPlan?.firstStudentQuestion === 'string' && reviewPlan.firstStudentQuestion.trim()
+        ? reviewPlan.firstStudentQuestion.trim()
+        : typeof reviewPlan?.diagnosticQuestion === 'string'
+          ? reviewPlan.diagnosticQuestion.trim()
+          : ''
     if (warmStartLine && firstQuestion) {
       return `${warmStartLine} ${firstQuestion}`
     }
