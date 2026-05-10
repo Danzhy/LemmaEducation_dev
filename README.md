@@ -16,6 +16,8 @@ Lemma is an educational platform that captures the complete picture of a student
 - **LiveKit Tutor Lab** - Hidden `/tutor-livekit-lab` route for testing a worker-based voice tutor
 - **Curriculum RAG Lab** - Teacher-uploaded curriculum context and custom tutor profiles for hidden agent labs
 - **Learner Context Lab** - Signed-in lab tutors can quietly review recent sessions and recurring struggle signals
+- **Board PDF Tools** - Hidden labs can import worksheet PDFs onto the board and export the canvas to PDF
+- **Teacher Review Tools** - Session summaries, review-focus trends, and follow-up practice drafts for school pilots
 
 ## Pilot Readiness
 
@@ -31,6 +33,9 @@ The dev app now includes the core guardrails needed for a limited pilot with rea
 - **Automatic inactivity pause** after 5 minutes without activity
 - **Server-backed tutor API rate limits** to reduce abuse and accidental spend
 - **Tool activity logging** so experimental agent tool calls can be reviewed alongside saved sessions
+- **Safe review exports** for session metadata, learning evidence, board status, and follow-up practice without raw tool payloads
+- **Review-focus trends** that aggregate repeated misconception signals for linked teachers and parents
+- **Teacher follow-up drafts** that turn safe review focus into short practice sets without answer-key exposure
 
 ## Curriculum RAG Lab
 
