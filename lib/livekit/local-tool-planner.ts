@@ -3,6 +3,10 @@ export type LocalToolPlan = {
   input: Record<string, unknown>
 }
 
+export type HydratedLocalToolPlan = LocalToolPlan & {
+  plannedToolName?: string
+}
+
 type LocalToolPlannerContext = {
   boardDescription?: string
 }
@@ -3767,6 +3771,12 @@ export function planLocalToolTurn(
 
     if (!hasSpecificMathAction && !asksForCurriculumContext) {
       plans.push({
+        toolName: 'learner_warm_start_visual',
+        input: {
+          mode: 'from_adaptive_review_plan',
+        },
+      })
+      plans.push({
         toolName: 'write_on_canvas',
         input: {
           mode: 'learner_warm_start',
@@ -4509,6 +4519,88 @@ function findAdaptiveReviewOutput(outputs: unknown[]): AdaptiveReviewOutput | nu
   )
 }
 
+function normalizeWarmStartToolName(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase().replace(/\s+/g, '_') : ''
+}
+
+function compactWarmStartBoardFocus(value: string) {
+  const normalized = value
+    .replace(/^Revisit one structured timeline pattern:\s*/i, '')
+    .replace(/^Revisit one learning pattern:\s*/i, '')
+    .replace(/\(\d+x\)\.?$/i, '')
+    .replace(/\.$/, '')
+    .trim()
+  const lower = normalized.toLowerCase()
+
+  if (/denominator|same-size/.test(lower)) return 'common denominators'
+  if (/scale|ratio|rate|proportion/.test(lower)) return 'same scale factor'
+  if (/balance|both sides|equation/.test(lower)) return 'both sides stay balanced'
+  if (/x|y|coordinate|graph|slope/.test(lower)) return 'x and y relationships'
+  if (/area|perimeter|angle|triangle|rectangle/.test(lower)) return 'the right measurement'
+  if (/percent|decimal|hundred/.test(lower)) return 'the whole and 100%'
+
+  return normalized.slice(0, 52)
+}
+
+function buildWarmStartVisualPlan(reviewPlan: AdaptiveReviewOutput | null): HydratedLocalToolPlan | null {
+  const firstBoardTool = normalizeWarmStartToolName(reviewPlan?.firstBoardTool)
+  const historyFocus = typeof reviewPlan?.historyFocus === 'string' ? reviewPlan.historyFocus.toLowerCase() : ''
+  const combined = `${firstBoardTool} ${historyFocus}`
+
+  if (/\bfraction_strip\b|fraction|denominator|same-size/.test(combined)) {
+    return {
+      plannedToolName: 'learner_warm_start_visual',
+      toolName: 'fraction_strip',
+      input: {
+        numerator: 1,
+        denominator: 2,
+        title: 'Review: same-size pieces',
+        label: 'Start by comparing the size of each piece',
+      },
+    }
+  }
+
+  if (/\bdouble_number_line\b|ratio|rate|scale|proportion/.test(combined)) {
+    return {
+      plannedToolName: 'learner_warm_start_visual',
+      toolName: 'double_number_line',
+      input: {
+        topLabel: 'Quantity A',
+        bottomLabel: 'Quantity B',
+        pairs: [
+          { top: 0, bottom: 0, label: 'start' },
+          { top: 1, bottom: 2, label: 'same factor' },
+          { top: 2, bottom: 4, label: 'scaled' },
+        ],
+        title: 'Review: keep pairs together',
+      },
+    }
+  }
+
+  if (/\bequation_balance\b|\bsolve_linear_on_canvas\b|equation|balance|both sides/.test(combined)) {
+    return {
+      plannedToolName: 'learner_warm_start_visual',
+      toolName: 'equation_balance',
+      input: {
+        leftExpression: 'x + 3',
+        rightExpression: '10',
+        title: 'Review: keep both sides balanced',
+        balanced: true,
+      },
+    }
+  }
+
+  return null
+}
+
+function hasCanvasActionOutput(outputs: unknown[]) {
+  return outputs.some((output) => {
+    if (!output || typeof output !== 'object') return false
+    const record = output as Record<string, unknown>
+    return Array.isArray(record.canvasActions) && record.canvasActions.length > 0
+  })
+}
+
 function stringArray(value: unknown, limit: number) {
   return Array.isArray(value)
     ? value
@@ -4563,13 +4655,29 @@ export function hydrateLocalToolPlanInput(
   prompt: string,
   gradeLevel: string
 ) {
+  return hydrateLocalToolPlan(plan, previousOutputs, prompt, gradeLevel)?.input ?? plan.input
+}
+
+export function hydrateLocalToolPlan(
+  plan: LocalToolPlan,
+  previousOutputs: unknown[],
+  prompt: string,
+  gradeLevel: string
+): HydratedLocalToolPlan | null {
+  if (plan.toolName === 'learner_warm_start_visual') {
+    return buildWarmStartVisualPlan(findAdaptiveReviewOutput(previousOutputs))
+  }
+
   if (plan.toolName === 'write_on_canvas' && plan.input.mode === 'learner_warm_start') {
     const reviewPlan = findAdaptiveReviewOutput(previousOutputs)
     if (!reviewPlan) {
       return {
-        title: 'Quick review start',
-        textLines: ['Let us start with one quick review check.', 'What is one small first step you can try?'],
-        clearExisting: true,
+        toolName: plan.toolName,
+        input: {
+          title: 'Quick review start',
+          textLines: ['Let us start with one quick review check.', 'What is one small first step you can try?'],
+          clearExisting: true,
+        },
       }
     }
 
@@ -4585,39 +4693,42 @@ export function hydrateLocalToolPlanInput(
       typeof reviewPlan.firstBoardTool === 'string' ? reviewPlan.firstBoardTool.replace(/_/g, ' ') : ''
     const historyFocus =
       typeof reviewPlan.historyFocus === 'string'
-        ? reviewPlan.historyFocus
-            .replace(/^Revisit one structured timeline pattern:\s*/i, '')
-            .replace(/^Revisit one learning pattern:\s*/i, '')
-            .trim()
+        ? compactWarmStartBoardFocus(reviewPlan.historyFocus)
         : ''
+    const warmStartVisualAlreadyDrew = hasCanvasActionOutput(previousOutputs)
 
     return {
-      title: 'Quick review start',
-      textLines: [
-        warmStartLine || 'Let us start with one quick review check.',
-        firstQuestion || 'What is one small first step you can try?',
-        historyFocus && historyFocus.length <= 90 ? `Focus: ${historyFocus}` : '',
-        firstBoardTool ? `Board tool if needed: ${firstBoardTool}.` : '',
-      ].filter(Boolean),
-      clearExisting: true,
+      toolName: plan.toolName,
+      input: {
+        title: 'Quick review start',
+        textLines: [
+          historyFocus ? `Quick check: ${historyFocus}` : warmStartLine || 'Let us start with one quick review check.',
+          firstQuestion || 'What is one small first step you can try?',
+          firstBoardTool ? `Visual: ${firstBoardTool}.` : '',
+        ].filter(Boolean),
+        clearExisting: !warmStartVisualAlreadyDrew,
+      },
     }
   }
 
   if (plan.toolName === 'table_of_values') {
     const focus = findTableRowBoardFocus(previousOutputs)
-    if (!focus) return plan.input
+    if (!focus) return plan
 
     return {
-      ...plan.input,
-      highlightXValue: focus.x,
-      highlightLabel: `Check x = ${formatLocalNumber(focus.x)} row`,
+      toolName: plan.toolName,
+      input: {
+        ...plan.input,
+        highlightXValue: focus.x,
+        highlightLabel: `Check x = ${formatLocalNumber(focus.x)} row`,
+      },
     }
   }
 
-  if (plan.toolName !== 'adaptive_review_plan') return plan.input
+  if (plan.toolName !== 'adaptive_review_plan') return plan
 
   const learnerContext = findLearnerContextOutput(previousOutputs)
-  if (!learnerContext) return plan.input
+  if (!learnerContext) return plan
 
   const topics = stringArray(learnerContext.likelyTopics, 5)
   const struggleSignals = stringArray(learnerContext.struggleSignals, 5)
@@ -4625,14 +4736,17 @@ export function hydrateLocalToolPlanInput(
   const misconceptionTimeline = misconceptionTimelineArray(learnerContext.misconceptionTimeline, 6)
 
   return {
-    ...plan.input,
-    gradeLevel,
-    targetTopic: topics[0] ?? '',
-    sessionGoal: prompt.slice(0, 240),
-    topics,
-    struggleSignals,
-    recentExcerpts,
-    misconceptionTimeline,
+    toolName: plan.toolName,
+    input: {
+      ...plan.input,
+      gradeLevel,
+      targetTopic: topics[0] ?? '',
+      sessionGoal: prompt.slice(0, 240),
+      topics,
+      struggleSignals,
+      recentExcerpts,
+      misconceptionTimeline,
+    },
   }
 }
 

@@ -423,6 +423,8 @@ export type AdaptiveReviewPlanResult = {
   }>
   tutorMoves: string[]
   masteryCheck: string
+  warmStartVisualTool: string | null
+  canvasActions?: TutorCanvasAction[]
   avoid: string[]
 }
 

@@ -31,7 +31,7 @@ import {
 import { planCanvasActionReveal } from '@/lib/tutor/canvas-action-reveal'
 import {
   buildLocalAssistantReply,
-  hydrateLocalToolPlanInput,
+  hydrateLocalToolPlan,
   planLocalToolTurn,
 } from '@/lib/livekit/local-tool-planner'
 import type {
@@ -652,28 +652,39 @@ export function useLiveKitTutor({
       const outputs: unknown[] = []
 
       try {
-        for (const plan of plans.slice(0, 3)) {
-          const input = hydrateLocalToolPlanInput(plan, outputs, text, gradeLevelRef.current)
+        for (const plan of plans.slice(0, 4)) {
+          const hydratedPlan = hydrateLocalToolPlan(plan, outputs, text, gradeLevelRef.current)
+          if (!hydratedPlan) continue
+          const input = hydratedPlan.input
           const callId = crypto.randomUUID()
           appendToolEvent({
             type: 'tool_started',
-            toolName: plan.toolName,
+            toolName: hydratedPlan.toolName,
             input,
-            metadata: { callId, source: 'local-typed-lab' },
+            metadata: {
+              callId,
+              source: 'local-typed-lab',
+              plannedToolName: hydratedPlan.plannedToolName,
+            },
           })
 
-          const result = await callServerLiveKitTool(sessionIdRef.current, plan.toolName, input, {
+          const result = await callServerLiveKitTool(sessionIdRef.current, hydratedPlan.toolName, input, {
             preview: true,
           })
           outputs.push(result.output)
           appendToolEvent({
             type: 'tool_completed',
-            toolName: plan.toolName,
+            toolName: hydratedPlan.toolName,
             input,
             output: result.output,
-            metadata: { callId, source: 'local-typed-lab', ...result.toolMeta },
+            metadata: {
+              callId,
+              source: 'local-typed-lab',
+              plannedToolName: hydratedPlan.plannedToolName,
+              ...result.toolMeta,
+            },
           })
-          queueCanvasActions(result.canvasActions.slice(0, MAX_CANVAS_ACTIONS_PER_RESULT), plan.toolName)
+          queueCanvasActions(result.canvasActions.slice(0, MAX_CANVAS_ACTIONS_PER_RESULT), hydratedPlan.toolName)
         }
 
         const reply = buildLocalAssistantReply(text, plans, outputs)

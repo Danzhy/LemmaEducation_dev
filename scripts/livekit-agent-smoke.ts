@@ -1630,9 +1630,11 @@ async function main() {
     !JSON.stringify(reviewPlan).includes('diagnosticQuestion') ||
     !JSON.stringify(reviewPlan).includes('timelineFocus') ||
     !JSON.stringify(reviewPlan).includes('selectedMisconception') ||
-    !JSON.stringify(reviewPlan).includes('same-size pieces')
+    !JSON.stringify(reviewPlan).includes('same-size pieces') ||
+    !JSON.stringify(reviewPlan).includes('warmStartVisualTool') ||
+    !JSON.stringify(reviewPlan).includes('canvasActions')
   ) {
-    throw new Error('adaptive_review_plan did not return a misconception-focused warm start.')
+    throw new Error('adaptive_review_plan did not return a misconception-focused warm start with a board visual.')
   }
 
   if (!JSON.stringify(integerOperation).includes('"result":2')) {

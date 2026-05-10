@@ -1300,8 +1300,11 @@ assert(
     reviewPlan.timelineFocus?.count === 3 &&
     reviewPlan.selectedMisconception.toLowerCase().includes('denominator') &&
     reviewPlan.firstStudentQuestion.includes('same-size pieces') &&
-    reviewPlan.microPractice.length === 2,
-  'adaptive_review_plan should turn learner history into a misconception-focused warm start.'
+    reviewPlan.microPractice.length === 2 &&
+    reviewPlan.warmStartVisualTool === 'fraction_strip' &&
+    Array.isArray(reviewPlan.canvasActions) &&
+    reviewPlan.canvasActions.length > 0,
+  'adaptive_review_plan should turn learner history into a misconception-focused warm start with a board visual.'
 )
 
 const masterySnapshot = sessionMasterySnapshot({

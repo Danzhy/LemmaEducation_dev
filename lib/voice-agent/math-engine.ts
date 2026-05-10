@@ -11879,6 +11879,83 @@ function buildWarmStartQuestion(input: {
   return 'What is one small first step you can try?'
 }
 
+function compactWarmStartBoardFocus(value: string) {
+  const normalized = value
+    .replace(/^Revisit one structured timeline pattern:\s*/i, '')
+    .replace(/^Revisit one learning pattern:\s*/i, '')
+    .replace(/\(\d+x\)\.?$/i, '')
+    .replace(/\.$/, '')
+    .trim()
+  const lower = normalized.toLowerCase()
+
+  if (/denominator|same-size/.test(lower)) return 'common denominators'
+  if (/scale|ratio|rate|proportion/.test(lower)) return 'same scale factor'
+  if (/balance|both sides|equation/.test(lower)) return 'both sides stay balanced'
+  if (/x|y|coordinate|graph|slope/.test(lower)) return 'x and y relationships'
+  if (/area|perimeter|angle|triangle|rectangle/.test(lower)) return 'the right measurement'
+  if (/percent|decimal|hundred/.test(lower)) return 'the whole and 100%'
+
+  return normalized.slice(0, 52)
+}
+
+function buildWarmStartVisual(input: {
+  topic: CurriculumTopic
+  firstBoardTool: string
+  warmStartLine: string
+  historyFocus: string
+  firstStudentQuestion: string
+}) {
+  const combined = `${input.firstBoardTool} ${input.topic} ${input.historyFocus}`.toLowerCase()
+  let visualTool: string | null = null
+  let visualActions: TutorCanvasAction[] = []
+
+  if (/fraction|denominator|same-size/.test(combined)) {
+    visualTool = 'fraction_strip'
+    visualActions = fractionStripScene({
+      numerator: 1,
+      denominator: 2,
+      title: 'Review: same-size pieces',
+      label: 'Start by comparing the size of each piece',
+    }).canvasActions
+  } else if (/double_number_line|ratio|rate|scale|proportion/.test(combined)) {
+    visualTool = 'double_number_line'
+    visualActions = doubleNumberLineScene({
+      topLabel: 'Quantity A',
+      bottomLabel: 'Quantity B',
+      pairs: [
+        { top: 0, bottom: 0, label: 'start' },
+        { top: 1, bottom: 2, label: 'same factor' },
+        { top: 2, bottom: 4, label: 'scaled' },
+      ],
+      title: 'Review: keep pairs together',
+    }).canvasActions
+  } else if (/equation|balance|both sides|solve_linear_on_canvas/.test(combined)) {
+    visualTool = 'equation_balance'
+    visualActions = equationBalanceScene({
+      leftExpression: 'x + 3',
+      rightExpression: '10',
+      title: 'Review: keep both sides balanced',
+      balanced: true,
+    }).canvasActions
+  }
+
+  const focus = compactWarmStartBoardFocus(input.historyFocus)
+  const noteActions = writeOnCanvas({
+    title: 'Quick review start',
+    textLines: [
+      focus ? `Quick check: ${focus}` : input.warmStartLine,
+      input.firstStudentQuestion,
+      visualTool ? `Visual: ${visualTool.replace(/_/g, ' ')}.` : '',
+    ].filter(Boolean),
+    clearExisting: visualActions.length === 0,
+  }).canvasActions
+
+  return {
+    visualTool,
+    canvasActions: [...visualActions, ...noteActions],
+  }
+}
+
 export function adaptiveReviewPlan(input: {
   gradeLevel?: string
   targetTopic?: string
@@ -11926,19 +12003,28 @@ export function adaptiveReviewPlan(input: {
       : reviewMode === 'rebuild'
         ? guide.tools[0]
         : practice[0]?.suggestedTool || guide.tools[0]
+  const warmStartLine =
+    reviewMode === 'extend'
+      ? `Let us build on your recent ${guide.label.toLowerCase()} work with one slightly richer check.`
+      : `Let us start with one quick ${guide.label.toLowerCase()} check about ${studentFocus}.`
+  const historyFocus = timelineFocus
+    ? `Revisit one structured timeline pattern: ${timelineFocus.signal} (${timelineFocus.count}x).`
+    : `Revisit one learning pattern: ${selectedMisconception}`
+  const warmStartVisual = buildWarmStartVisual({
+    topic,
+    firstBoardTool,
+    warmStartLine,
+    historyFocus,
+    firstStudentQuestion,
+  })
 
   return {
     topic,
     label: guide.label,
     gradeLevel,
     reviewMode,
-    warmStartLine:
-      reviewMode === 'extend'
-        ? `Let us build on your recent ${guide.label.toLowerCase()} work with one slightly richer check.`
-        : `Let us start with one quick ${guide.label.toLowerCase()} check about ${studentFocus}.`,
-    historyFocus: timelineFocus
-      ? `Revisit one structured timeline pattern: ${timelineFocus.signal} (${timelineFocus.count}x).`
-      : `Revisit one learning pattern: ${selectedMisconception}`,
+    warmStartLine,
+    historyFocus,
     timelineFocus,
     selectedMisconception,
     firstStudentQuestion,
@@ -11960,6 +12046,8 @@ export function adaptiveReviewPlan(input: {
       reviewMode === 'extend'
         ? 'Can the student solve a slightly changed problem and explain what changed?'
         : 'Can the student make the next step without copying a full worked solution?',
+    warmStartVisualTool: warmStartVisual.visualTool,
+    canvasActions: warmStartVisual.canvasActions,
     avoid: [
       'Do not list old private session details.',
       'Do not quote exact old transcript lines.',

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   buildLocalAssistantReply,
+  hydrateLocalToolPlan,
   hydrateLocalToolPlanInput,
   planLocalToolTurn,
 } from '@/lib/livekit/local-tool-planner'
@@ -1221,7 +1222,7 @@ const cases: PlannerCase[] = [
   {
     name: 'routes review prompts through learner context before planning',
     prompt: 'Can we continue from last time and review what I struggled with?',
-    expectedTools: ['learner_context', 'adaptive_review_plan', 'write_on_canvas'],
+    expectedTools: ['learner_context', 'adaptive_review_plan', 'learner_warm_start_visual', 'write_on_canvas'],
     inspect: (input) => {
       assert.match(String(input.reason), /last time/)
     },
@@ -1723,13 +1724,123 @@ const hydratedWarmStartBoardInput = hydrateLocalToolPlanInput(
 assert.deepEqual(hydratedWarmStartBoardInput, {
   title: 'Quick review start',
   textLines: [
-    'Let us start with one quick ratios and rates check about scale factors.',
+    'Quick check: same scale factor',
     'Which two quantities should stay paired as we scale?',
-    'Focus: scale both quantities by the same factor (2x).',
-    'Board tool if needed: double number line.',
+    'Visual: double number line.',
   ],
   clearExisting: true,
 })
+
+const hydratedWarmStartBoardInputAfterVisual = hydrateLocalToolPlanInput(
+  {
+    toolName: 'write_on_canvas',
+    input: {
+      mode: 'learner_warm_start',
+      title: 'Quick review start',
+      textLines: ['placeholder'],
+      clearExisting: true,
+    },
+  },
+  [
+    {
+      warmStartLine: 'Let us start with one quick fractions check.',
+      firstStudentQuestion: 'Do these fractions have same-size pieces yet?',
+      firstBoardTool: 'fraction_strip',
+      historyFocus: 'Revisit one structured timeline pattern: common denominators.',
+    },
+    {
+      canvasActions: [{ type: 'clear' }],
+    },
+  ],
+  'continue from last time',
+  '6'
+)
+assert.equal(hydratedWarmStartBoardInputAfterVisual.clearExisting, false)
+
+assert.deepEqual(
+  hydrateLocalToolPlan(
+    {
+      toolName: 'learner_warm_start_visual',
+      input: { mode: 'from_adaptive_review_plan' },
+    },
+    [
+      {
+        warmStartLine: 'Let us start with one quick fractions check.',
+        firstBoardTool: 'fraction_strip',
+        historyFocus: 'Revisit one structured timeline pattern: common denominators.',
+      },
+    ],
+    'continue fractions from last time',
+    '6'
+  ),
+  {
+    plannedToolName: 'learner_warm_start_visual',
+    toolName: 'fraction_strip',
+    input: {
+      numerator: 1,
+      denominator: 2,
+      title: 'Review: same-size pieces',
+      label: 'Start by comparing the size of each piece',
+    },
+  }
+)
+
+assert.deepEqual(
+  hydrateLocalToolPlan(
+    {
+      toolName: 'learner_warm_start_visual',
+      input: { mode: 'from_adaptive_review_plan' },
+    },
+    [
+      {
+        warmStartLine: 'Let us start with one quick ratios check.',
+        firstBoardTool: 'double_number_line',
+        historyFocus: 'Revisit one structured timeline pattern: scale both quantities by the same factor.',
+      },
+    ],
+    'continue ratios from last time',
+    '6'
+  )?.toolName,
+  'double_number_line'
+)
+
+assert.deepEqual(
+  hydrateLocalToolPlan(
+    {
+      toolName: 'learner_warm_start_visual',
+      input: { mode: 'from_adaptive_review_plan' },
+    },
+    [
+      {
+        warmStartLine: 'Let us start with one quick equation check.',
+        firstBoardTool: 'equation_balance',
+        historyFocus: 'Revisit one structured timeline pattern: keep both sides balanced.',
+      },
+    ],
+    'continue equations from last time',
+    '6'
+  )?.toolName,
+  'equation_balance'
+)
+
+assert.equal(
+  hydrateLocalToolPlan(
+    {
+      toolName: 'learner_warm_start_visual',
+      input: { mode: 'from_adaptive_review_plan' },
+    },
+    [
+      {
+        warmStartLine: 'Let us start with one quick data check.',
+        firstBoardTool: 'write_on_canvas',
+        historyFocus: 'Revisit one learning pattern: data reading.',
+      },
+    ],
+    'continue from last time',
+    '6'
+  ),
+  null
+)
 
 const hydratedTableInput = hydrateLocalToolPlanInput(
   {
