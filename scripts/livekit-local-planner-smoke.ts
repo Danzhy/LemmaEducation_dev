@@ -1240,6 +1240,16 @@ const cases: PlannerCase[] = [
     },
   },
   {
+    name: 'routes new-topic teaching requests through learning pathway planning',
+    prompt: 'Teach me fractions with a short review plan before practice.',
+    expectedTools: ['learning_pathway_planner'],
+    inspect: (input) => {
+      assert.equal(input.gradeLevel, '6')
+      assert.equal(input.topic, 'fractions')
+      assert.equal(input.timeAvailableMinutes, 12)
+    },
+  },
+  {
     name: 'routes class-specific prompts through curriculum context and search first',
     prompt: 'My teacher said the homework wants a ratio table: 3 cups for 12 muffins, how many cups for 20 muffins?',
     expectedTools: ['curriculum_context', 'curriculum_search', 'double_number_line'],
@@ -1666,6 +1676,21 @@ assert.match(
     ]
   ),
   /What changed/
+)
+assert.match(
+  buildLocalAssistantReply(
+    'teach me fractions',
+    [{ toolName: 'learning_pathway_planner', input: {} }],
+    [
+      {
+        lessonGoal: 'fractions',
+        firstBoardTool: 'fraction_strip',
+        diagnosticPrompt: 'Which quantity is the whole in this fraction situation?',
+        pathway: [{ title: 'Check the whole' }],
+      },
+    ]
+  ),
+  /First check: Which quantity is the whole/
 )
 assert.match(
   buildLocalAssistantReply(

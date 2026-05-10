@@ -3698,6 +3698,15 @@ export function planLocalToolTurn(
     )
   const asksForResponsePlanning =
     /\b(what should (?:we|i|you) do next|how should (?:we|i|you) start|choose the next move|plan the next move|best next step|how should you help|what is the next tutoring move)\b/.test(lower)
+  const asksForLearningPathway =
+    /\b(teach me|help me learn|walk me through|mini[- ]?lesson|lesson plan|study plan|review plan|practice plan|learning path|pathway|where should i start|start from scratch)\b/.test(
+      lower
+    ) ||
+    (/\b(review|practice|learn|study)\b/.test(lower) &&
+      /\b(fractions?|decimals?|percents?|ratios?|rates?|equations?|integers?|geometry|measurement|graphing|data|probability)\b/.test(
+        lower
+      ) &&
+      /\b(plan|path|lesson|sequence|start|order)\b/.test(lower))
   const asksForMistakeHelp =
     /\b(why.*wrong|what.*wrong|where.*mistake|mistake|incorrect|not right|check my work|check this|is this right|is that right|am i right|is my step right|correct)\b/.test(lower)
   const needsSafetyBoundary =
@@ -3857,6 +3866,21 @@ export function planLocalToolTurn(
         recentToolResult: '',
         hasStudentAttempt,
         attemptCount: hasStudentAttempt ? 1 : 0,
+      },
+    })
+    return plans
+  }
+
+  if (asksForLearningPathway) {
+    plans.push({
+      toolName: 'learning_pathway_planner',
+      input: {
+        gradeLevel,
+        topic: inferLocalTopic(prompt),
+        studentGoal: prompt.slice(0, 240),
+        studentWork: hasStudentAttempt ? prompt.slice(0, 500) : '',
+        recentMisconception: asksForMistakeHelp ? prompt.slice(0, 240) : '',
+        timeAvailableMinutes: 12,
       },
     })
     return plans
@@ -4951,6 +4975,30 @@ export function buildLocalAssistantReply(_prompt: string, plans: LocalToolPlan[]
       return `${planned.sayFirst} ${planned.askNext}`
     }
     return 'I planned the next tutor move. I will ask one question, then wait for your thinking.'
+  }
+
+  if (firstTool === 'learning_pathway_planner') {
+    const pathway = outputs.find(
+      (output): output is {
+        lessonGoal?: string
+        diagnosticPrompt?: string
+        firstBoardTool?: string
+        pathway?: Array<{ title?: string }>
+      } => Boolean(output && typeof output === 'object' && 'diagnosticPrompt' in output)
+    )
+    const firstStep = pathway?.pathway?.find((step) => step.title)?.title
+    const opening = pathway?.lessonGoal
+      ? `I made a short path for ${pathway.lessonGoal}.`
+      : 'I made a short learning path.'
+    const boardCue = pathway?.firstBoardTool
+      ? ` I will start with a ${formatToolNameForStudent(pathway.firstBoardTool)} view if it helps.`
+      : ''
+    const diagnostic = pathway?.diagnosticPrompt
+      ? ` First check: ${pathway.diagnosticPrompt}`
+      : firstStep
+        ? ` First we will focus on ${firstStep.toLowerCase()}.`
+        : ' First I will ask one quick diagnostic question.'
+    return `${opening}${boardCue}${diagnostic}`
   }
 
   if (firstTool === 'exit_ticket_builder') {
