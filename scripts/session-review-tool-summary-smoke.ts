@@ -3,6 +3,7 @@ import {
   summarizeSessionEvidenceForReview,
   summarizeToolEventForReview,
 } from '../lib/tutor/tool-event-review'
+import { buildSessionFollowUpPractice } from '../lib/tutor/session-follow-up'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -204,6 +205,64 @@ assert(
     !shouldShowRawToolPayloads('parent', '1') &&
     !shouldShowRawToolPayloads('student', '1'),
   'Only admins should be able to reveal raw tool payloads.'
+)
+
+const targetedFollowUp = buildSessionFollowUpPractice({
+  gradeLevel: 'Grade 6',
+  messages: [],
+  toolEvents: [
+    {
+      id: 'event-1',
+      eventType: 'tool_completed',
+      toolName: 'math_check_step',
+      status: 'completed',
+      input: {
+        previousStep: 'Private scratch: 1/2 + 1/3',
+        nextStep: 'Private scratch: 2/5',
+      },
+      output: {
+        verdict: 'invalid',
+        reason: 'The student added the denominators.',
+        hintTarget: 'recheck the common denominator',
+      },
+      metadata: null,
+      createdAt: new Date(),
+    },
+  ],
+})
+assert(targetedFollowUp, 'Follow-up practice should be generated from review evidence.')
+assert(
+  targetedFollowUp.topic === 'fractions' && targetedFollowUp.items.length === 3,
+  'Follow-up practice should map denominator evidence to a short fraction practice set.'
+)
+const targetedFollowUpText = JSON.stringify(targetedFollowUp)
+assert(
+  targetedFollowUpText.includes('common denominator') &&
+    !targetedFollowUpText.includes('Private scratch') &&
+    !targetedFollowUpText.includes('2/5'),
+  'Follow-up practice should keep the safe focus while hiding raw scratch payloads.'
+)
+assert(
+  !targetedFollowUpText.includes('answer'),
+  'Follow-up practice should not expose the answer key in the dashboard.'
+)
+
+const transcriptFollowUp = buildSessionFollowUpPractice({
+  gradeLevel: 'Grade 7',
+  messages: [
+    {
+      id: 'message-1',
+      role: 'user',
+      content: 'Can you help me solve x + 7 = 19?',
+      source: 'text',
+      createdAt: new Date(),
+    },
+  ],
+  toolEvents: [],
+})
+assert(
+  transcriptFollowUp?.topic === 'expressions_equations',
+  'Follow-up practice should infer equation review from recent student prompts when tool evidence is absent.'
 )
 
 console.log('Session review tool summary smoke checks passed.')

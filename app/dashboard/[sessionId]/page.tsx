@@ -10,6 +10,7 @@ import {
   summarizeSessionEvidenceForReview,
   summarizeToolEventForReview,
 } from '@/lib/tutor/tool-event-review'
+import { buildSessionFollowUpPractice } from '@/lib/tutor/session-follow-up'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,6 +130,7 @@ export default async function DashboardSessionDetailPage({
     resolvedSearchParams.debugTools
   )
   const sessionEvidenceSummary = summarizeSessionEvidenceForReview(session.toolEvents)
+  const followUpPractice = buildSessionFollowUpPractice(session)
 
   return (
     <DashboardScaffold
@@ -242,6 +244,48 @@ export default async function DashboardSessionDetailPage({
                       <li key={detail}>{detail}</li>
                     ))}
                   </ul>
+                </div>
+              </section>
+            ) : null}
+
+            {followUpPractice ? (
+              <section className="rounded-[30px] border border-[#D8E4DF] bg-white/84 px-5 py-5 shadow-[0_22px_60px_-46px_rgba(15,41,34,0.45)] md:px-6">
+                <div className="border-b border-[#E2EBE7] pb-4">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">Follow-up practice</p>
+                  <h2 className="mt-2 text-[1.45rem] font-light tracking-[-0.03em] text-[#0F2922] serif">
+                    Try next
+                  </h2>
+                </div>
+                <div className="mt-5 space-y-4">
+                  <div className="rounded-[22px] border border-[#DCE7E2] bg-[#F8FBF9] px-4 py-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#6B7F79]">
+                      {followUpPractice.focusLabel}
+                    </p>
+                    <p className="mt-3 text-sm leading-relaxed text-[#14312A]">
+                      {followUpPractice.rationale}
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    {followUpPractice.items.map((item, index) => (
+                      <div
+                        key={`${item.prompt}-${index}`}
+                        className="rounded-[20px] border border-[#E1EAE6] bg-[#FCFDFC] px-4 py-4"
+                      >
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#6B7F79]">
+                          Practice {index + 1}
+                        </p>
+                        <p className="mt-2 text-sm leading-relaxed text-[#14312A]">
+                          {item.prompt}
+                        </p>
+                        <p className="mt-2 text-xs leading-relaxed text-[#5C7069]">
+                          Hint: {item.hint}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs leading-relaxed text-[#6B7F79]">
+                    {followUpPractice.tutorMove}
+                  </p>
                 </div>
               </section>
             ) : null}
