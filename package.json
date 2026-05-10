@@ -53,6 +53,7 @@
     "@neondatabase/neon-js": "^0.5.0-beta",
     "@neondatabase/serverless": "^0.10.3",
     "@openai/agents": "^0.9.1",
+    "dompurify": "^3.4.2",
     "jspdf": "^4.2.1",
     "katex": "^0.16.28",
     "livekit-client": "^2.18.9",

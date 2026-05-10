@@ -16,6 +16,7 @@ import { useState, useEffect, useRef } from 'react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { convertToLaTeX, stripLatexDelimiters } from '@/lib/mathParser'
+import { sanitizeMathHtml } from '@/lib/sanitize-math-html'
 
 export interface MathEditorProps {
   /** Initial LaTeX content */
@@ -61,15 +62,17 @@ export default function MathEditor({
   try {
     const rawLatex = stripLatexDelimiters(latex)
     previewHTML = rawLatex
-      ? katex.renderToString(rawLatex, {
-          throwOnError: false,
-          displayMode,
-          output: 'html',
-          trust: false,
-        })
+      ? sanitizeMathHtml(
+          katex.renderToString(rawLatex, {
+            throwOnError: false,
+            displayMode,
+            output: 'html',
+            trust: false,
+          })
+        )
       : ''
   } catch (err) {
-    previewHTML = '<span style="color: red;">Invalid LaTeX</span>'
+    previewHTML = '<span class="lemma-math-error">Invalid LaTeX</span>'
     previewError = err instanceof Error ? err.message : 'Invalid LaTeX'
   }
 
@@ -147,6 +150,7 @@ export default function MathEditor({
           <div
             className="min-h-[60px] flex items-center justify-center text-[#0F2922] [&_.katex]:text-[#0F2922] [&_.katex-html]:text-[#0F2922]"
             style={{ color: '#0F2922' }}
+            // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- KaTeX output is rendered with trust:false and sanitized by sanitizeMathHtml.
             dangerouslySetInnerHTML={{ __html: previewHTML }}
           />
         </div>

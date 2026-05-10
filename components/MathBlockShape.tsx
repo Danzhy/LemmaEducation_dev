@@ -17,13 +17,13 @@
 import {
   BaseBoxShapeUtil,
   HTMLContainer,
-  type ShapeProps,
   T,
   type RecordProps,
 } from 'tldraw'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { stripLatexDelimiters } from '@/lib/mathParser'
+import { sanitizeMathHtml } from '@/lib/sanitize-math-html'
 
 const MATH_BLOCK_TYPE = 'math-block' as const
 
@@ -95,15 +95,17 @@ export class MathBlockShapeUtil extends BaseBoxShapeUtil<MathBlockShape> {
     let renderedHTML = ''
     try {
       const rawLatex = stripLatexDelimiters(latex)
-      renderedHTML = katex.renderToString(rawLatex, {
-        throwOnError: false,
-        displayMode,
-        output: 'html',
-        trust: false,
-      })
-    } catch (err) {
+      renderedHTML = sanitizeMathHtml(
+        katex.renderToString(rawLatex, {
+          throwOnError: false,
+          displayMode,
+          output: 'html',
+          trust: false,
+        })
+      )
+    } catch {
       // If rendering fails, show error message
-      renderedHTML = `<span style="color: red;">Error rendering math</span>`
+      renderedHTML = '<span class="lemma-math-error">Error rendering math</span>'
     }
 
     return (
@@ -117,6 +119,7 @@ export class MathBlockShapeUtil extends BaseBoxShapeUtil<MathBlockShape> {
           padding: '8px',
           overflow: 'hidden',
         }}
+        // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- KaTeX output is rendered with trust:false and sanitized by sanitizeMathHtml.
         dangerouslySetInnerHTML={{ __html: renderedHTML }}
       />
     )

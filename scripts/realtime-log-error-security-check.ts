@@ -30,5 +30,7 @@ assertExcludes(logRoute, 'await request.json()')
 
 assertIncludes(mathEditor, 'trust: false')
 assertIncludes(mathBlockShape, 'trust: false')
+assertIncludes(mathEditor, 'sanitizeMathHtml')
+assertIncludes(mathBlockShape, 'sanitizeMathHtml')
 
-console.log(JSON.stringify({ ok: true, checked: 9 }))
+console.log(JSON.stringify({ ok: true, checked: 11 }))
