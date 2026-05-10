@@ -5,6 +5,10 @@ import { buildFollowUpAssignmentDraft } from '@/lib/tutor/follow-up-draft'
 import { buildStudentMisconceptionTrends } from '@/lib/tutor/misconception-trends'
 import { getNeonSql } from '@/lib/tutor/db'
 import { getSessionUserId } from '@/lib/tutor/session-user'
+import {
+  schoolRateLimitResponse,
+  takeSchoolWorkflowRateLimit,
+} from '@/lib/school/workflow-rate-limit'
 
 type RequestBody = {
   studentUserId?: unknown
@@ -80,6 +84,19 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { ok: false, code: 'FORBIDDEN', message: 'Only teachers can draft follow-up work.' },
         { status: 403 }
+      )
+    }
+
+    const rateLimit = await takeSchoolWorkflowRateLimit(request, {
+      endpoint: 'follow-up-draft',
+      userId,
+      maxHits: 40,
+      windowSeconds: 60 * 60,
+    })
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        schoolRateLimitResponse('Too many follow-up drafts. Please try again later.', rateLimit.retryAfterSeconds),
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
       )
     }
 

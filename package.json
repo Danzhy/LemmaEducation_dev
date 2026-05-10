@@ -36,7 +36,8 @@
     "test:learner-security": "node --import tsx scripts/learner-context-security-check.ts",
     "test:session-review": "node --import tsx scripts/session-review-tool-summary-smoke.ts",
     "test:tutor-quota": "node --import tsx scripts/tutor-quota-policy-smoke.ts",
-    "test:tutor-human-experience": "node --import tsx scripts/tutor-human-experience-regression.ts"
+    "test:tutor-human-experience": "node --import tsx scripts/tutor-human-experience-regression.ts",
+    "test:school-security": "node --import tsx scripts/school-workflow-rate-limit-check.ts"
   },
   "overrides": {
     "brace-expansion": "^1.1.13",

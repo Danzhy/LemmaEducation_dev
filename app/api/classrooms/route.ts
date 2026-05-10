@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth/current-user'
 import { createClassroomForTeacher } from '@/lib/school/access'
 import { getCurrentUserProfile } from '@/lib/school/profiles'
+import {
+  schoolRateLimitResponse,
+  takeSchoolWorkflowRateLimit,
+} from '@/lib/school/workflow-rate-limit'
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +22,19 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { ok: false, code: 'FORBIDDEN', message: 'Only teachers can create classes.' },
         { status: 403 }
+      )
+    }
+
+    const rateLimit = await takeSchoolWorkflowRateLimit(request, {
+      endpoint: 'classroom-create',
+      userId: user.id,
+      maxHits: 20,
+      windowSeconds: 60 * 60,
+    })
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        schoolRateLimitResponse('Too many class creation attempts. Please try again later.', rateLimit.retryAfterSeconds),
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
       )
     }
 

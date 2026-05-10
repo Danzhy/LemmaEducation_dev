@@ -8,11 +8,15 @@ import {
 } from '@/lib/tutor/history'
 import { buildSessionReviewFilename, buildSessionReviewMarkdown } from '@/lib/tutor/session-review-export'
 import { getSessionUserId } from '@/lib/tutor/session-user'
+import {
+  schoolRateLimitResponse,
+  takeSchoolWorkflowRateLimit,
+} from '@/lib/school/workflow-rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
@@ -29,6 +33,19 @@ export async function GET(
       return NextResponse.json(
         { ok: false, code: 'FORBIDDEN', message: 'Complete onboarding before exporting sessions.' },
         { status: 403 }
+      )
+    }
+
+    const rateLimit = await takeSchoolWorkflowRateLimit(request, {
+      endpoint: 'session-review-export',
+      userId,
+      maxHits: 60,
+      windowSeconds: 60 * 60,
+    })
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        schoolRateLimitResponse('Too many session exports. Please try again later.', rateLimit.retryAfterSeconds),
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
       )
     }
 

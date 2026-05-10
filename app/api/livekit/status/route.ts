@@ -3,17 +3,34 @@ import { getSessionUserId } from '@/lib/tutor/session-user'
 import { getLiveKitServerConfig } from '@/lib/livekit/config'
 import { LIVEKIT_TUTOR_TOOL_NAMES } from '@/lib/livekit/tool-catalog'
 import { resolveOpenAIRealtimeModel } from '@/lib/tutor/realtime-model-policy'
+import {
+  schoolRateLimitResponse,
+  takeSchoolWorkflowRateLimit,
+} from '@/lib/school/workflow-rate-limit'
 
 function liveKitEnvValue(name: string, fallback: string) {
   return process.env[name]?.trim() || fallback
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const userId = await getSessionUserId()
   if (!userId) {
     return NextResponse.json(
       { ok: false, code: 'UNAUTHORIZED', message: 'Please sign in again.' },
       { status: 401 }
+    )
+  }
+
+  const rateLimit = await takeSchoolWorkflowRateLimit(request, {
+    endpoint: 'livekit-status',
+    userId,
+    maxHits: 180,
+    windowSeconds: 60 * 60,
+  })
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      schoolRateLimitResponse('Too many LiveKit status checks. Please try again later.', rateLimit.retryAfterSeconds),
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
     )
   }
 

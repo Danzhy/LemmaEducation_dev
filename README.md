@@ -17,7 +17,7 @@ Lemma is an educational platform that captures the complete picture of a student
 - **LiveKit Pipeline Lab** - Hidden `/tutor-livekit-pipeline-lab` route for testing STT plus selectable LLM plus TTS
 - **Curriculum RAG Lab** - Teacher-uploaded curriculum context and custom tutor profiles for hidden agent labs
 - **Learner Context Lab** - Signed-in lab tutors can quietly review recent sessions and recurring struggle signals
-- **Board PDF Tools** - Hidden labs can import worksheet PDFs onto the board and export the canvas to PDF
+- **Board PDF Tools** - Tutor boards can import worksheet PDFs and export the canvas to PDF
 - **Teacher Review Tools** - Session summaries, review-focus trends, and follow-up practice drafts for school pilots
 
 ## Pilot Readiness

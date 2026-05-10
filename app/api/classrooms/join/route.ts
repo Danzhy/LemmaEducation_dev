@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth/current-user'
 import { joinClassroomAsStudent } from '@/lib/school/access'
 import { getCurrentUserProfile } from '@/lib/school/profiles'
+import {
+  schoolRateLimitResponse,
+  takeSchoolWorkflowRateLimit,
+} from '@/lib/school/workflow-rate-limit'
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +22,19 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { ok: false, code: 'FORBIDDEN', message: 'Only students can join a class with this code.' },
         { status: 403 }
+      )
+    }
+
+    const rateLimit = await takeSchoolWorkflowRateLimit(request, {
+      endpoint: 'classroom-join',
+      userId: user.id,
+      maxHits: 30,
+      windowSeconds: 60 * 60,
+    })
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        schoolRateLimitResponse('Too many class-code attempts. Please try again later.', rateLimit.retryAfterSeconds),
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
       )
     }
 

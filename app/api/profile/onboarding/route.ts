@@ -7,6 +7,10 @@ import {
   type UserRole,
 } from '@/lib/school/profiles'
 import { joinClassroomAsStudent, claimGuardianAccessCode } from '@/lib/school/access'
+import {
+  schoolRateLimitResponse,
+  takeSchoolWorkflowRateLimit,
+} from '@/lib/school/workflow-rate-limit'
 
 const ALLOWED_ROLES = new Set<UserRole>(['student', 'teacher', 'parent'])
 const GRADE_OPTIONS = new Set(['Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'])
@@ -18,6 +22,19 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { ok: false, code: 'UNAUTHORIZED', message: 'Please sign in.' },
         { status: 401 }
+      )
+    }
+
+    const rateLimit = await takeSchoolWorkflowRateLimit(request, {
+      endpoint: 'profile-onboarding',
+      userId: user.id,
+      maxHits: 30,
+      windowSeconds: 60 * 60,
+    })
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        schoolRateLimitResponse('Too many onboarding attempts. Please try again later.', rateLimit.retryAfterSeconds),
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
       )
     }
 
