@@ -84,9 +84,12 @@ function formatBounds(bounds: BoardShapeBounds | null | undefined) {
 function describeShapeKind(shape: BoardShapeRecord) {
   const type = typeof shape.type === 'string' ? shape.type : 'shape'
   const props = shape.props ?? {}
+  const meta = shape.meta ?? {}
 
+  if (meta.lemmaPdfPage) return 'imported PDF page'
   if (type === 'math-block') return 'math block'
   if (type === 'text') return 'text label'
+  if (type === 'image') return 'image or uploaded page'
   if (type === 'geo') {
     const geo = typeof props.geo === 'string' ? props.geo : 'geometric shape'
     return geo === 'ellipse' ? 'point or circle' : geo
@@ -128,6 +131,7 @@ export function serializeTutorBoardState<ShapeId extends string>(
   const labels: string[] = []
   const mathBlocks: string[] = []
   const visuals: string[] = []
+  const pdfPages: string[] = []
   let toolOwnedCount = 0
   let studentOwnedCount = 0
 
@@ -142,6 +146,21 @@ export function serializeTutorBoardState<ShapeId extends string>(
 
     const toolGroup = normalizeToolGroup(meta.lemmaArtifactGroupId)
     if (toolGroup) uniquePush(toolGroups, toolGroup, 10)
+
+    if (meta.lemmaPdfPage) {
+      const sourceFileName =
+        typeof meta.sourceFileName === 'string' ? truncate(meta.sourceFileName, 80) : 'PDF'
+      const pageNumber =
+        typeof meta.pageNumber === 'number' && Number.isFinite(meta.pageNumber)
+          ? Math.max(1, Math.round(meta.pageNumber))
+          : undefined
+      const bounds = formatBounds(reader.getShapePageBounds?.(shapeId))
+      uniquePush(
+        pdfPages,
+        `${sourceFileName}${pageNumber ? ` page ${pageNumber}` : ''}${bounds ? ` ${bounds}` : ''}`,
+        8
+      )
+    }
 
     const text = shapeText(shape)
     if (text) uniquePush(labels, truncate(text, 120), maxLabels)
@@ -158,6 +177,7 @@ export function serializeTutorBoardState<ShapeId extends string>(
   const lines = [
     `Visible board summary: ${shapeIds.length} shape${shapeIds.length === 1 ? '' : 's'} on the current page.`,
     toolGroups.length ? `Tool visuals: ${toolGroups.join(', ')}.` : '',
+    pdfPages.length ? `Imported PDF pages visible: ${pdfPages.join('; ')}.` : '',
     labels.length ? `Text labels visible: ${labels.map((label) => `"${label}"`).join('; ')}.` : '',
     mathBlocks.length ? `Math blocks visible: ${mathBlocks.map((latex) => `"${latex}"`).join('; ')}.` : '',
     visuals.length ? `Visual objects: ${visuals.join('; ')}.` : '',

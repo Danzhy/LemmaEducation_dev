@@ -50,6 +50,15 @@ const mockBoardShapes = {
     props: { latex: 'A=\\frac{1}{2}bh' },
     meta: {},
   },
+  'worksheet-page': {
+    type: 'image',
+    props: {},
+    meta: {
+      lemmaPdfPage: true,
+      sourceFileName: 'triangle-area-worksheet.pdf',
+      pageNumber: 2,
+    },
+  },
 } satisfies Record<string, { type: string; props: Record<string, unknown>; meta: Record<string, unknown> }>
 
 const mockBoardReader: BoardStateReader<keyof typeof mockBoardShapes> = {
@@ -58,6 +67,7 @@ const mockBoardReader: BoardStateReader<keyof typeof mockBoardShapes> = {
   getShapePageBounds: (shapeId) => {
     if (shapeId === 'base-label') return { x: 100, y: 240, w: 110, h: 30 }
     if (shapeId === 'height-label') return { x: 210, y: 130, w: 120, h: 30 }
+    if (shapeId === 'worksheet-page') return { x: 80, y: 80, w: 620, h: 820 }
     return { x: 140, y: 285, w: 180, h: 60 }
   },
 }
@@ -1315,6 +1325,8 @@ for (const testCase of cases) {
 
 const serializedBoardState = serializeTutorBoardState(mockBoardReader)
 assert.match(serializedBoardState, /geometry figure/)
+assert.match(serializedBoardState, /Imported PDF pages visible/)
+assert.match(serializedBoardState, /triangle-area-worksheet\.pdf page 2/)
 assert.match(serializedBoardState, /Base 8 cm/)
 assert.match(serializedBoardState, /A=\\frac\{1\}\{2\}bh/)
 
