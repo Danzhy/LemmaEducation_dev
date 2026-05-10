@@ -1295,7 +1295,7 @@ const cases: PlannerCase[] = [
   {
     name: 'routes session review prompts to a mastery snapshot',
     prompt: 'Can you summarize this session on fractions and tell me what I should practice next?',
-    expectedTools: ['session_mastery_snapshot'],
+    expectedTools: ['session_mastery_snapshot', 'write_on_canvas'],
     inspect: (input) => {
       assert.equal(input.topic, 'fractions')
       assert.equal(input.gradeLevel, '6')
@@ -1831,6 +1831,37 @@ const hydratedWarmStartBoardInputAfterVisual = hydrateLocalToolPlanInput(
   '6'
 )
 assert.equal(hydratedWarmStartBoardInputAfterVisual.clearExisting, false)
+
+const hydratedMasterySnapshotBoardInput = hydrateLocalToolPlanInput(
+  {
+    toolName: 'write_on_canvas',
+    input: {
+      mode: 'mastery_snapshot',
+      title: 'Learning snapshot',
+      textLines: ['placeholder'],
+      clearExisting: false,
+    },
+  },
+  [
+    {
+      confidence: 'medium',
+      needsReview: ['Use common denominators before adding fractions.'],
+      nextPractice: [{ prompt: 'Add 2/3 + 1/4.', hint: 'Find twelfths first.' }],
+      suggestedNextTutorMove: 'Give one nearby fraction problem.',
+    },
+  ],
+  'summarize this session',
+  '6'
+)
+assert.deepEqual(hydratedMasterySnapshotBoardInput, {
+  title: 'Learning snapshot',
+  textLines: [
+    'Confidence: medium.',
+    'Review focus: Use common denominators before adding fractions.',
+    'Next practice: Add 2/3 + 1/4.',
+  ],
+  clearExisting: false,
+})
 
 assert.deepEqual(
   hydrateLocalToolPlan(

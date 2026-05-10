@@ -3869,6 +3869,15 @@ export function planLocalToolTurn(
         toolSummary: liveBoardDescription ? `Visible board context: ${liveBoardDescription.slice(0, 500)}` : '',
       },
     })
+    plans.push({
+      toolName: 'write_on_canvas',
+      input: {
+        mode: 'mastery_snapshot',
+        title: 'Learning snapshot',
+        textLines: ['I will summarize one learning signal and one next practice step.'],
+        clearExisting: false,
+      },
+    })
     return plans
   }
 
@@ -4770,6 +4779,35 @@ export function hydrateLocalToolPlan(
           firstBoardTool ? `Visual: ${firstBoardTool}.` : '',
         ].filter(Boolean),
         clearExisting: !warmStartVisualAlreadyDrew,
+      },
+    }
+  }
+
+  if (plan.toolName === 'write_on_canvas' && plan.input.mode === 'mastery_snapshot') {
+    const snapshot = previousOutputs.find(
+      (output): output is {
+        confidence?: string
+        needsReview?: string[]
+        nextPractice?: Array<{ prompt?: string; hint?: string }>
+        suggestedNextTutorMove?: string
+      } => Boolean(output && typeof output === 'object' && 'confidence' in output)
+    )
+    const practicePrompt = snapshot?.nextPractice?.find((item) => item.prompt)?.prompt
+    const reviewNeed = Array.isArray(snapshot?.needsReview)
+      ? snapshot.needsReview.find((item) => typeof item === 'string' && item.trim())
+      : ''
+    const nextMove = snapshot?.suggestedNextTutorMove?.trim()
+
+    return {
+      toolName: plan.toolName,
+      input: {
+        title: 'Learning snapshot',
+        textLines: [
+          snapshot?.confidence ? `Confidence: ${snapshot.confidence}.` : 'Confidence: needs one more check.',
+          reviewNeed ? `Review focus: ${reviewNeed.slice(0, 120)}` : 'Review focus: explain the next step in your own words.',
+          practicePrompt ? `Next practice: ${practicePrompt}` : nextMove ? `Next move: ${nextMove}` : 'Next practice: try one nearby problem.',
+        ],
+        clearExisting: false,
       },
     }
   }
