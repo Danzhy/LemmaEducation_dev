@@ -1,3 +1,5 @@
+import { resolveOpenAIRealtimeModel } from '@/lib/tutor/realtime-model-policy'
+
 export type RealtimeModelId =
   | 'gpt-realtime-mini'
   | 'gpt-realtime'
@@ -176,7 +178,7 @@ function envValue(name: string | undefined, fallback: string) {
 export function resolveTutorStrategies(): TutorStrategy[] {
   const stableModel = envValue('OPENAI_REALTIME_MODEL', 'env-required')
   const agentsModel = envValue('OPENAI_VOICE_AGENT_MODEL', 'gpt-realtime-1.5')
-  const liveKitModel = envValue('OPENAI_LIVEKIT_REALTIME_MODEL', 'gpt-realtime-1.5')
+  const liveKitModel = resolveOpenAIRealtimeModel(process.env.OPENAI_LIVEKIT_REALTIME_MODEL).id
 
   return [
     {
@@ -226,7 +228,7 @@ export function resolveTutorStrategies(): TutorStrategy[] {
       route: '/tutor-livekit-lab',
       dashboardRoute: '/dashboard/tutor-livekit-lab',
       stack: 'LiveKit room plus server-side worker agent using OpenAI realtime model',
-      defaultModel: 'gpt-realtime-1.5',
+      defaultModel: 'gpt-realtime-2',
       modelEnv: 'OPENAI_LIVEKIT_REALTIME_MODEL',
       currentModel: liveKitModel,
       transport: 'WebRTC to LiveKit room, worker talks to OpenAI',
