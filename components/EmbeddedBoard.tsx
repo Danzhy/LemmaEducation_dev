@@ -166,16 +166,25 @@ const EmbeddedBoard = forwardRef<EmbeddedBoardRef, EmbeddedBoardProps>(
     setIsPdfToolBusy(true)
     setPdfToolStatus('Placing PDF pages on the board...')
     try {
-      const { placeRenderedPdfPagesOnCanvas, renderPdfPagesForCanvas, MAX_CANVAS_PDF_PAGES } =
+      const {
+        extractPdfTextContextForCanvas,
+        placeRenderedPdfPagesOnCanvas,
+        renderPdfPagesForCanvas,
+        MAX_CANVAS_PDF_PAGES,
+      } =
         await import('@/lib/tutor/canvas-pdf')
-      const pages = await renderPdfPagesForCanvas(file)
-      const result = placeRenderedPdfPagesOnCanvas(editor, pages, file.name)
+      const [pages, textContext] = await Promise.all([
+        renderPdfPagesForCanvas(file),
+        extractPdfTextContextForCanvas(file).catch(() => null),
+      ])
+      const result = placeRenderedPdfPagesOnCanvas(editor, pages, file.name, textContext)
       const truncatedMessage =
         pages.length === MAX_CANVAS_PDF_PAGES
           ? ` Added the first ${MAX_CANVAS_PDF_PAGES} pages.`
           : ''
+      const textMessage = textContext ? ' Text excerpt attached for tutor context.' : ''
       setPdfToolStatus(
-        `Added ${result.pageCount} PDF page${result.pageCount === 1 ? '' : 's'} to the board.${truncatedMessage}`
+        `Added ${result.pageCount} PDF page${result.pageCount === 1 ? '' : 's'} to the board.${truncatedMessage}${textMessage}`
       )
     } catch (err) {
       setPdfToolStatus(err instanceof Error ? err.message : 'Could not add this PDF to the board.')

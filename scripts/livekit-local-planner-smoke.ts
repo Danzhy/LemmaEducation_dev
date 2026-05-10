@@ -57,6 +57,8 @@ const mockBoardShapes = {
       lemmaPdfPage: true,
       sourceFileName: 'triangle-area-worksheet.pdf',
       pageNumber: 2,
+      sourceDocumentTextExcerpt:
+        'Find the area of the triangle. The base is 8 cm and the height is 5 cm.',
     },
   },
 } satisfies Record<string, { type: string; props: Record<string, unknown>; meta: Record<string, unknown> }>
@@ -1327,6 +1329,8 @@ const serializedBoardState = serializeTutorBoardState(mockBoardReader)
 assert.match(serializedBoardState, /geometry figure/)
 assert.match(serializedBoardState, /Imported PDF pages visible/)
 assert.match(serializedBoardState, /triangle-area-worksheet\.pdf page 2/)
+assert.match(serializedBoardState, /Imported PDF text excerpt/)
+assert.match(serializedBoardState, /base is 8 cm and the height is 5 cm/)
 assert.match(serializedBoardState, /Base 8 cm/)
 assert.match(serializedBoardState, /A=\\frac\{1\}\{2\}bh/)
 

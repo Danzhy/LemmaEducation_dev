@@ -14,10 +14,20 @@ export type RenderedCanvasPdfPage = {
   height: number
 }
 
+export type CanvasPdfTextContext = {
+  fileName: string
+  text: string
+  pagesRead: number
+  totalPages: number
+}
+
 export type CanvasPdfPlacementResult = {
   pageCount: number
   shapeIds: string[]
 }
+
+const MAX_CANVAS_PDF_TEXT_BYTES = 2_500_000
+const MAX_CANVAS_PDF_META_EXCERPT_CHARS = 900
 
 function dataUrlByteLength(dataUrl: string) {
   const commaIndex = dataUrl.indexOf(',')
@@ -32,6 +42,45 @@ function blobToDataUrl(blob: Blob) {
     reader.onerror = () => reject(reader.error ?? new Error('Could not read canvas image.'))
     reader.readAsDataURL(blob)
   })
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+  }
+  return btoa(binary)
+}
+
+export async function extractPdfTextContextForCanvas(
+  file: File
+): Promise<CanvasPdfTextContext | null> {
+  if (file.size > MAX_CANVAS_PDF_TEXT_BYTES) return null
+
+  const dataBase64 = arrayBufferToBase64(await file.arrayBuffer())
+  const response = await fetch('/api/curriculum/extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileName: file.name,
+      mimeType: 'application/pdf',
+      dataBase64,
+    }),
+  })
+  const body = await response.json().catch(() => ({}))
+
+  if (!response.ok || !body?.ok || typeof body.text !== 'string' || !body.text.trim()) {
+    return null
+  }
+
+  return {
+    fileName: typeof body.fileName === 'string' ? body.fileName : file.name,
+    text: body.text,
+    pagesRead: typeof body.pagesRead === 'number' ? body.pagesRead : 0,
+    totalPages: typeof body.totalPages === 'number' ? body.totalPages : 0,
+  }
 }
 
 export async function renderPdfPagesForCanvas(file: File): Promise<RenderedCanvasPdfPage[]> {
@@ -86,7 +135,8 @@ export async function renderPdfPagesForCanvas(file: File): Promise<RenderedCanva
 export function placeRenderedPdfPagesOnCanvas(
   editor: Editor,
   pages: RenderedCanvasPdfPage[],
-  fileName: string
+  fileName: string,
+  textContext?: CanvasPdfTextContext | null
 ): CanvasPdfPlacementResult {
   if (pages.length === 0) {
     throw new Error('This PDF did not contain any pages to place.')
@@ -119,6 +169,10 @@ export function placeRenderedPdfPagesOnCanvas(
   }> = []
 
   let currentY = startPoint.y
+  const textExcerpt = textContext?.text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_CANVAS_PDF_META_EXCERPT_CHARS)
 
   pages.forEach((page) => {
     const scale = Math.min(1, maxPageWidth / page.width)
@@ -140,6 +194,13 @@ export function placeRenderedPdfPagesOnCanvas(
         source: 'lemma-pdf-import',
         sourceFileName: fileName,
         pageNumber: page.pageNumber,
+        ...(textExcerpt && page.pageNumber === 1
+          ? {
+              sourceDocumentTextExcerpt: textExcerpt,
+              sourceDocumentPagesRead: textContext?.pagesRead ?? 0,
+              sourceDocumentTotalPages: textContext?.totalPages ?? pages.length,
+            }
+          : {}),
       },
     })
     const id = createShapeId()
@@ -161,6 +222,13 @@ export function placeRenderedPdfPagesOnCanvas(
         lemmaPdfPage: true,
         sourceFileName: fileName,
         pageNumber: page.pageNumber,
+        ...(textExcerpt && page.pageNumber === 1
+          ? {
+              sourceDocumentTextExcerpt: textExcerpt,
+              sourceDocumentPagesRead: textContext?.pagesRead ?? 0,
+              sourceDocumentTotalPages: textContext?.totalPages ?? pages.length,
+            }
+          : {}),
       },
     })
     currentY += height + 40

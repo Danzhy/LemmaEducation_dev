@@ -132,6 +132,7 @@ export function serializeTutorBoardState<ShapeId extends string>(
   const mathBlocks: string[] = []
   const visuals: string[] = []
   const pdfPages: string[] = []
+  const pdfTextExcerpts: string[] = []
   let toolOwnedCount = 0
   let studentOwnedCount = 0
 
@@ -160,6 +161,13 @@ export function serializeTutorBoardState<ShapeId extends string>(
         `${sourceFileName}${pageNumber ? ` page ${pageNumber}` : ''}${bounds ? ` ${bounds}` : ''}`,
         8
       )
+      if (typeof meta.sourceDocumentTextExcerpt === 'string') {
+        uniquePush(
+          pdfTextExcerpts,
+          `${sourceFileName}: ${truncate(meta.sourceDocumentTextExcerpt, 260)}`,
+          3
+        )
+      }
     }
 
     const text = shapeText(shape)
@@ -178,6 +186,7 @@ export function serializeTutorBoardState<ShapeId extends string>(
     `Visible board summary: ${shapeIds.length} shape${shapeIds.length === 1 ? '' : 's'} on the current page.`,
     toolGroups.length ? `Tool visuals: ${toolGroups.join(', ')}.` : '',
     pdfPages.length ? `Imported PDF pages visible: ${pdfPages.join('; ')}.` : '',
+    pdfTextExcerpts.length ? `Imported PDF text excerpt: ${pdfTextExcerpts.join(' | ')}.` : '',
     labels.length ? `Text labels visible: ${labels.map((label) => `"${label}"`).join('; ')}.` : '',
     mathBlocks.length ? `Math blocks visible: ${mathBlocks.map((latex) => `"${latex}"`).join('; ')}.` : '',
     visuals.length ? `Visual objects: ${visuals.join('; ')}.` : '',
