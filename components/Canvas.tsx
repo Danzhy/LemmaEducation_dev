@@ -9,13 +9,14 @@
  * - Infinite pan and zoom
  * - Drawing tools (pen, eraser)
  * - Selection and manipulation
- * - Custom shapes (math blocks added in Subphase 2.2)
- * - Image/PDF import (added in Subphase 2.3)
+ * - Custom shapes such as math blocks
+ * - Image/PDF import through the surrounding board shell
  */
 
 'use client'
 
 import { useRef, forwardRef, useImperativeHandle } from 'react'
+import { jsPDF } from 'jspdf'
 // @ts-expect-error - Tldraw and Editor are exported at runtime but TypeScript definitions may be incomplete
 import { Tldraw, Editor } from 'tldraw'
 import 'tldraw/tldraw.css'
@@ -42,12 +43,30 @@ export interface CanvasRef {
   captureViewport: () => Promise<{ base64: string; mimeType: string } | null>
 }
 
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
+function getImageSize(dataUrl: string) {
+  return new Promise<{ width: number; height: number }>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve({ width: image.width, height: image.height })
+    image.onerror = () => reject(new Error('Unable to load exported canvas image.'))
+    image.src = dataUrl
+  })
+}
+
 /**
  * Canvas component - infinite whiteboard using tldraw
  * Uses forwardRef to expose export functions to parent components
  */
 const Canvas = forwardRef<CanvasRef, CanvasProps>(
-  ({ onExport, readOnly = false, shapeUtils = [] }, ref) => {
+  ({ shapeUtils = [] }, ref) => {
     const editorRef = useRef<Editor | null>(null)
 
     /**
@@ -78,8 +97,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(
         }
       },
       async exportPDF() {
-        // PDF export: tldraw doesn't support PDF directly, so we'll convert PNG to PDF
-        // For now, return PNG blob - will implement PDF conversion in Subphase 2.3
         const editor = editorRef.current
         if (!editor) return null
         try {
@@ -89,7 +106,29 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(
             format: 'png',
             scale: 2,
           })
-          return result?.blob || null
+          const imageBlob = result?.blob
+          if (!imageBlob) return null
+
+          const dataUrl = await blobToDataUrl(imageBlob)
+          const { width, height } = await getImageSize(dataUrl)
+          const pdf = new jsPDF({
+            orientation: width >= height ? 'landscape' : 'portrait',
+            unit: 'pt',
+            format: 'a4',
+          })
+          const pageWidth = pdf.internal.pageSize.getWidth()
+          const pageHeight = pdf.internal.pageSize.getHeight()
+          const margin = 32
+          const maxWidth = pageWidth - margin * 2
+          const maxHeight = pageHeight - margin * 2
+          const scale = Math.min(maxWidth / width, maxHeight / height)
+          const drawWidth = width * scale
+          const drawHeight = height * scale
+          const x = (pageWidth - drawWidth) / 2
+          const y = (pageHeight - drawHeight) / 2
+
+          pdf.addImage(dataUrl, 'PNG', x, y, drawWidth, drawHeight)
+          return pdf.output('blob')
         } catch (err) {
           console.error('PDF export error:', err)
           return null

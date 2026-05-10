@@ -28,7 +28,7 @@ export interface EmbeddedBoardProps {
   className?: string
   /** Called when the tldraw editor is ready (for change detection, etc.) */
   onEditorReady?: (editor: Editor | null) => void
-  /** Enables lab-only board PDF import/export controls */
+  /** Enables shared tutor-board PDF import/export controls */
   pdfToolsEnabled?: boolean
 }
 

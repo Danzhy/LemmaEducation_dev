@@ -19,6 +19,7 @@ function assertExcludes(path: string, needle: string) {
 }
 
 const canvasPdf = 'lib/tutor/canvas-pdf.ts'
+const canvas = 'components/Canvas.tsx'
 const embeddedBoard = 'components/EmbeddedBoard.tsx'
 const tutorWorkspace = 'components/tutor/TutorWorkspace.tsx'
 const boardStateSerialization = 'lib/tutor/board-state-serialization.ts'
@@ -37,6 +38,10 @@ assertExcludes(canvasPdf, 'process.env.')
 assertExcludes(canvasPdf, 'OPENAI_API_KEY')
 assertExcludes(canvasPdf, 'NEON_DATABASE_URL')
 
+assertIncludes(canvas, "import { jsPDF } from 'jspdf'")
+assertIncludes(canvas, "pdf.output('blob')")
+assertExcludes(canvas, 'will implement PDF conversion')
+
 assertIncludes(embeddedBoard, 'pdfToolsEnabled')
 assertIncludes(embeddedBoard, 'pdfImportInputId={pdfInputId}')
 assertIncludes(embeddedBoard, 'role="status"')
@@ -46,4 +51,4 @@ assertIncludes(tutorWorkspace, 'pdfToolsEnabled')
 assertIncludes(boardStateSerialization, 'Imported PDF pages visible')
 assertIncludes(boardStateSerialization, 'Imported PDF text excerpt')
 
-console.log(JSON.stringify({ ok: true, checked: 21 }))
+console.log(JSON.stringify({ ok: true, checked: 24 }))

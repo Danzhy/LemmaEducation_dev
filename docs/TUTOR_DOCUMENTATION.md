@@ -215,7 +215,7 @@ audio: {
 
 The Realtime API accepts **images** (`input_image` with `data:image/...;base64,...`), not PDFs directly.
 
-**Approach:** Convert the first page of a PDF to a PNG image client-side using `pdfjs-dist`:
+**Approach for chat uploads:** Convert the first page of a PDF to a PNG image client-side using `pdfjs-dist`:
 
 1. User selects a PDF
 2. `convertPdfFirstPageToImage()` loads the PDF with PDF.js
@@ -223,9 +223,9 @@ The Realtime API accepts **images** (`input_image` with `data:image/...;base64,.
 4. Exports canvas as PNG base64
 5. Sends as `input_image` like any other image
 
-**Why first page only?** Most math problems fit on one page. Multi-page support could be added later by iterating over `pdf.numPages` and sending multiple `input_image` content parts.
+**Why first page only for chat uploads?** Most quick math prompts fit on one page, and Realtime image input stays lighter this way. The tutor board's **Add PDF** control separately imports up to 8 PDF pages onto the canvas and attaches a short text excerpt for review context.
 
-**Worker setup:** We use `pdfjs-dist/webpack.mjs`, which auto-configures the PDF.js worker for browser use. This avoids manual worker path configuration.
+**Worker setup:** Board PDF tools use the PDF.js legacy browser build with worker execution disabled locally for Next.js compatibility.
 
 ---
 

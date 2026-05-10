@@ -196,9 +196,9 @@ So images are **not** sent when:
 - "Stream canvas" is off.
 - Session is paused.
 
-### Intended On-Speech Trigger (Currently Incomplete)
+### On-Speech Trigger
 
-The tutor page passes `onSpeechStarted: () => sendCanvasToTutorRef.current()` to send the canvas when the user starts speaking. However, **`useRealtimeTutor` never calls `onSpeechStarted`** in `handleServerEvent` when `input_audio_buffer.speech_started` is received. The case only does `setState('listening')`. As a result, the on-speech canvas send is not implemented.
+The tutor page passes `onSpeechStarted: () => sendCanvasToTutorRef.current()` to send the canvas when the user starts speaking. Current code calls `onSpeechStarted?.()` when `input_audio_buffer.speech_started` arrives, so the speech-start canvas send is implemented.
 
 ---
 

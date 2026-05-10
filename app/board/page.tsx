@@ -4,8 +4,8 @@
  * Dedicated page for the infinite canvas workspace at /board.
  * Provides a full-screen whiteboard where users can:
  * - Draw freehand
- * - Type math expressions (Subphase 2.2)
- * - Import images and PDFs (Subphase 2.3)
+ * - Type math expressions
+ * - Import images and PDFs where enabled
  * - Export their work
  *
  * Important: Work is NOT saved automatically. Refreshing the page resets the canvas.
@@ -72,22 +72,18 @@ export default function BoardPage() {
     try {
       let blob: Blob | null = null
       let filename = ''
-      let mimeType = ''
 
       if (format === 'png') {
         blob = await canvasRef.current.exportPNG()
         filename = `board-${Date.now()}.png`
-        mimeType = 'image/png'
       } else if (format === 'pdf') {
         blob = await canvasRef.current.exportPDF()
         filename = `board-${Date.now()}.pdf`
-        mimeType = 'application/pdf'
       } else if (format === 'board') {
         const json = canvasRef.current.exportBoard()
         if (!json) return
         blob = new Blob([json], { type: 'application/json' })
         filename = `board-${Date.now()}.tldr`
-        mimeType = 'application/json'
       }
 
       if (!blob) {
@@ -131,7 +127,8 @@ export default function BoardPage() {
       {/* Toolbar */}
       <CanvasToolbar
         editor={editor}
-        exportEnabled={false}
+        onExport={handleExport}
+        exportEnabled
         onMathBlockClick={() => {
           if (editor) {
             // Get viewport center to place math block

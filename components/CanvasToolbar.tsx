@@ -5,7 +5,7 @@
  * - Tool selection (pointer, pen, hand, eraser, math)
  * - Undo/redo controls
  * - Zoom controls (zoom in, zoom out, fit to screen)
- * - Export button (for Subphase 2.3)
+ * - Export controls when enabled by the parent page
  *
  * This toolbar communicates with the Canvas component via the editor instance.
  */
@@ -27,7 +27,7 @@ export interface CanvasToolbarProps {
   pdfImportInputId?: string
   /** Callback for direct board PDF export */
   onExportPdf?: () => void
-  /** Whether export is enabled (enabled in Subphase 2.3) */
+  /** Whether generic export is enabled */
   exportEnabled?: boolean
   /** Whether lab PDF controls should be shown */
   pdfToolsEnabled?: boolean
@@ -280,7 +280,7 @@ export default function CanvasToolbar({
         </div>
       )}
 
-      {/* Export button (enabled in Subphase 2.3) */}
+      {/* Generic export button */}
       {exportEnabled && (
         <div className={pdfToolsEnabled ? '' : 'ml-auto'}>
           <button

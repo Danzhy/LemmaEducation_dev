@@ -257,7 +257,7 @@ Endpoint purpose:
 Session config sent to OpenAI:
 
 - `type: 'realtime'`
-- `model`: from `OPENAI_REALTIME_MODEL` env var (fallback: `gpt-realtime-mini`)
+- `model`: from `OPENAI_REALTIME_MODEL` env var (fallback: `gpt-realtime-2`)
 - `instructions`: Socratic guardrails + language restriction
 - `output_modalities: ['audio']`
 - `audio.output.voice: 'marin'`
@@ -283,7 +283,7 @@ Important compatibility:
 `Canvas` wraps `Tldraw` and exposes:
 
 - `exportPNG()`
-- `exportPDF()` (currently PNG-based placeholder behavior)
+- `exportPDF()` (renders the board image into a real PDF blob)
 - `exportBoard()`
 - `getEditor()`
 - `captureViewport()`
@@ -421,7 +421,7 @@ Persistence:
 Known limitations:
 
 - language dropdown currently exposes English only (`en`)
-- board PDF export path is still placeholder behavior
+- the standalone `/board` PDF export is a simple single-page board snapshot; tutor boards use the richer multi-page PDF import/export flow
 - voice audio is not stored; only text chat lines above are logged to the DB
 
 ---
