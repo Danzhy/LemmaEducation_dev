@@ -61,8 +61,8 @@ export const LIVEKIT_PIPELINE_MODEL_OPTIONS: LiveKitPipelineModelOption[] = [
     shortLabel: 'OpenRouter',
     provider: 'openrouter_compatible',
     model: process.env.OPENROUTER_LIVEKIT_MODEL?.trim() || OPENROUTER_MODEL_FALLBACK,
-    description: 'OpenAI-compatible LLM through OpenRouter. Set OPENROUTER_LIVEKIT_MODEL to choose the model.',
-    requiredEnv: ['OPENROUTER_API_KEY', 'OPENROUTER_LIVEKIT_MODEL'],
+    description: 'OpenAI-compatible LLM through OpenRouter. Set OPENROUTER_LIVEKIT_MODEL to override the default model.',
+    requiredEnv: ['OPENROUTER_API_KEY'],
     experimental: true,
   },
   {

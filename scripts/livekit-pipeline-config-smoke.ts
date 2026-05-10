@@ -15,6 +15,15 @@ function main() {
   assert.equal(defaultModel.id, LIVEKIT_PIPELINE_DEFAULT_MODEL_ID)
   assert.equal(defaultModel.usedFallback, false)
 
+  const openRouterModel = options.find((option) => option.id === 'openrouter-custom')
+  assert.ok(openRouterModel, 'OpenRouter model should be present in the pipeline allowlist')
+  assert.deepEqual(
+    openRouterModel.requiredEnv,
+    ['OPENROUTER_API_KEY'],
+    'OpenRouter should not require an override model because a safe default exists'
+  )
+  assert.equal(openRouterModel.model, process.env.OPENROUTER_LIVEKIT_MODEL?.trim() || 'openai/gpt-oss-120b')
+
   const fallbackModel = resolveLiveKitPipelineModel('not-a-real-model')
   assert.equal(fallbackModel.id, LIVEKIT_PIPELINE_DEFAULT_MODEL_ID)
   assert.equal(fallbackModel.usedFallback, true)
