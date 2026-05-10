@@ -134,6 +134,26 @@ export default async function TeacherDashboardPage() {
                               <RemoveStudentButton classroomId={classroom.id} studentUserId={student.userId} />
                             </div>
                           </div>
+                          {student.learningTrends.focusAreas.length > 0 ? (
+                            <div className="mt-4 rounded-[16px] border border-[#E1EAE6] bg-[#F8FBF9] px-3 py-3">
+                              <p className="text-[10px] uppercase tracking-[0.2em] text-[#6B7F79]">
+                                Review focus
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {student.learningTrends.focusAreas.map((area) => (
+                                  <span
+                                    key={area.label}
+                                    className="rounded-full border border-[#D3E0DB] bg-white/82 px-3 py-1 text-xs text-[#16423C]"
+                                  >
+                                    {area.label} · {area.priority}
+                                  </span>
+                                ))}
+                              </div>
+                              <p className="mt-2 text-xs leading-relaxed text-[#5C7069]">
+                                {student.learningTrends.summary}
+                              </p>
+                            </div>
+                          ) : null}
                           {student.recentSessions.length > 0 ? (
                             <div className="mt-4 space-y-2">
                               {student.recentSessions.map((session) => (

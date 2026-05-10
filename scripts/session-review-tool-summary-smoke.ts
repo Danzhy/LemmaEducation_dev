@@ -5,6 +5,7 @@ import {
 } from '../lib/tutor/tool-event-review'
 import { buildSessionFollowUpPractice } from '../lib/tutor/session-follow-up'
 import { buildSessionReviewFilename, buildSessionReviewMarkdown } from '../lib/tutor/session-review-export'
+import { buildStudentMisconceptionTrends } from '../lib/tutor/misconception-trends'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -326,6 +327,49 @@ assert(
   buildSessionReviewFilename('7e6e3f1a-56df-43ea-9aaa-2b884159622f') ===
     'lemma-session-7e6e3f1a-56d-review.md',
   'Review export filenames should be stable and sanitized.'
+)
+
+const misconceptionTrends = buildStudentMisconceptionTrends([
+  {
+    eventType: 'tool_completed',
+    toolName: 'math_check_step',
+    status: 'completed',
+    output: {
+      verdict: 'invalid',
+      hintTarget: 'recheck the common denominator',
+    },
+    createdAt: new Date('2026-05-10T09:00:00.000Z'),
+  },
+  {
+    eventType: 'tool_completed',
+    toolName: 'math_check_step',
+    status: 'completed',
+    output: {
+      verdict: 'unclear',
+      hintTarget: 'recheck the common denominator',
+    },
+    createdAt: new Date('2026-05-10T09:05:00.000Z'),
+  },
+  {
+    eventType: 'tool_completed',
+    toolName: 'mistake_pattern_classifier',
+    status: 'completed',
+    output: {
+      primaryPattern: 'Private scratch: denominator_operation',
+      severity: 'high',
+    },
+    createdAt: new Date('2026-05-10T09:10:00.000Z'),
+  },
+])
+assert(
+  misconceptionTrends.focusAreas.length === 1 &&
+    misconceptionTrends.focusAreas[0].label === 'recheck the common denominator' &&
+    misconceptionTrends.focusAreas[0].priority === 'review',
+  'Misconception trends should aggregate safe repeated focus areas and filter private-looking labels.'
+)
+assert(
+  misconceptionTrends.lastSignalAt?.toISOString() === '2026-05-10T09:05:00.000Z',
+  'Misconception trends should only update recency from safe visible signals.'
 )
 
 console.log('Session review tool summary smoke checks passed.')

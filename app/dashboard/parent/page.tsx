@@ -94,6 +94,23 @@ export default async function ParentDashboardPage() {
                   </div>
 
                   <div className="mt-5 space-y-3">
+                    {student.learningTrends.focusAreas.length > 0 ? (
+                      <div className="rounded-[18px] border border-[#E1EAE6] bg-white/82 px-4 py-4">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#6B7F79]">
+                          Review focus
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {student.learningTrends.focusAreas.map((area) => (
+                            <span
+                              key={area.label}
+                              className="rounded-full border border-[#D3E0DB] bg-[#F8FBF9] px-3 py-1 text-xs text-[#16423C]"
+                            >
+                              {area.label} · {area.priority}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                     {student.recentSessions.length === 0 ? (
                       <p className="text-sm leading-relaxed text-[#5C7069]">No saved sessions yet.</p>
                     ) : (

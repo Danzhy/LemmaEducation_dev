@@ -1,6 +1,10 @@
 import { randomUUID } from 'crypto'
 import { getNeonSql } from '@/lib/tutor/db'
 import type { UserRole } from '@/lib/school/profiles'
+import {
+  buildStudentMisconceptionTrends,
+  type StudentMisconceptionTrends,
+} from '@/lib/tutor/misconception-trends'
 
 type StudentRow = {
   user_id: string
@@ -16,6 +20,14 @@ type ClassroomRow = {
   school_name: string | null
   join_code: string
   created_at: Date | string
+}
+
+type StudentLearningTrendRow = {
+  event_type: string
+  tool_name: string
+  status: string | null
+  output_json: unknown
+  created_at: Date | string | null
 }
 
 export type TeacherClassroomSummary = {
@@ -37,6 +49,7 @@ export type TeacherClassroomSummary = {
       startedAt: Date
       activeSeconds: number
     }>
+    learningTrends: StudentMisconceptionTrends
   }>
 }
 
@@ -52,6 +65,7 @@ export type ParentStudentSummary = {
     startedAt: Date
     activeSeconds: number
   }>
+  learningTrends: StudentMisconceptionTrends
 }
 
 export type LinkedGuardianSummary = {
@@ -73,6 +87,18 @@ export type SessionAccessAuditSummary = {
 function asDate(value: Date | string | null): Date | null {
   if (!value) return null
   return value instanceof Date ? value : new Date(value)
+}
+
+function buildLearningTrendsFromRows(rows: StudentLearningTrendRow[]) {
+  return buildStudentMisconceptionTrends(
+    rows.map((row) => ({
+      eventType: row.event_type,
+      toolName: row.tool_name,
+      status: row.status,
+      output: row.output_json,
+      createdAt: row.created_at,
+    }))
+  )
 }
 
 function generateClassJoinCode() {
@@ -413,6 +439,20 @@ export async function getTeacherDashboardData(teacherUserId: string) {
               ORDER BY s.started_at DESC
               LIMIT 3
             `
+            const learningTrendRows = await sql`
+              SELECT event_type, tool_name, status, output_json, created_at
+              FROM tutor_tool_events
+              WHERE user_id = ${row.user_id}
+                AND event_type = 'tool_completed'
+                AND tool_name IN (
+                  'math_check_step',
+                  'mistake_pattern_classifier',
+                  'misconception_diagnosis',
+                  'session_mastery_snapshot'
+                )
+              ORDER BY created_at DESC
+              LIMIT 60
+            `
 
             return {
               userId: row.user_id,
@@ -433,6 +473,7 @@ export async function getTeacherDashboardData(teacherUserId: string) {
                 startedAt: asDate(session.started_at)!,
                 activeSeconds: Number(session.active_seconds ?? 0),
               })),
+              learningTrends: buildLearningTrendsFromRows(learningTrendRows as StudentLearningTrendRow[]),
             }
           }
         )
@@ -489,6 +530,20 @@ export async function getParentDashboardData(guardianUserId: string) {
       ORDER BY s.started_at DESC
       LIMIT 3
     `
+    const learningTrendRows = await sql`
+      SELECT event_type, tool_name, status, output_json, created_at
+      FROM tutor_tool_events
+      WHERE user_id = ${student.user_id}
+        AND event_type = 'tool_completed'
+        AND tool_name IN (
+          'math_check_step',
+          'mistake_pattern_classifier',
+          'misconception_diagnosis',
+          'session_mastery_snapshot'
+        )
+      ORDER BY created_at DESC
+      LIMIT 60
+    `
 
     students.push({
       userId: student.user_id,
@@ -502,6 +557,7 @@ export async function getParentDashboardData(guardianUserId: string) {
         startedAt: asDate(row.started_at)!,
         activeSeconds: Number(row.active_seconds ?? 0),
       })),
+      learningTrends: buildLearningTrendsFromRows(learningTrendRows as StudentLearningTrendRow[]),
     })
   }
 
