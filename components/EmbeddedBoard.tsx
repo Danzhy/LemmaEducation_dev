@@ -8,7 +8,7 @@
 
 'use client'
 
-import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { useRef, useState, useEffect, forwardRef, useImperativeHandle, type ChangeEvent } from 'react'
 // @ts-expect-error - createShapeId exists at runtime
 import { createShapeId } from 'tldraw'
 // @ts-expect-error - Editor is exported at runtime but TypeScript definitions may be incomplete
@@ -28,12 +28,17 @@ export interface EmbeddedBoardProps {
   className?: string
   /** Called when the tldraw editor is ready (for change detection, etc.) */
   onEditorReady?: (editor: Editor | null) => void
+  /** Enables lab-only board PDF import/export controls */
+  pdfToolsEnabled?: boolean
 }
 
 const EmbeddedBoard = forwardRef<EmbeddedBoardRef, EmbeddedBoardProps>(
-  function EmbeddedBoard({ className = '', onEditorReady }, ref) {
+  function EmbeddedBoard({ className = '', onEditorReady, pdfToolsEnabled = false }, ref) {
   const canvasRef = useRef<CanvasRef>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
   const [editor, setEditor] = useState<Editor | null>(null)
+  const [pdfToolStatus, setPdfToolStatus] = useState<string | null>(null)
+  const [isPdfToolBusy, setIsPdfToolBusy] = useState(false)
 
   useImperativeHandle(ref, () => ({
     captureViewport: () => canvasRef.current?.captureViewport() ?? Promise.resolve(null),
@@ -148,17 +153,80 @@ const EmbeddedBoard = forwardRef<EmbeddedBoardRef, EmbeddedBoardProps>(
     }
   }
 
+  const handlePdfImportClick = () => {
+    if (!editor || isPdfToolBusy) return
+    pdfInputRef.current?.click()
+  }
+
+  const handlePdfImportChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !editor || isPdfToolBusy) return
+
+    setIsPdfToolBusy(true)
+    setPdfToolStatus('Placing PDF pages on the board...')
+    try {
+      const { placeRenderedPdfPagesOnCanvas, renderPdfPagesForCanvas, MAX_CANVAS_PDF_PAGES } =
+        await import('@/lib/tutor/canvas-pdf')
+      const pages = await renderPdfPagesForCanvas(file)
+      const result = placeRenderedPdfPagesOnCanvas(editor, pages, file.name)
+      const truncatedMessage =
+        pages.length === MAX_CANVAS_PDF_PAGES
+          ? ` Added the first ${MAX_CANVAS_PDF_PAGES} pages.`
+          : ''
+      setPdfToolStatus(
+        `Added ${result.pageCount} PDF page${result.pageCount === 1 ? '' : 's'} to the board.${truncatedMessage}`
+      )
+    } catch (err) {
+      setPdfToolStatus(err instanceof Error ? err.message : 'Could not add this PDF to the board.')
+    } finally {
+      setIsPdfToolBusy(false)
+    }
+  }
+
+  const handlePdfExport = async () => {
+    if (!editor || isPdfToolBusy) return
+
+    setIsPdfToolBusy(true)
+    setPdfToolStatus('Preparing board PDF...')
+    try {
+      const { downloadCanvasAsPdf } = await import('@/lib/tutor/canvas-pdf')
+      await downloadCanvasAsPdf(editor)
+      setPdfToolStatus('Board PDF downloaded.')
+    } catch (err) {
+      setPdfToolStatus(err instanceof Error ? err.message : 'Could not export the board as a PDF.')
+    } finally {
+      setIsPdfToolBusy(false)
+    }
+  }
+
   return (
     <div
       className={`flex flex-col min-h-0 bg-white rounded-lg border border-[#E6ECE9] overflow-hidden ${className}`}
     >
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        onChange={handlePdfImportChange}
+        className="hidden"
+      />
       <CanvasToolbar
         editor={editor}
         exportEnabled={false}
+        pdfToolsEnabled={pdfToolsEnabled}
+        pdfToolsBusy={isPdfToolBusy}
+        onImportPdf={handlePdfImportClick}
+        onExportPdf={handlePdfExport}
         onMathBlockClick={handleMathBlockClick}
       />
       <div className="flex-1 relative min-h-0">
         <Canvas ref={canvasRef} shapeUtils={[MathBlockShapeUtil]} />
+        {pdfToolsEnabled && pdfToolStatus ? (
+          <div className="pointer-events-none absolute bottom-3 left-3 max-w-[min(32rem,calc(100%-1.5rem))] rounded-full border border-[#D5E1DD] bg-white/92 px-3.5 py-2 text-xs text-[#3F524C] shadow-[0_14px_34px_-26px_rgba(15,41,34,0.5)]">
+            {pdfToolStatus}
+          </div>
+        ) : null}
       </div>
 
       {editingShape && (

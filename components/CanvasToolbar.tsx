@@ -21,8 +21,16 @@ export interface CanvasToolbarProps {
   editor: Editor | null
   /** Callback when export is requested */
   onExport?: (format: 'png' | 'pdf' | 'board') => void
+  /** Callback for adding a PDF as board pages */
+  onImportPdf?: () => void
+  /** Callback for direct board PDF export */
+  onExportPdf?: () => void
   /** Whether export is enabled (enabled in Subphase 2.3) */
   exportEnabled?: boolean
+  /** Whether lab PDF controls should be shown */
+  pdfToolsEnabled?: boolean
+  /** Whether lab PDF controls are busy */
+  pdfToolsBusy?: boolean
   /** Callback when math block tool is clicked */
   onMathBlockClick?: () => void
 }
@@ -32,7 +40,11 @@ type Tool = 'select' | 'draw' | 'hand' | 'eraser' | 'math'
 export default function CanvasToolbar({
   editor,
   onExport,
+  onImportPdf,
+  onExportPdf,
   exportEnabled = false,
+  pdfToolsEnabled = false,
+  pdfToolsBusy = false,
   onMathBlockClick,
 }: CanvasToolbarProps) {
   const [currentTool, setCurrentTool] = useState<Tool>('select')
@@ -98,7 +110,7 @@ export default function CanvasToolbar({
   }
 
   return (
-    <div className="flex items-center gap-2 p-3 bg-white border-b border-[#D1DBD7]">
+    <div className="flex flex-wrap items-center gap-2 p-3 bg-white border-b border-[#D1DBD7]">
       {/* Tool selection */}
       <div
         className="flex items-center gap-1 border-r border-[#E6ECE9] pr-3"
@@ -231,9 +243,31 @@ export default function CanvasToolbar({
         </button>
       </div>
 
+      {/* Lab PDF controls */}
+      {pdfToolsEnabled && (
+        <div className="ml-0 flex items-center gap-2 sm:ml-auto">
+          <button
+            type="button"
+            onClick={onImportPdf}
+            disabled={!editor || pdfToolsBusy}
+            className="rounded-full border border-[#C9D6D1] bg-white px-3 py-1.5 text-xs font-medium text-[#3F524C] transition-colors hover:border-[#16423C] hover:text-[#16423C] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Add PDF
+          </button>
+          <button
+            type="button"
+            onClick={onExportPdf}
+            disabled={!editor || pdfToolsBusy}
+            className="rounded-full bg-[#16423C] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0A2621] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Export PDF
+          </button>
+        </div>
+      )}
+
       {/* Export button (enabled in Subphase 2.3) */}
       {exportEnabled && (
-        <div className="ml-auto">
+        <div className={pdfToolsEnabled ? '' : 'ml-auto'}>
           <button
             type="button"
             onClick={() => onExport?.('png')}
