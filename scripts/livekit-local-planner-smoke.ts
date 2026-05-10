@@ -1390,6 +1390,16 @@ assert.deepEqual(
 assert.equal(boardAwarePlans[0].input.boardDescription, serializedBoardState)
 assert.equal(boardAwarePlans[0].input.studentRequest, 'How do I find the area from this diagram?')
 
+const pdfPageAwarePlans = planLocalToolTurn('Can we use page 2 of the worksheet?', '6', {
+  boardDescription: serializedBoardState,
+})
+assert.deepEqual(
+  pdfPageAwarePlans.map((plan) => plan.toolName),
+  ['board_state_summarizer']
+)
+assert.match(String(pdfPageAwarePlans[0].input.boardDescription), /triangle-area-worksheet\.pdf page 2/)
+assert.equal(pdfPageAwarePlans[0].input.studentRequest, 'Can we use page 2 of the worksheet?')
+
 assert.match(
   buildLocalAssistantReply('graph y = x', [{ toolName: 'graph_function', input: {} }], []),
   /graph on the board/i

@@ -3685,8 +3685,14 @@ export function planLocalToolTurn(
     /\b(this diagram|the diagram|my diagram|this drawing|my drawing|on the board|the board|whiteboard|canvas|visible work|what i drew|the picture|this figure|the figure)\b/.test(
       lower
     )
+  const referencesImportedBoardDocument =
+    Boolean(liveBoardDescription) &&
+    /\b(imported pdf pages visible|\.pdf page|pdf page)\b/i.test(liveBoardDescription) &&
+    /\b(pdf|worksheet|uploaded(?: page| document| problem)?|document|page\s+\d+|this page|that page)\b/.test(
+      lower
+    )
   const asksForBoardStateHelp =
-    referencesVisibleBoard &&
+    (referencesVisibleBoard || referencesImportedBoardDocument) &&
     /\b(what should|what do|how do|find|missing|next|check|right|wrong|see|use|from this|using this|what can)\b/.test(
       lower
     )
@@ -3789,6 +3795,21 @@ export function planLocalToolTurn(
     }
   }
 
+  if (asksForBoardStateHelp && referencesImportedBoardDocument && !hasSpecificMathAction) {
+    plans.push({
+      toolName: 'board_state_summarizer',
+      input: {
+        boardDescription: liveBoardDescription || prompt.slice(0, 800),
+        studentRequest: prompt.slice(0, 300),
+        gradeLevel,
+        studentWork: hasStudentAttempt ? prompt.slice(0, 500) : '',
+        recentToolName: '',
+        recentToolResult: '',
+      },
+    })
+    return plans
+  }
+
   if (asksForCurriculumContext) {
     plans.push({
       toolName: 'curriculum_context',
@@ -3805,7 +3826,7 @@ export function planLocalToolTurn(
       },
     })
 
-    if (!hasSpecificMathAction) {
+    if (!hasSpecificMathAction && !asksForBoardStateHelp) {
       return plans
     }
   }
