@@ -14,6 +14,7 @@ Lemma is an educational platform that captures the complete picture of a student
 - **Role-Based Access** - Separate student, teacher, and parent dashboards with scoped visibility
 - **Voice Agent Lab** - Hidden `/tutor-agent-lab` route for testing a tool-enabled realtime tutor
 - **LiveKit Tutor Lab** - Hidden `/tutor-livekit-lab` route for testing a worker-based voice tutor
+- **LiveKit Pipeline Lab** - Hidden `/tutor-livekit-pipeline-lab` route for testing STT plus selectable LLM plus TTS
 - **Curriculum RAG Lab** - Teacher-uploaded curriculum context and custom tutor profiles for hidden agent labs
 - **Learner Context Lab** - Signed-in lab tutors can quietly review recent sessions and recurring struggle signals
 - **Board PDF Tools** - Hidden labs can import worksheet PDFs onto the board and export the canvas to PDF
@@ -114,6 +115,26 @@ Run the LiveKit tool smoke check with:
 ```bash
 npm run test:livekit-agent
 npm run test:livekit-security
+```
+
+### LiveKit Pipeline Lab
+
+The hidden `/tutor-livekit-pipeline-lab` route keeps the same workspace but uses LiveKit's chained voice-agent path: STT, a selectable server-side LLM brain, and TTS. The old `/tutor-livekit-lab` realtime-model route stays available for comparison.
+
+Optional model variables:
+
+```bash
+LIVEKIT_PIPELINE_AGENT_NAME=lemma-livekit-pipeline-tutor
+OPENROUTER_API_KEY=...
+OPENROUTER_LIVEKIT_MODEL=...
+GROQ_API_KEY=...
+```
+
+Run the pipeline worker with:
+
+```bash
+npm run dev:livekit-pipeline-agent
+npm run test:livekit-pipeline
 ```
 
 ## Tech Stack

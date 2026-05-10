@@ -45,6 +45,9 @@ import type {
 
 type UseLiveKitTutorOptions = {
   onError?: (userMessage: string, rawError?: string) => void
+  sessionEndpoint?: '/api/livekit/session' | '/api/livekit-pipeline/session'
+  modelSnapshot?: string
+  liveKitWorkerCommand?: string
 }
 
 type LiveKitSessionBootstrap = {
@@ -58,6 +61,11 @@ type LiveKitSessionBootstrap = {
   code?: string
   message?: string
   missing?: string[]
+  pipelineModelId?: string
+  pipelineProvider?: string
+  pipelineModel?: string
+  sttModel?: string
+  ttsModel?: string
 }
 
 const MAX_TOOL_EVENTS = 100
@@ -169,14 +177,14 @@ async function callServerLiveKitTool(
   }
 }
 
-async function startServerTutorSession(options?: TutorConnectOptions) {
+async function startServerTutorSession(options?: TutorConnectOptions, modelSnapshot = 'livekit-agent-lab') {
   const startSessionRes = await fetch('/api/tutor/session/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       language: options?.language ?? 'en',
       gradeLevel: options?.gradeLevel ?? '',
-      modelSnapshot: 'livekit-agent-lab',
+      modelSnapshot,
     }),
   })
   const startSessionData = await startSessionRes.json().catch(() => ({}))
@@ -208,6 +216,9 @@ async function startServerTutorSession(options?: TutorConnectOptions) {
 
 export function useLiveKitTutor({
   onError,
+  sessionEndpoint = '/api/livekit/session',
+  modelSnapshot = 'livekit-agent-lab',
+  liveKitWorkerCommand = 'npm run dev:livekit-agent',
 }: UseLiveKitTutorOptions = {}): TutorSessionAdapter {
   const [state, setState] = useState<TutorState>('idle')
   const [isConnected, setIsConnected] = useState(false)
@@ -601,7 +612,7 @@ export function useLiveKitTutor({
 
   const startLocalTypedLabSession = useCallback(
     async (options?: TutorConnectOptions) => {
-      const startedSessionId = await startServerTutorSession(options)
+      const startedSessionId = await startServerTutorSession(options, modelSnapshot)
       gradeLevelRef.current = options?.gradeLevel || gradeLevelRef.current
       sessionIdRef.current = startedSessionId
       localToolModeRef.current = true
@@ -639,7 +650,7 @@ export function useLiveKitTutor({
       startUsageTicker()
       return startedSessionId
     },
-    [appendToolEvent, registerLocalActivity, startUsageTicker]
+    [appendToolEvent, modelSnapshot, registerLocalActivity, startUsageTicker]
   )
 
   const runLocalToolTurn = useCallback(
@@ -1008,7 +1019,7 @@ export function useLiveKitTutor({
           const workerCommand =
             typeof (status as { workerCommand?: unknown }).workerCommand === 'string'
               ? (status as { workerCommand: string }).workerCommand
-              : 'npm run dev:livekit-agent'
+              : liveKitWorkerCommand
           if (audioMode === 'silent') {
             startedSessionId = await startLocalTypedLabSession(options)
             return
@@ -1036,11 +1047,11 @@ export function useLiveKitTutor({
           mutedRef.current = true
         }
 
-        startedSessionId = await startServerTutorSession(options)
+        startedSessionId = await startServerTutorSession(options, modelSnapshot)
         sessionIdRef.current = startedSessionId
         setCurrentSessionId(startedSessionId)
 
-        const liveKitRes = await fetch('/api/livekit/session', {
+        const liveKitRes = await fetch(sessionEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1048,6 +1059,7 @@ export function useLiveKitTutor({
             language: options?.language ?? 'en',
             gradeLevel: options?.gradeLevel ?? '',
             audioMode,
+            liveKitModelId: options?.liveKitModelId,
           }),
         })
         const liveKitData = (await liveKitRes.json().catch(() => ({}))) as LiveKitSessionBootstrap
@@ -1057,6 +1069,9 @@ export function useLiveKitTutor({
           }
           if (liveKitData.code === 'RATE_LIMITED') {
             throw new Error('Too many connection attempts. Please wait a moment and try again.')
+          }
+          if (liveKitData.code === 'PIPELINE_MODEL_NOT_CONFIGURED') {
+            throw new Error(liveKitData.message || 'The selected LiveKit pipeline model is not configured yet.')
           }
           if (liveKitData.code === 'QUOTA_EXCEEDED') {
             throw new Error('Your tutoring time limit has been reached.')
@@ -1100,6 +1115,10 @@ export function useLiveKitTutor({
             roomName: liveKitData.roomName,
             agentName: liveKitData.agentName,
             mode: audioMode,
+            pipelineModelId: liveKitData.pipelineModelId,
+            pipelineModel: liveKitData.pipelineModel,
+            sttModel: liveKitData.sttModel,
+            ttsModel: liveKitData.ttsModel,
           },
         })
 
@@ -1142,6 +1161,9 @@ export function useLiveKitTutor({
       onError,
       registerLocalActivity,
       registerRoomHandlers,
+      modelSnapshot,
+      liveKitWorkerCommand,
+      sessionEndpoint,
       startLocalTypedLabSession,
       startUsageTicker,
     ]

@@ -4,6 +4,7 @@ export type TutorConnectOptions = {
   language?: string
   gradeLevel?: string
   audioMode?: 'microphone' | 'silent'
+  liveKitModelId?: string
 }
 
 export type TutorUserMessageSource =

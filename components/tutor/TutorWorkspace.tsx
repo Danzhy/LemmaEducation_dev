@@ -14,6 +14,7 @@ import { authClient } from '@/lib/auth/client'
 import { serializeTutorBoardState } from '@/lib/tutor/board-state-serialization'
 import { applyTutorCanvasAction } from '@/lib/voice-agent/canvas-actions'
 import type {
+  TutorConnectOptions,
   TutorSessionAdapter,
   TutorToolEvent,
   TutorUserMessageSource,
@@ -134,10 +135,12 @@ const GRADE_LEVEL_OPTIONS = ['Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 
 const LAB_UPLOADED_DOCUMENT_CONTEXT_CHARS = 6000
 
 type TutorWorkspaceProps = {
-  mode: 'stable' | 'agent-lab' | 'livekit-lab'
+  mode: 'stable' | 'agent-lab' | 'livekit-lab' | 'livekit-pipeline-lab'
   error: string | null
   setError: (value: string | null) => void
   session: TutorSessionAdapter
+  connectOptions?: Partial<TutorConnectOptions>
+  sessionConfig?: ReactNode
 }
 
 export default function TutorWorkspace({
@@ -145,6 +148,8 @@ export default function TutorWorkspace({
   error,
   setError,
   session,
+  connectOptions,
+  sessionConfig,
 }: TutorWorkspaceProps) {
   const [streamCanvas, setStreamCanvas] = useState(true)
   const [language, setLanguage] = useState<string>('en')
@@ -170,6 +175,7 @@ export default function TutorWorkspace({
   const persistedToolEventIdsRef = useRef<Set<string>>(new Set())
   const previousUserTranscriptRef = useRef('')
   const toolShapeIdsRef = useRef<Set<string>>(new Set())
+  const isLabMode = mode === 'agent-lab' || mode === 'livekit-lab' || mode === 'livekit-pipeline-lab'
 
   const persistTutorMessage = useCallback(
     async ({
@@ -316,7 +322,7 @@ export default function TutorWorkspace({
   }, [persistTutorMessage, session.chatHistory, session.currentSessionId])
 
   useEffect(() => {
-    if ((mode !== 'agent-lab' && mode !== 'livekit-lab') || !session.currentSessionId) {
+    if (!isLabMode || !session.currentSessionId) {
       persistedToolEventIdsRef.current.clear()
       return
     }
@@ -330,7 +336,7 @@ export default function TutorWorkspace({
       persistedToolEventIdsRef.current.add(toolEvent.id)
       void persistToolEvent(toolEvent)
     })
-  }, [mode, persistToolEvent, session.currentSessionId, session.toolEvents])
+  }, [isLabMode, persistToolEvent, session.currentSessionId, session.toolEvents])
 
   useEffect(() => {
     if (!editor || session.pendingCanvasActions.length === 0) return
@@ -414,7 +420,7 @@ export default function TutorWorkspace({
 
   const buildUploadedDocumentContext = useCallback(
     (studentText = '') => {
-      if ((mode !== 'agent-lab' && mode !== 'livekit-lab') || !uploadedDocument?.text.trim()) {
+      if (!isLabMode || !uploadedDocument?.text.trim()) {
         return studentText
       }
 
@@ -432,14 +438,14 @@ export default function TutorWorkspace({
         .join('\n\n')
       return context
     },
-    [mode, uploadedDocument]
+    [isLabMode, uploadedDocument]
   )
 
   const buildLabBoardDescription = useCallback(() => {
-    if ((mode !== 'agent-lab' && mode !== 'livekit-lab') || !streamCanvas || !editor) return undefined
+    if (!isLabMode || !streamCanvas || !editor) return undefined
     const description = serializeTutorBoardState(editor)
     return description || undefined
-  }, [editor, mode, streamCanvas])
+  }, [editor, isLabMode, streamCanvas])
 
   const handleSendImageOnly = () => {
     if (session.isPaused) return
@@ -479,7 +485,7 @@ export default function TutorWorkspace({
     setError(null)
     setIsStartingSession(true)
     try {
-      await session.connect({ language, gradeLevel, audioMode })
+      await session.connect({ language, gradeLevel, audioMode, ...connectOptions })
     } catch {
       // `session.connect` already reports a friendly message through `setError`.
     } finally {
@@ -528,8 +534,6 @@ export default function TutorWorkspace({
   const showTutorialPreSessionControls = !session.isConnected && isTutorialOpen
   const showCanvasStreamControl = (session.isConnected && session.connectionMode !== 'typed') || isTutorialOpen
   const supportsLiveMic = session.supportsLiveMic ?? true
-  const isLabMode = mode === 'agent-lab' || mode === 'livekit-lab'
-
   const tutorialSteps = useMemo<TutorialStep[]>(
     () => [
       {
@@ -649,7 +653,7 @@ export default function TutorWorkspace({
                 ref={embeddedBoardRef}
                 className="h-full min-h-[420px] flex-1 rounded-[28px] border-[#D8E4DF] bg-[#FCFDFC] shadow-[0_34px_90px_-58px_rgba(15,41,34,0.52)]"
                 onEditorReady={setEditor}
-                pdfToolsEnabled={mode === 'agent-lab' || mode === 'livekit-lab'}
+                pdfToolsEnabled={isLabMode}
               />
             </div>
 
@@ -809,31 +813,34 @@ export default function TutorWorkspace({
 
                 <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-4">
                   {!session.isConnected ? (
-                    <div className="mb-3 rounded-[22px] border border-[#DCE7E2] bg-white/74 px-4 py-3.5">
-                      <label className="block text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">
-                        Math level
-                      </label>
-                      <div className="mt-2">
-                        <select
-                          value={gradeLevel}
-                          onChange={(event) => setGradeLevel(event.target.value)}
-                          className="w-full appearance-none rounded-[14px] border border-[#D5E1DD] bg-[#F7FAF8] px-3.5 py-2.5 text-[13px] font-normal text-[#203A34] outline-none transition-colors focus:border-[#16423C]"
-                          style={{
-                            backgroundImage:
-                              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%233F524C'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E\")",
-                            backgroundPosition: 'right 0.9rem center',
-                            backgroundRepeat: 'no-repeat',
-                            backgroundSize: '14px',
-                            fontFamily: 'Inter, sans-serif',
-                          }}
-                        >
-                          {GRADE_LEVEL_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
+                    <div className="mb-3 space-y-3">
+                      <div className="rounded-[22px] border border-[#DCE7E2] bg-white/74 px-4 py-3.5">
+                        <label className="block text-[11px] uppercase tracking-[0.22em] text-[#5C7069]">
+                          Math level
+                        </label>
+                        <div className="mt-2">
+                          <select
+                            value={gradeLevel}
+                            onChange={(event) => setGradeLevel(event.target.value)}
+                            className="w-full appearance-none rounded-[14px] border border-[#D5E1DD] bg-[#F7FAF8] px-3.5 py-2.5 text-[13px] font-normal text-[#203A34] outline-none transition-colors focus:border-[#16423C]"
+                            style={{
+                              backgroundImage:
+                                "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%233F524C'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E\")",
+                              backgroundPosition: 'right 0.9rem center',
+                              backgroundRepeat: 'no-repeat',
+                              backgroundSize: '14px',
+                              fontFamily: 'Inter, sans-serif',
+                            }}
+                          >
+                            {GRADE_LEVEL_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
+                      {sessionConfig}
                     </div>
                   ) : null}
 
@@ -906,7 +913,7 @@ export default function TutorWorkspace({
                             <FileUpload
                               onUpload={handleUpload}
                               onDocumentExtracted={
-                                mode === 'agent-lab' || mode === 'livekit-lab'
+                                isLabMode
                                   ? setUploadedDocument
                                   : undefined
                               }

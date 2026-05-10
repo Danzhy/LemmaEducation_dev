@@ -30,6 +30,7 @@ function main() {
   const clientFiles = [
     'hooks/useLiveKitTutor.ts',
     'app/tutor-livekit-lab/page.tsx',
+    'app/tutor-livekit-pipeline-lab/page.tsx',
     'components/tutor/TutorWorkspace.tsx',
   ]
 
@@ -47,6 +48,18 @@ function main() {
   assertIncludes('app/api/livekit/session/route.ts', 'RoomAgentDispatch')
   assertIncludes('app/api/livekit/session/route.ts', 'canPublishSources')
   assertIncludes('app/api/livekit/session/route.ts', 'canPublishData: true')
+  assertIncludes('app/api/livekit-pipeline/session/route.ts', 'getSessionUserId()')
+  assertIncludes('app/api/livekit-pipeline/session/route.ts', 'takeTutorApiRateLimit')
+  assertIncludes('app/api/livekit-pipeline/session/route.ts', "ttl: '10m'")
+  assertIncludes('app/api/livekit-pipeline/session/route.ts', 'RoomAgentDispatch')
+  assertIncludes('app/api/livekit-pipeline/session/route.ts', 'PIPELINE_MODEL_NOT_CONFIGURED')
+  assertIncludes('app/api/livekit-pipeline/session/route.ts', 'canPublishSources')
+  assertIncludes('app/api/livekit-pipeline/session/route.ts', 'canPublishData: true')
+  assertIncludes('app/api/livekit-pipeline/models/route.ts', 'getSessionUserId()')
+  assertIncludes('lib/livekit/pipeline-models.ts', 'LIVEKIT_PIPELINE_MODEL_OPTIONS')
+  assertIncludes('lib/livekit/pipeline-config.ts', 'resolveLiveKitPipelineVoiceConfig')
+  assertIncludes('lib/livekit/pipeline-config.ts', 'resolveLiveKitPipelineSelection')
+  assertIncludes('lib/livekit/pipeline-server.ts', 'createLiveKitPipelineLLM')
   assertIncludes('app/api/livekit/tool/route.ts', 'handleLiveKitToolRequest')
   assertIncludes('app/api/livekit/tool/route.ts', 'LIVEKIT_TOOL_ENDPOINT_CONFIGS.worker')
   assertIncludes('app/api/livekit/tool-preview/route.ts', 'handleLiveKitToolRequest')
@@ -64,7 +77,8 @@ function main() {
   assertIncludes('scripts/livekit-tool-route-abuse-smoke.ts', 'SESSION_REQUIRED')
   assertIncludes('scripts/livekit-tool-route-abuse-smoke.ts', 'QUOTA_EXCEEDED')
   assertIncludes('scripts/livekit-tool-route-abuse-smoke.ts', 'TOOL_INPUT_TOO_LARGE')
-  assertIncludes('hooks/useLiveKitTutor.ts', 'const startedSessionId = await startServerTutorSession(options)')
+  assertIncludes('hooks/useLiveKitTutor.ts', 'const startedSessionId = await startServerTutorSession(options, modelSnapshot)')
+  assertIncludes('hooks/useLiveKitTutor.ts', 'startedSessionId = await startServerTutorSession(options, modelSnapshot)')
   assertIncludes('hooks/useLiveKitTutor.ts', 'startedSessionId = await startLocalTypedLabSession(options)')
   assertIncludes('hooks/useLiveKitTutor.ts', 'LIVEKIT_TOPICS.chat')
   assertIncludes('hooks/useLiveKitTutor.ts', 'LIVEKIT_TOPICS.transcription')
@@ -105,6 +119,16 @@ function main() {
   assertIncludes('workers/livekit-tutor-agent.ts', "if (metadata.audioMode !== 'silent')")
   assertIncludes('workers/livekit-tutor-agent.ts', 'syncTranscription: false')
   assertIncludes('workers/livekit-tutor-agent.ts', 'Passive board snapshots should enrich later turns')
+  assertIncludes('workers/livekit-pipeline-tutor-agent.ts', 'AutoSubscribe.AUDIO_ONLY')
+  assertIncludes('workers/livekit-pipeline-tutor-agent.ts', 'createLiveKitPipelineSTT')
+  assertIncludes('workers/livekit-pipeline-tutor-agent.ts', 'createLiveKitPipelineLLM')
+  assertIncludes('workers/livekit-pipeline-tutor-agent.ts', 'createLiveKitPipelineTTS')
+  assertIncludes('workers/livekit-pipeline-tutor-agent.ts', 'maxToolSteps: 4')
+  assertIncludes('workers/livekit-pipeline-tutor-agent.ts', "userAwayTimeout: metadata.audioMode === 'silent' ? null : 45")
+  assertIncludes('workers/livekit-pipeline-tutor-agent.ts', 'textInputCallback')
+  assertIncludes('workers/livekit-pipeline-tutor-agent.ts', 'turnDetection')
+  assertIncludes('workers/livekit-pipeline-tutor-agent.ts', 'LIVEKIT_TOPICS.control')
+  assertIncludes('workers/livekit-pipeline-tutor-agent.ts', 'session_ready')
   assertIncludes('hooks/useLiveKitTutor.ts', 'scheduleTranscriptSettle')
   assertIncludes('lib/livekit/worker-tools.ts', 'DEFAULT_MAX_TOOL_CALLS_PER_SESSION')
   assertIncludes('lib/livekit/worker-tools.ts', 'DEFAULT_MAX_CANVAS_ACTIONS_PER_SESSION')
@@ -200,7 +224,7 @@ function main() {
       {
         ok: true,
         checkedClientFiles: clientFiles.length,
-        checkedServerGuards: 53,
+        checkedServerGuards: 76,
         checkedStudentVisibleLiveKitMessages: 6,
       },
       null,
