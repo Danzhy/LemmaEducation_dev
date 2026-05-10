@@ -241,6 +241,31 @@ export type TutorTeachingSequenceResult = {
   guardrails: string[]
 }
 
+export type LearningPathwayPlannerResult = {
+  topic: string
+  label: string
+  gradeLevel: string
+  lessonGoal: string
+  prerequisiteCheck: string[]
+  diagnosticPrompt: string
+  firstBoardTool: string
+  pathway: Array<{
+    phase: 'connect' | 'diagnose' | 'model' | 'guided_try' | 'independent_check'
+    tutorMove: string
+    studentAction: string
+    suggestedTool: string
+  }>
+  microPractice: Array<{
+    prompt: string
+    hint: string
+    suggestedTool: string
+  }>
+  successCriteria: string[]
+  teacherSafeNote: string
+  canvasActions?: TutorCanvasAction[]
+  avoid: string[]
+}
+
 export type NextStepCoachResult = {
   topic: string
   label: string

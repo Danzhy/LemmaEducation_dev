@@ -71,7 +71,7 @@ function main() {
   assertIncludes('hooks/useLiveKitTutor.ts', 'agentReadyRef.current')
   assertIncludes('hooks/useLiveKitTutor.ts', 'markLiveKitAgentReady')
   assertIncludes('hooks/useLiveKitTutor.ts', 'session_ready')
-  assertIncludes('hooks/useLiveKitTutor.ts', 'callServerLiveKitTool(sessionIdRef.current, plan.toolName, input, {')
+  assertIncludes('hooks/useLiveKitTutor.ts', 'callServerLiveKitTool(sessionIdRef.current, hydratedPlan.toolName, input, {')
   assertIncludes('hooks/useLiveKitTutor.ts', 'preview: true')
   assertIncludes('lib/livekit/tool-runner.ts', 'assertAllowedToolInputProperties')
   assertIncludes('lib/livekit/tool-runner.ts', 'assertAllowedSchemaProperties')

@@ -32,6 +32,7 @@ export const LIVEKIT_TUTOR_TOOL_NAMES = [
   'hint_ladder',
   'integer_chips',
   'integer_operation_scene',
+  'learning_pathway_planner',
   'learner_context',
   'long_division',
   'math_calculate',

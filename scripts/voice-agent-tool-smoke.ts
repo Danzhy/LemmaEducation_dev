@@ -26,6 +26,7 @@ import {
   graphFunction,
   integerChipsScene,
   integerOperationScene,
+  learningPathwayPlanner,
   hintLadder,
   longDivisionScene,
   mathCheckAnswer,
@@ -1100,6 +1101,27 @@ assert(
   teachingSequence.recommendedTool === 'misconception_diagnosis' &&
     teachingSequence.boardPlan.length >= 3,
   'tutor_teaching_sequence should plan a diagnostic tutor turn with board stages.'
+)
+
+const learningPathway = learningPathwayPlanner({
+  topic: 'fractions',
+  gradeLevel: 'Grade 6',
+  studentGoal: 'I want to stop mixing up denominators.',
+  studentWork: '1/2 + 1/3 = 2/5',
+  recentMisconception: 'adding denominators',
+  timeAvailableMinutes: 12,
+})
+assert(
+  learningPathway.topic === 'fractions' &&
+    learningPathway.firstBoardTool === 'fraction_operation' &&
+    learningPathway.pathway.length === 5,
+  'learning_pathway_planner should build a coherent fraction mini-lesson path from misconception evidence.'
+)
+assert(
+  learningPathway.microPractice.length === 2 &&
+    learningPathway.successCriteria.length >= 3 &&
+    (learningPathway.canvasActions?.length ?? 0) > 0,
+  'learning_pathway_planner should include practice, success criteria, and starter board actions.'
 )
 
 const responsePlan = tutorResponsePlanner({

@@ -29,6 +29,7 @@ import {
   hintLadder,
   integerChipsScene,
   integerOperationScene,
+  learningPathwayPlanner,
   longDivisionScene,
   mathCalculate,
   mathCheckAnswer,
@@ -290,6 +291,56 @@ export function createVoiceAgentTools() {
             topic: params.topic,
             studentGoal: params.studentGoal,
             studentWork: params.studentWork,
+          })
+        )
+      },
+    }),
+    tool({
+      name: 'learning_pathway_planner',
+      description:
+        'Plan a short grade 3 to 7 micro-lesson pathway with prerequisite check, diagnostic question, first board tool, guided practice, success criteria, and a teacher-safe note. Use this when the student needs a coherent tutoring path, not just one calculation.',
+      strict: true,
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          gradeLevel: { type: 'string' },
+          topic: {
+            type: 'string',
+            description:
+              'Topic such as fractions, decimals, percents, ratios, equations, geometry, coordinate graphing, data, or probability.',
+          },
+          studentGoal: { type: 'string' },
+          studentWork: { type: 'string' },
+          recentMisconception: { type: 'string' },
+          timeAvailableMinutes: { type: 'number', minimum: 5, maximum: 30 },
+        },
+        required: [
+          'gradeLevel',
+          'topic',
+          'studentGoal',
+          'studentWork',
+          'recentMisconception',
+          'timeAvailableMinutes',
+        ],
+      },
+      async execute(input) {
+        const params = input as {
+          gradeLevel?: string
+          topic: string
+          studentGoal?: string
+          studentWork?: string
+          recentMisconception?: string
+          timeAvailableMinutes?: number
+        }
+        return stringifyResult(
+          learningPathwayPlanner({
+            gradeLevel: params.gradeLevel,
+            topic: params.topic,
+            studentGoal: params.studentGoal,
+            studentWork: params.studentWork,
+            recentMisconception: params.recentMisconception,
+            timeAvailableMinutes: params.timeAvailableMinutes,
           })
         )
       },

@@ -36,6 +36,7 @@ export function buildLiveKitTutorInstructions({
     'Use answer_disclosure_gate before giving a final answer or full solution. If it says hint_only or next_step_only, stop there and wait.',
     'Use mistake_pattern_classifier before correcting wrong work when the student asks why it is wrong or when the error type is unclear. Name the reasoning pattern kindly, then ask one diagnostic question.',
     'Use curriculum_context when a turn should follow a teacher-created profile or class-specific pacing. Use curriculum_search when the student references uploaded class material, homework wording, teacher expectations, or a custom curriculum profile.',
+    'Use learning_pathway_planner when the student needs a coherent mini-lesson, review path, or teacher-aligned sequence instead of a one-off calculation.',
     'Use problem_understanding_map before solving word problems or messy prompts so the student names knowns, unknowns, units, and the right representation first.',
     'Use representation_bridge when the student asks for another way to see the same idea, or when moving between words, visuals, tables, equations, graphs, and numeric work.',
     'Prefer deterministic tools for arithmetic, fractions, decimals, percents, ratios, equations, graphing, geometry, data, and probability.',

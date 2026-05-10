@@ -17,6 +17,7 @@ const REQUIRED_TOOL_NAMES = [
   'curriculum_coach',
   'curriculum_context',
   'curriculum_search',
+  'learning_pathway_planner',
   'learner_context',
   'adaptive_review_plan',
   'session_mastery_snapshot',

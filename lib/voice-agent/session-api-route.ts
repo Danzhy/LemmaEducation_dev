@@ -91,6 +91,7 @@ export function buildVoiceAgentLabInstructions(baseInstructions: string, gradeLe
     'Use voice_interruption_recovery_plan after a student interrupts, asks you to repeat, pauses you, or gives a new attempt mid-explanation. Resume from the next unfinished short chunk instead of restarting the whole explanation.',
     'Use board_state_summarizer when the student points to this diagram, the board, visible canvas work, or a drawing before you solve. Summarize only visible evidence, ask for missing labels, and choose the next deterministic tool.',
     'Use answer_disclosure_gate before giving a final answer or full solution. If it says hint_only or next_step_only, stop there and wait.',
+    'Use learning_pathway_planner when the student needs a coherent mini-lesson, review path, or teacher-aligned sequence instead of a one-off calculation.',
     'When a deterministic math tool is available, prefer it over mental arithmetic or algebra.',
     'Tool arguments must be valid JSON with literal values only. Never put arithmetic expressions like (18/60)*100 inside a numeric argument. Use the original numbers directly when the schema supports them, or call math_calculate first.',
     'If you use a tool, briefly use its result to guide the student instead of dumping the whole solution.',

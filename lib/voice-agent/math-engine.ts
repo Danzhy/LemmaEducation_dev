@@ -29,6 +29,7 @@ import type {
   SocraticMoveResult,
   BoardAnimationPlanResult,
   TutorTeachingSequenceResult,
+  LearningPathwayPlannerResult,
   WordProblemPlanResult,
   ProblemUnderstandingMapResult,
   RepresentationBridgeResult,
@@ -12053,6 +12054,175 @@ export function adaptiveReviewPlan(input: {
       'Do not quote exact old transcript lines.',
       'Do not give a long recap before the student tries.',
       'Do not reveal practice answers until the student attempts the first step.',
+    ],
+  }
+}
+
+function normalizeLessonGoal(input: {
+  topic: CurriculumTopic
+  studentGoal?: string
+  recentMisconception?: string
+}) {
+  const guide = CURRICULUM_GUIDE[input.topic]
+  const goal = input.studentGoal?.trim()
+  if (goal) return goal.replace(/\s+/g, ' ').slice(0, 120)
+
+  const misconception = input.recentMisconception?.trim()
+  if (misconception) {
+    return `Repair the reasoning pattern around ${compactWarmStartFocus(misconception).toLowerCase()}.`
+  }
+
+  return guide.nextMove
+}
+
+function buildPathwayDiagnosticQuestion(input: {
+  topic: CurriculumTopic
+  studentWork?: string
+  recentMisconception?: string
+}) {
+  const guide = CURRICULUM_GUIDE[input.topic]
+  const work = input.studentWork?.trim()
+  if (work) return 'Before I help, which step in your work are you most confident about?'
+
+  const misconception = input.recentMisconception?.trim()
+  if (misconception) {
+    const diagnosis = misconceptionDiagnosis({
+      topic: input.topic,
+      studentWork: misconception,
+    })
+    return diagnosis.nextHint
+  }
+
+  if (input.topic === 'fractions') return 'What is the whole, and are the pieces the same size?'
+  if (input.topic === 'ratios_rates') return 'Which two quantities have to stay paired as we scale?'
+  if (input.topic === 'expressions_equations') return 'What operation is being undone or kept balanced?'
+  if (input.topic === 'geometry_measurement') return 'Are we measuring length, area, angle, or something else?'
+  if (input.topic === 'coordinate_graphing') return 'What does the x-value tell us before we use y?'
+
+  return guide.nextMove
+}
+
+function choosePathwayFirstTool(topic: CurriculumTopic, studentWork?: string, recentMisconception?: string) {
+  const combined = `${studentWork ?? ''} ${recentMisconception ?? ''}`.toLowerCase()
+  const guide = CURRICULUM_GUIDE[topic]
+
+  if (topic === 'expressions_equations' && /\b(step|both sides|equation|x|solve|=)\b/.test(combined)) {
+    return 'equation_balance'
+  }
+
+  if (topic === 'fractions' && /\b(add|adding|subtract|common denominators?|denominators?)\b/.test(combined)) {
+    return 'fraction_operation'
+  }
+
+  if (topic === 'geometry_measurement' && /\b(area|perimeter|rectangle)\b/.test(combined)) {
+    return 'area_perimeter_model'
+  }
+
+  return guide.tools[0]
+}
+
+function estimatePathwayItemCount(minutes: number) {
+  if (minutes <= 8) return 1
+  if (minutes <= 14) return 2
+  return 3
+}
+
+export function learningPathwayPlanner(input: {
+  gradeLevel?: string
+  topic: string
+  studentGoal?: string
+  studentWork?: string
+  recentMisconception?: string
+  timeAvailableMinutes?: number
+}): LearningPathwayPlannerResult {
+  const topic = resolveCurriculumTopic(input.topic)
+  const guide = CURRICULUM_GUIDE[topic]
+  const gradeLevel = input.gradeLevel?.trim() || 'grades 3 to 7'
+  const minutes = clamp(Math.trunc(input.timeAvailableMinutes ?? 12), 5, 30)
+  const lessonGoal = normalizeLessonGoal({
+    topic,
+    studentGoal: input.studentGoal,
+    recentMisconception: input.recentMisconception,
+  })
+  const diagnosticPrompt = buildPathwayDiagnosticQuestion({
+    topic,
+    studentWork: input.studentWork,
+    recentMisconception: input.recentMisconception,
+  })
+  const firstBoardTool = choosePathwayFirstTool(topic, input.studentWork, input.recentMisconception)
+  const practice = practiceSetGenerator({
+    topic,
+    difficulty: input.recentMisconception || input.studentWork ? 'support' : 'core',
+    count: estimatePathwayItemCount(minutes),
+  }).items
+  const starterVisual = buildWarmStartVisual({
+    topic,
+    firstBoardTool,
+    warmStartLine: `Today we will work on ${guide.label.toLowerCase()} by making one idea visible at a time.`,
+    historyFocus: input.recentMisconception?.trim()
+      ? `Revisit one learning pattern: ${input.recentMisconception.trim()}`
+      : `Revisit one learning pattern: ${lessonGoal}`,
+    firstStudentQuestion: diagnosticPrompt,
+  })
+
+  return {
+    topic,
+    label: guide.label,
+    gradeLevel,
+    lessonGoal,
+    prerequisiteCheck: guide.prerequisites.slice(0, 2),
+    diagnosticPrompt,
+    firstBoardTool,
+    pathway: [
+      {
+        phase: 'connect',
+        tutorMove: `Name the goal in one sentence: ${lessonGoal}`,
+        studentAction: 'Student says what they already know or where they felt stuck.',
+        suggestedTool: 'student_check_question',
+      },
+      {
+        phase: 'diagnose',
+        tutorMove: 'Ask the diagnostic prompt and wait before drawing more.',
+        studentAction: diagnosticPrompt,
+        suggestedTool: input.studentWork?.trim() ? 'misconception_diagnosis' : 'problem_understanding_map',
+      },
+      {
+        phase: 'model',
+        tutorMove: `Use ${firstBoardTool.replace(/_/g, ' ')} to make the key relationship visible without finishing the problem.`,
+        studentAction: 'Student explains what part of the visual matches the problem.',
+        suggestedTool: firstBoardTool,
+      },
+      {
+        phase: 'guided_try',
+        tutorMove: 'Give only the next step or first practice prompt.',
+        studentAction: 'Student attempts one step aloud or on the board.',
+        suggestedTool: practice[0]?.suggestedTool ?? guide.tools[0],
+      },
+      {
+        phase: 'independent_check',
+        tutorMove: 'End with one transfer check and save a mastery snapshot if the exchange was meaningful.',
+        studentAction: 'Student explains the pattern in their own words.',
+        suggestedTool: 'session_mastery_snapshot',
+      },
+    ],
+    microPractice: practice.map((item) => ({
+      prompt: item.prompt,
+      hint: item.hint,
+      suggestedTool: item.suggestedTool,
+    })),
+    successCriteria: [
+      `Student can name at least one prerequisite: ${guide.prerequisites[0].toLowerCase()}.`,
+      'Student can make the next step without copying a full worked solution.',
+      'Student can explain the visual or tool result in their own words.',
+    ],
+    teacherSafeNote:
+      `Planned a ${minutes}-minute ${guide.label.toLowerCase()} pathway for ${gradeLevel}. Use the evidence from the student response, not private transcript details, when reviewing later.`,
+    canvasActions: starterVisual.canvasActions,
+    avoid: [
+      'Do not lecture through the whole pathway in one turn.',
+      'Do not reveal practice answers before an attempt.',
+      'Do not quote private old transcript lines.',
+      'Do not draw more than one main visual before the student responds.',
     ],
   }
 }
