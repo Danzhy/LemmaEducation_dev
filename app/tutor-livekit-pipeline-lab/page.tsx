@@ -92,10 +92,10 @@ export default function TutorLiveKitPipelineLabPage() {
             htmlFor="livekit-pipeline-model"
             className="block text-[11px] uppercase tracking-[0.22em] text-[#5C7069]"
           >
-            LLM brain
+            Model
           </label>
           <p className="mt-1 text-[12px] leading-relaxed text-[#6A7E78]">
-            LiveKit handles voice transport. This chooses the reasoning model.
+            LiveKit handles voice transport. This chooses the tutor model.
           </p>
         </div>
         {selectedModel?.experimental ? (

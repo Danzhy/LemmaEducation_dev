@@ -8,7 +8,7 @@ import { resolveLiveKitPipelineSelection, resolveLiveKitPipelineVoiceConfig } fr
 
 function main() {
   const options = listLiveKitPipelineModelOptions()
-  assert.ok(options.length >= 3, 'pipeline lab should expose multiple LLM choices')
+  assert.ok(options.length >= 12, 'pipeline lab should expose a broad model comparison set')
   assert.equal(new Set(options.map((option) => option.id)).size, options.length, 'model IDs must be unique')
 
   const defaultModel = resolveLiveKitPipelineModel(null)
@@ -23,6 +23,25 @@ function main() {
     'OpenRouter should not require an override model because a safe default exists'
   )
   assert.equal(openRouterModel.model, process.env.OPENROUTER_LIVEKIT_MODEL?.trim() || 'openai/gpt-oss-120b')
+
+  const expectedOpenRouterIds = [
+    'openrouter-gpt-5-5',
+    'openrouter-gpt-5-4',
+    'openrouter-gpt-5-4-mini',
+    'openrouter-gpt-oss-120b',
+    'openrouter-llama-4-maverick',
+    'openrouter-llama-3-3-70b',
+    'openrouter-qwen-3-6-35b',
+    'openrouter-deepseek-v3-2',
+    'openrouter-mistral-small-4',
+    'openrouter-gemma-4-31b-free',
+  ]
+  for (const id of expectedOpenRouterIds) {
+    const option = options.find((candidate) => candidate.id === id)
+    assert.ok(option, `${id} should be present in the OpenRouter allowlist`)
+    assert.equal(option?.provider, 'openrouter_compatible', `${id} should use the OpenRouter-compatible provider`)
+    assert.deepEqual(option?.requiredEnv, ['OPENROUTER_API_KEY'], `${id} should only require the OpenRouter key`)
+  }
 
   const fallbackModel = resolveLiveKitPipelineModel('not-a-real-model')
   assert.equal(fallbackModel.id, LIVEKIT_PIPELINE_DEFAULT_MODEL_ID)
