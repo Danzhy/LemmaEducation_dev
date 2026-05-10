@@ -65,6 +65,7 @@ export default function MathEditor({
           throwOnError: false,
           displayMode,
           output: 'html',
+          trust: false,
         })
       : ''
   } catch (err) {

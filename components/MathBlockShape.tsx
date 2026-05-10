@@ -99,6 +99,7 @@ export class MathBlockShapeUtil extends BaseBoxShapeUtil<MathBlockShape> {
         throwOnError: false,
         displayMode,
         output: 'html',
+        trust: false,
       })
     } catch (err) {
       // If rendering fails, show error message

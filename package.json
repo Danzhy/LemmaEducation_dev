@@ -27,6 +27,7 @@
     "test:canvas-reveal": "node --import tsx scripts/canvas-action-reveal-smoke.ts",
     "test:canvas-pdf": "node --import tsx scripts/canvas-pdf-security-check.ts",
     "test:realtime-model-policy": "node --import tsx scripts/realtime-model-policy-smoke.ts",
+    "test:realtime-log-error": "node --import tsx scripts/realtime-log-error-security-check.ts",
     "test:tutor-strategies": "node --import tsx scripts/tutor-strategy-eval.ts",
     "test:curriculum-rag": "node --import tsx scripts/curriculum-rag-smoke.ts",
     "test:curriculum-security": "node --import tsx scripts/curriculum-security-check.ts",
