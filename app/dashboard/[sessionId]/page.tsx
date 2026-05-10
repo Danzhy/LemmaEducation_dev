@@ -148,6 +148,14 @@ export default async function DashboardSessionDetailPage({
               >
                 Back to all sessions
               </Link>
+              <div>
+                <Link
+                  href={`/api/tutor/sessions/${session.id}/review-export`}
+                  className="inline-flex rounded-full border border-[#D8E4DF] bg-white/78 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-[#16423C] transition-colors hover:border-[#BFD2CB] hover:bg-[#F8FBF9]"
+                >
+                  Download review summary
+                </Link>
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[36rem]">

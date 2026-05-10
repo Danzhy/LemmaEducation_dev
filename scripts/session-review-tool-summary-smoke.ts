@@ -4,6 +4,7 @@ import {
   summarizeToolEventForReview,
 } from '../lib/tutor/tool-event-review'
 import { buildSessionFollowUpPractice } from '../lib/tutor/session-follow-up'
+import { buildSessionReviewFilename, buildSessionReviewMarkdown } from '../lib/tutor/session-review-export'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -263,6 +264,68 @@ const transcriptFollowUp = buildSessionFollowUpPractice({
 assert(
   transcriptFollowUp?.topic === 'expressions_equations',
   'Follow-up practice should infer equation review from recent student prompts when tool evidence is absent.'
+)
+
+const reviewExport = buildSessionReviewMarkdown({
+  id: '7e6e3f1a-56df-43ea-9aaa-2b884159622f',
+  startedAt: new Date('2026-05-10T09:00:00.000Z'),
+  endedAt: new Date('2026-05-10T09:12:00.000Z'),
+  activeSeconds: 720,
+  endedReason: 'user_ended',
+  modelSnapshot: 'gpt-realtime-1.5',
+  language: 'en',
+  gradeLevel: 'Grade 6',
+  userMessageCount: 1,
+  assistantMessageCount: 1,
+  hasCanvasSnapshot: true,
+  artifactUpdatedAt: new Date('2026-05-10T09:12:00.000Z'),
+  messages: [
+    {
+      id: 'message-2',
+      role: 'user',
+      content: 'Private transcript: my parent helped with the first step.',
+      source: 'text',
+      createdAt: new Date(),
+    },
+  ],
+  toolEvents: [
+    {
+      id: 'event-2',
+      eventType: 'tool_completed',
+      toolName: 'session_mastery_snapshot',
+      status: 'completed',
+      input: {
+        transcriptExcerpt: 'Private transcript about a family situation.',
+      },
+      output: {
+        label: 'Fraction addition',
+        confidence: 'low',
+        needsReview: ['Check whether the whole is the same size before adding parts.'],
+        suggestedNextTutorMove: 'Ask the student to draw two same-size fraction strips before adding.',
+      },
+      metadata: null,
+      createdAt: new Date(),
+    },
+  ],
+})
+assert(reviewExport.includes('# Lemma Session Review'), 'Review exports should be markdown documents.')
+assert(
+  reviewExport.includes('Fraction addition') &&
+    reviewExport.includes('Follow-up Practice') &&
+    reviewExport.includes('A final board snapshot was saved'),
+  'Review exports should include safe evidence, follow-up practice, and board metadata.'
+)
+assert(
+  reviewExport.includes('teacher-safe summary') &&
+    !reviewExport.includes('family situation') &&
+    !reviewExport.includes('my parent helped') &&
+    !reviewExport.includes('Private transcript'),
+  'Review exports must not include private transcript snippets or raw tool inputs.'
+)
+assert(
+  buildSessionReviewFilename('7e6e3f1a-56df-43ea-9aaa-2b884159622f') ===
+    'lemma-session-7e6e3f1a-56d-review.md',
+  'Review export filenames should be stable and sanitized.'
 )
 
 console.log('Session review tool summary smoke checks passed.')
