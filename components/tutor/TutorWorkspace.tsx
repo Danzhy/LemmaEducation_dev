@@ -653,7 +653,7 @@ export default function TutorWorkspace({
                 ref={embeddedBoardRef}
                 className="h-full min-h-[420px] flex-1 rounded-[28px] border-[#D8E4DF] bg-[#FCFDFC] shadow-[0_34px_90px_-58px_rgba(15,41,34,0.52)]"
                 onEditorReady={setEditor}
-                pdfToolsEnabled={isLabMode}
+                pdfToolsEnabled
               />
             </div>
 

@@ -8,7 +8,7 @@
 
 'use client'
 
-import { useRef, useState, useEffect, forwardRef, useImperativeHandle, type ChangeEvent } from 'react'
+import { useRef, useState, useEffect, forwardRef, useImperativeHandle, useId, type ChangeEvent } from 'react'
 // @ts-expect-error - createShapeId exists at runtime
 import { createShapeId } from 'tldraw'
 // @ts-expect-error - Editor is exported at runtime but TypeScript definitions may be incomplete
@@ -36,6 +36,7 @@ const EmbeddedBoard = forwardRef<EmbeddedBoardRef, EmbeddedBoardProps>(
   function EmbeddedBoard({ className = '', onEditorReady, pdfToolsEnabled = false }, ref) {
   const canvasRef = useRef<CanvasRef>(null)
   const pdfInputRef = useRef<HTMLInputElement>(null)
+  const pdfInputId = useId()
   const [editor, setEditor] = useState<Editor | null>(null)
   const [pdfToolStatus, setPdfToolStatus] = useState<string | null>(null)
   const [isPdfToolBusy, setIsPdfToolBusy] = useState(false)
@@ -214,17 +215,21 @@ const EmbeddedBoard = forwardRef<EmbeddedBoardRef, EmbeddedBoardProps>(
       className={`flex flex-col min-h-0 bg-white rounded-lg border border-[#E6ECE9] overflow-hidden ${className}`}
     >
       <input
+        id={pdfInputId}
         ref={pdfInputRef}
         type="file"
         accept="application/pdf,.pdf"
         onChange={handlePdfImportChange}
-        className="hidden"
+        disabled={isPdfToolBusy}
+        className="sr-only"
+        tabIndex={-1}
       />
       <CanvasToolbar
         editor={editor}
         exportEnabled={false}
         pdfToolsEnabled={pdfToolsEnabled}
         pdfToolsBusy={isPdfToolBusy}
+        pdfImportInputId={pdfInputId}
         onImportPdf={handlePdfImportClick}
         onExportPdf={handlePdfExport}
         onMathBlockClick={handleMathBlockClick}
@@ -232,7 +237,10 @@ const EmbeddedBoard = forwardRef<EmbeddedBoardRef, EmbeddedBoardProps>(
       <div className="flex-1 relative min-h-0">
         <Canvas ref={canvasRef} shapeUtils={[MathBlockShapeUtil]} />
         {pdfToolsEnabled && pdfToolStatus ? (
-          <div className="pointer-events-none absolute bottom-3 left-3 max-w-[min(32rem,calc(100%-1.5rem))] rounded-full border border-[#D5E1DD] bg-white/92 px-3.5 py-2 text-xs text-[#3F524C] shadow-[0_14px_34px_-26px_rgba(15,41,34,0.5)]">
+          <div
+            role="status"
+            className="pointer-events-none absolute bottom-3 left-3 max-w-[min(32rem,calc(100%-1.5rem))] rounded-full border border-[#D5E1DD] bg-white/92 px-3.5 py-2 text-xs text-[#3F524C] shadow-[0_14px_34px_-26px_rgba(15,41,34,0.5)]"
+          >
             {pdfToolStatus}
           </div>
         ) : null}

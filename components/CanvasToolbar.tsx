@@ -23,6 +23,8 @@ export interface CanvasToolbarProps {
   onExport?: (format: 'png' | 'pdf' | 'board') => void
   /** Callback for adding a PDF as board pages */
   onImportPdf?: () => void
+  /** File input id used by the Add PDF label */
+  pdfImportInputId?: string
   /** Callback for direct board PDF export */
   onExportPdf?: () => void
   /** Whether export is enabled (enabled in Subphase 2.3) */
@@ -41,6 +43,7 @@ export default function CanvasToolbar({
   editor,
   onExport,
   onImportPdf,
+  pdfImportInputId,
   onExportPdf,
   exportEnabled = false,
   pdfToolsEnabled = false,
@@ -246,14 +249,26 @@ export default function CanvasToolbar({
       {/* Lab PDF controls */}
       {pdfToolsEnabled && (
         <div className="ml-0 flex items-center gap-2 sm:ml-auto">
-          <button
-            type="button"
-            onClick={onImportPdf}
-            disabled={!editor || pdfToolsBusy}
-            className="rounded-full border border-[#C9D6D1] bg-white px-3 py-1.5 text-xs font-medium text-[#3F524C] transition-colors hover:border-[#16423C] hover:text-[#16423C] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Add PDF
-          </button>
+          {pdfImportInputId ? (
+            <label
+              htmlFor={pdfImportInputId}
+              aria-disabled={pdfToolsBusy}
+              className={`rounded-full border border-[#C9D6D1] bg-white px-3 py-1.5 text-xs font-medium text-[#3F524C] transition-colors hover:border-[#16423C] hover:text-[#16423C] ${
+                pdfToolsBusy ? 'pointer-events-none cursor-not-allowed opacity-50' : 'cursor-pointer'
+              }`}
+            >
+              Add PDF
+            </label>
+          ) : (
+            <button
+              type="button"
+              onClick={onImportPdf}
+              disabled={pdfToolsBusy}
+              className="rounded-full border border-[#C9D6D1] bg-white px-3 py-1.5 text-xs font-medium text-[#3F524C] transition-colors hover:border-[#16423C] hover:text-[#16423C] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Add PDF
+            </button>
+          )}
           <button
             type="button"
             onClick={onExportPdf}

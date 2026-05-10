@@ -1,7 +1,7 @@
 'use client'
 
 import { jsPDF } from 'jspdf'
-import { Vec, type Editor } from '@tldraw/editor'
+import { Box, Vec, type Editor } from '@tldraw/editor'
 import { AssetRecordType, createShapeId, type TLAsset, type TLShapeId } from '@tldraw/tlschema'
 
 export const MAX_CANVAS_PDF_BYTES = 10_000_000
@@ -28,6 +28,10 @@ export type CanvasPdfPlacementResult = {
 
 const MAX_CANVAS_PDF_TEXT_BYTES = 2_500_000
 const MAX_CANVAS_PDF_META_EXCERPT_CHARS = 900
+const CANVAS_PDF_EXPORT_PADDING = 48
+const CANVAS_PDF_EXPORT_MAX_PAGES = 12
+const A4_PORTRAIT_WIDTH_PT = 595.28
+const A4_PORTRAIT_HEIGHT_PT = 841.89
 
 function dataUrlByteLength(dataUrl: string) {
   const commaIndex = dataUrl.indexOf(',')
@@ -93,7 +97,7 @@ export async function renderPdfPagesForCanvas(file: File): Promise<RenderedCanva
     throw new Error('Use a PDF under 10 MB for board import.')
   }
 
-  const pdfjs = await import('pdfjs-dist')
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const data = await file.arrayBuffer()
   const loadingTask = pdfjs.getDocument({
     data,
@@ -252,41 +256,116 @@ export function placeRenderedPdfPagesOnCanvas(
   }
 }
 
+function getBoardContentBounds(editor: Editor, shapeIds: TLShapeId[]) {
+  const boxes = shapeIds
+    .map((shapeId) => editor.getShapePageBounds(shapeId))
+    .filter((box): box is Box => Boolean(box))
+
+  if (boxes.length === 0) return null
+
+  const minX = Math.min(...boxes.map((box) => box.x))
+  const minY = Math.min(...boxes.map((box) => box.y))
+  const maxX = Math.max(...boxes.map((box) => box.x + box.w))
+  const maxY = Math.max(...boxes.map((box) => box.y + box.h))
+
+  return new Box(
+    minX - CANVAS_PDF_EXPORT_PADDING,
+    minY - CANVAS_PDF_EXPORT_PADDING,
+    Math.max(1, maxX - minX + CANVAS_PDF_EXPORT_PADDING * 2),
+    Math.max(1, maxY - minY + CANVAS_PDF_EXPORT_PADDING * 2)
+  )
+}
+
+export function createCanvasPdfExportSlices(bounds: Box) {
+  const pageRatio = A4_PORTRAIT_HEIGHT_PT / A4_PORTRAIT_WIDTH_PT
+  const targetSliceHeight = Math.max(360, bounds.w * pageRatio)
+
+  if (bounds.h <= targetSliceHeight * 1.12) {
+    return [Box.From(bounds)]
+  }
+
+  const slices: Box[] = []
+  let currentY = bounds.y
+  const maxY = bounds.y + bounds.h
+
+  while (currentY < maxY && slices.length < CANVAS_PDF_EXPORT_MAX_PAGES) {
+    const remainingHeight = maxY - currentY
+    const sliceHeight = Math.min(targetSliceHeight, remainingHeight)
+    slices.push(new Box(bounds.x, currentY, bounds.w, sliceHeight))
+    currentY += sliceHeight
+  }
+
+  if (currentY < maxY && slices.length > 0) {
+    const last = slices[slices.length - 1]
+    slices[slices.length - 1] = new Box(last.x, last.y, last.w, maxY - last.y)
+  }
+
+  if (slices.length > 1) {
+    const last = slices[slices.length - 1]
+    const previous = slices[slices.length - 2]
+    if (last.h < targetSliceHeight * 0.24) {
+      slices[slices.length - 2] = new Box(previous.x, previous.y, previous.w, previous.h + last.h)
+      slices.pop()
+    }
+  }
+
+  return slices
+}
+
 export async function downloadCanvasAsPdf(editor: Editor, fileName = `lemma-board-${Date.now()}.pdf`) {
   const shapeIds = [...editor.getCurrentPageShapeIds()]
   if (shapeIds.length === 0) {
     throw new Error('Add something to the board before exporting.')
   }
 
-  const imageResult = await editor.toImage(shapeIds, {
-    background: true,
-    format: 'png',
-    padding: 48,
-    scale: 2,
-  })
-
-  if (!imageResult?.blob) {
-    throw new Error('Could not render the board for export.')
+  const exportBounds = getBoardContentBounds(editor, shapeIds)
+  if (!exportBounds) {
+    throw new Error('Could not find board content to export.')
   }
 
-  const dataUrl = await blobToDataUrl(imageResult.blob)
-  const width = imageResult.width || 1200
-  const height = imageResult.height || 900
-  const orientation = width > height ? 'landscape' : 'portrait'
-  const pdf = new jsPDF({
-    orientation,
-    unit: 'pt',
-    format: 'a4',
-  })
-  const pageWidth = pdf.internal.pageSize.getWidth()
-  const pageHeight = pdf.internal.pageSize.getHeight()
-  const margin = 32
-  const fitScale = Math.min((pageWidth - margin * 2) / width, (pageHeight - margin * 2) / height)
-  const renderedWidth = width * fitScale
-  const renderedHeight = height * fitScale
-  const x = (pageWidth - renderedWidth) / 2
-  const y = (pageHeight - renderedHeight) / 2
+  const slices = createCanvasPdfExportSlices(exportBounds)
+  if (slices.length === 0) {
+    throw new Error('Could not prepare the board for export.')
+  }
 
-  pdf.addImage(dataUrl, 'PNG', x, y, renderedWidth, renderedHeight)
+  const firstOrientation = slices[0].w > slices[0].h ? 'landscape' : 'portrait'
+  const pdf = new jsPDF({ orientation: firstOrientation, unit: 'pt', format: 'a4' })
+
+  for (let index = 0; index < slices.length; index += 1) {
+    const slice = slices[index]
+    const orientation = slice.w > slice.h ? 'landscape' : 'portrait'
+
+    if (index > 0) {
+      pdf.addPage('a4', orientation)
+    }
+
+    const imageResult = await editor.toImage(shapeIds, {
+      bounds: slice,
+      background: true,
+      format: 'png',
+      padding: 0,
+      scale: 1,
+      pixelRatio: 2,
+    })
+
+    if (!imageResult?.blob) {
+      throw new Error('Could not render the board for export.')
+    }
+
+    const dataUrl = await blobToDataUrl(imageResult.blob)
+    const width = imageResult.width || slice.w
+    const height = imageResult.height || slice.h
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    const margin = 28
+    const fitScale = Math.min((pageWidth - margin * 2) / width, (pageHeight - margin * 2) / height)
+    const renderedWidth = width * fitScale
+    const renderedHeight = height * fitScale
+    const x = (pageWidth - renderedWidth) / 2
+    const y = (pageHeight - renderedHeight) / 2
+
+    pdf.addImage(dataUrl, 'PNG', x, y, renderedWidth, renderedHeight)
+  }
+
   pdf.save(fileName)
 }

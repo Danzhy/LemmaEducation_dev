@@ -17,6 +17,7 @@ import { takeTutorApiRateLimit } from '@/lib/tutor/api-rate-limit'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { finalizeSessionById, getQuotaSnapshot, pauseSessionById } from '@/lib/tutor/quota'
 import { TUTOR_INACTIVITY_PAUSE_SECONDS } from '@/lib/tutor/constants'
+import { resolveOpenAIRealtimeModel } from '@/lib/tutor/realtime-model-policy'
 
 function getRequiredEnv(value: string | undefined): string | null {
   const normalized = value?.trim()
@@ -154,13 +155,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const realtimeModel = getRequiredEnv(process.env.OPENAI_REALTIME_MODEL)
-  if (!realtimeModel) {
-    return NextResponse.json(
-      { error: 'OPENAI_REALTIME_MODEL is not configured' },
-      { status: 500 }
-    )
-  }
+  const realtimeModel = resolveOpenAIRealtimeModel(process.env.OPENAI_REALTIME_MODEL).id
 
   const baseInstructions = getRequiredInstructionEnv(
     process.env.OPENAI_SOCRATIC_TUTOR_INSTRUCTIONS

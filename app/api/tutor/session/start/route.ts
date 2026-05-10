@@ -9,9 +9,10 @@ import { takeTutorApiRateLimit } from '@/lib/tutor/api-rate-limit'
 import { getSessionUserId } from '@/lib/tutor/session-user'
 import { getQuotaSnapshot, reconcileOpenSessions } from '@/lib/tutor/quota'
 import { createTutorDbTimeout } from '@/lib/tutor/db-timeout'
+import { resolveOpenAIRealtimeModel } from '@/lib/tutor/realtime-model-policy'
 
 function getModelSnapshot() {
-  return process.env.OPENAI_REALTIME_MODEL?.trim() || 'gpt-realtime-mini'
+  return resolveOpenAIRealtimeModel(process.env.OPENAI_REALTIME_MODEL).id
 }
 
 export async function POST(request: Request) {
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     const sessionId = randomUUID()
     let language = 'en'
     let gradeLevel = ''
-    let modelSnapshot = getModelSnapshot()
+    let modelSnapshot: string = getModelSnapshot()
 
     try {
       const body = (await request.json()) as {

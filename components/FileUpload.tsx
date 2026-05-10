@@ -46,7 +46,8 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
 
 /**
  * Converts the first page of a PDF to a PNG image using pdfjs-dist.
- * Uses dynamic import of the main build and CDN worker for Next.js compatibility.
+ * Uses the legacy build without a worker so local/dev browsers do not depend
+ * on a CDN worker script being reachable.
  *
  * @param file - The PDF file from the file input
  * @returns { base64, mimeType } - PNG data ready for onUpload
@@ -54,13 +55,12 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
 async function convertPdfFirstPageToImage(
   file: File
 ): Promise<{ base64: string; mimeType: string }> {
-  const pdfjs = await import('pdfjs-dist')
-  // Configure worker for browser (webpack.mjs path fails to resolve in Next.js)
-  if (typeof window !== 'undefined' && pdfjs.GlobalWorkerOptions) {
-    pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.mjs`
-  }
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const arrayBuffer = await file.arrayBuffer()
-  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise
+  const pdf = await pdfjs.getDocument({
+    data: arrayBuffer,
+    disableWorker: true,
+  } as Parameters<typeof pdfjs.getDocument>[0] & { disableWorker: boolean }).promise
   const page = await pdf.getPage(1)
   const viewport = page.getViewport({ scale: 2 })
 
