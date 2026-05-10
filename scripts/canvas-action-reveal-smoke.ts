@@ -15,6 +15,7 @@ import type { TutorCanvasAction } from '@/lib/tutor/session-adapter'
 import { applyTutorCanvasAction } from '@/lib/voice-agent/canvas-actions'
 import {
   annotateGraphFeatures,
+  adaptiveReviewPlan,
   angleDiagramScene,
   areaPerimeterModelScene,
   arrayModelScene,
@@ -373,6 +374,14 @@ function assertMockRendererReplacesRepeatedArtifact(
     firstShapeIds,
     `${toolName} should delete stale shapes before drawing replacement shapes.`
   )
+}
+
+function requireCanvasResult(toolName: string, result: { canvasActions?: TutorCanvasAction[] }) {
+  assert.ok(
+    Array.isArray(result.canvasActions) && result.canvasActions.length > 0,
+    `${toolName} should return canvas actions for rendering.`
+  )
+  return { canvasActions: result.canvasActions }
 }
 
 function assertStableSemanticArtifactIds(
@@ -777,6 +786,52 @@ assertMockRendererReplacesRepeatedArtifact(
     expression: 'x^2 + 4*x + 3',
     features: ['x-intercepts', 'y-intercept', 'vertex', 'axis-of-symmetry'],
   })
+)
+
+assertMockRendererReplacesRepeatedArtifact(
+  'adaptive_review_plan',
+  requireCanvasResult(
+    'adaptive_review_plan',
+    adaptiveReviewPlan({
+      gradeLevel: 'Grade 6',
+      targetTopic: 'fractions',
+      sessionGoal: 'continue from last time',
+      topics: ['fractions'],
+      struggleSignals: ['student says they are stuck'],
+      misconceptionTimeline: [
+        {
+          topic: 'fractions',
+          signal: 'May be adding or subtracting denominators instead of finding a common denominator.',
+          count: 1,
+          priority: 'reteach',
+          sourceTools: ['misconception_diagnosis'],
+          recentEvidence: ['Misconception diagnosis returned this learning pattern.'],
+          lastSeen: '2026-05-09T18:00:00.000Z',
+        },
+      ],
+    })
+  ),
+  requireCanvasResult(
+    'adaptive_review_plan',
+    adaptiveReviewPlan({
+      gradeLevel: 'Grade 6',
+      targetTopic: 'fractions',
+      sessionGoal: 'continue from last time',
+      topics: ['fractions'],
+      struggleSignals: ['student says they are stuck'],
+      misconceptionTimeline: [
+        {
+          topic: 'fractions',
+          signal: 'May be adding or subtracting denominators instead of finding a common denominator.',
+          count: 3,
+          priority: 'reteach',
+          sourceTools: ['misconception_diagnosis', 'math_check_step'],
+          recentEvidence: ['Step check returned invalid.'],
+          lastSeen: '2026-05-10T18:00:00.000Z',
+        },
+      ],
+    })
+  )
 )
 
 assertMockRendererReplacesRepeatedArtifact(
