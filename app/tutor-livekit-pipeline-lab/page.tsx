@@ -18,14 +18,6 @@ type PipelineModelOption = {
 
 const DEFAULT_MODEL_ID = 'openai-gpt-5-4'
 
-function providerLabel(provider: string) {
-  if (provider === 'openai_responses') return 'OpenAI Responses'
-  if (provider === 'openai_chat') return 'OpenAI Chat'
-  if (provider === 'openrouter_compatible') return 'OpenRouter'
-  if (provider === 'groq_compatible') return 'Groq'
-  return provider
-}
-
 export default function TutorLiveKitPipelineLabPage() {
   const [error, setError] = useState<string | null>(null)
   const [modelOptions, setModelOptions] = useState<PipelineModelOption[]>([])
@@ -95,7 +87,7 @@ export default function TutorLiveKitPipelineLabPage() {
             Model
           </label>
           <p className="mt-1 text-[12px] leading-relaxed text-[#6A7E78]">
-            LiveKit handles voice transport. This chooses the tutor model.
+            Choose the tutor model for this session.
           </p>
         </div>
         {selectedModel?.experimental ? (
@@ -139,16 +131,14 @@ export default function TutorLiveKitPipelineLabPage() {
           <p className="text-red-700">{modelConfigError}</p>
         ) : selectedModel ? (
           <>
-            <p>
-              {providerLabel(selectedModel.provider)} · {selectedModel.model}
-            </p>
+            <p className="font-medium text-[#203A34]">{selectedModel.shortLabel}</p>
             <p className="mt-1">{selectedModel.description}</p>
             {!selectedModel.configured ? (
-              <p className="mt-2 text-red-700">This model needs server-side credentials before it can run.</p>
+              <p className="mt-2 text-red-700">This model is not configured on this device yet.</p>
             ) : null}
           </>
         ) : (
-          <p>Loading the server-side model allowlist...</p>
+          <p>Loading model options...</p>
         )}
       </div>
     </div>
