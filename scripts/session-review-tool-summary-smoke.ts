@@ -6,6 +6,7 @@ import {
 import { buildSessionFollowUpPractice } from '../lib/tutor/session-follow-up'
 import { buildSessionReviewFilename, buildSessionReviewMarkdown } from '../lib/tutor/session-review-export'
 import { buildStudentMisconceptionTrends } from '../lib/tutor/misconception-trends'
+import { buildFollowUpAssignmentDraft } from '../lib/tutor/follow-up-draft'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -370,6 +371,26 @@ assert(
 assert(
   misconceptionTrends.lastSignalAt?.toISOString() === '2026-05-10T09:05:00.000Z',
   'Misconception trends should only update recency from safe visible signals.'
+)
+
+const followUpDraft = buildFollowUpAssignmentDraft({
+  focusLabel: 'recheck the common denominator',
+  gradeLevel: 'Grade 6',
+})
+assert(
+  followUpDraft?.topic === 'fractions' &&
+    followUpDraft.items.length === 3 &&
+    followUpDraft.estimatedMinutes >= 6,
+  'Follow-up assignment drafts should turn safe review focus into short targeted practice.'
+)
+assert(
+  JSON.stringify(followUpDraft).includes('Explain your reasoning') &&
+    !JSON.stringify(followUpDraft).includes('answer'),
+  'Follow-up assignment drafts should stay reasoning-first and avoid answer-key language.'
+)
+assert(
+  buildFollowUpAssignmentDraft({ focusLabel: 'Private scratch: teacher-only answer key' }) === null,
+  'Follow-up assignment drafts should reject private-looking review focus labels.'
 )
 
 console.log('Session review tool summary smoke checks passed.')

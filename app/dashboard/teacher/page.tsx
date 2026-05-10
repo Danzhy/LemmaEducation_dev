@@ -10,6 +10,7 @@ import {
 import {
   ArchiveCurriculumDocumentButton,
   ArchiveTutorProfileButton,
+  FollowUpDraftButton,
   RemoveStudentButton,
 } from '@/components/dashboard/AccessActionButtons'
 import { getCurrentUserProfile, isOnboardingComplete } from '@/lib/school/profiles'
@@ -152,6 +153,11 @@ export default async function TeacherDashboardPage() {
                               <p className="mt-2 text-xs leading-relaxed text-[#5C7069]">
                                 {student.learningTrends.summary}
                               </p>
+                              <FollowUpDraftButton
+                                studentUserId={student.userId}
+                                focusLabel={student.learningTrends.focusAreas[0]?.label}
+                                gradeLevel={student.gradeLevel}
+                              />
                             </div>
                           ) : null}
                           {student.recentSessions.length > 0 ? (

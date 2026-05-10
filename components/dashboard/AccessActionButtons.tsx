@@ -66,6 +66,91 @@ export function RemoveStudentButton({
   )
 }
 
+type FollowUpDraft = {
+  title: string
+  estimatedMinutes: number
+  studentDirections: string
+  teacherNote: string
+  items: Array<{
+    prompt: string
+    hint: string
+  }>
+}
+
+export function FollowUpDraftButton({
+  studentUserId,
+  focusLabel,
+  gradeLevel,
+}: {
+  studentUserId: string
+  focusLabel?: string
+  gradeLevel?: string | null
+}) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [draft, setDraft] = useState<FollowUpDraft | null>(null)
+
+  const handleDraft = async () => {
+    setError(null)
+    setIsSubmitting(true)
+    try {
+      const res = await fetch('/api/tutor/follow-up-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentUserId,
+          focusLabel,
+          gradeLevel,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        setError(data.message || 'Could not draft follow-up work.')
+        return
+      }
+      setDraft(data.draft as FollowUpDraft)
+    } catch {
+      setError('Could not draft follow-up work.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      <button
+        type="button"
+        onClick={() => void handleDraft()}
+        disabled={isSubmitting}
+        className="rounded-full border border-[#D3E0DB] bg-white/82 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[#16423C] transition-colors hover:bg-[#F8FBF9] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isSubmitting ? 'Drafting...' : 'Draft follow-up'}
+      </button>
+      <ActionMessage message={error} tone="error" />
+      {draft ? (
+        <div className="rounded-[18px] border border-[#DCE7E2] bg-white/82 px-4 py-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-[#14312A]">{draft.title}</p>
+              <p className="mt-1 text-xs text-[#5C7069]">{draft.estimatedMinutes} minute follow-up</p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-[#5C7069]">{draft.studentDirections}</p>
+          <ol className="mt-3 space-y-2 text-sm leading-relaxed text-[#14312A]">
+            {draft.items.map((item, index) => (
+              <li key={`${item.prompt}-${index}`}>
+                {index + 1}. {item.prompt}
+                <span className="block text-xs text-[#5C7069]">Hint: {item.hint}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-3 text-xs leading-relaxed text-[#5C7069]">{draft.teacherNote}</p>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function UnlinkGuardianButton({
   studentUserId,
   guardianUserId,
