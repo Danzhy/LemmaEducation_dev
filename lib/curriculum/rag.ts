@@ -63,9 +63,9 @@ export function chunkCurriculumText(value: string): CurriculumChunk[] {
             content,
             tokenEstimate: estimateTokens(content),
           })
+          buffer = content.slice(Math.max(0, content.length - CURRICULUM_CHUNK_OVERLAP_CHARS)).trim()
         }
       }
-      buffer = ''
       continue
     }
 

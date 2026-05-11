@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomInt, randomUUID } from 'crypto'
 import { getNeonSql } from '@/lib/tutor/db'
 import { getSessionUser, type SessionUser } from '@/lib/auth/current-user'
 
@@ -174,7 +174,7 @@ function generateAccessCode(prefix: string, length: number) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let code = prefix
   for (let i = 0; i < length; i += 1) {
-    code += alphabet[Math.floor(Math.random() * alphabet.length)]
+    code += alphabet[randomInt(0, alphabet.length)]
   }
   return code
 }

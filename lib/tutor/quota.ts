@@ -104,12 +104,25 @@ export async function getPersistedWeeklyUsage(
   now: Date = new Date()
 ) {
   const periodStartedAt = getTutorQuotaPeriodStart(now)
+  const periodEndsAt = new Date(periodStartedAt.getTime() + 7 * 24 * 60 * 60 * 1000)
   const rows = await sql`
-    SELECT COALESCE(SUM(active_seconds), 0)::bigint AS weekly_active_seconds
+    SELECT COALESCE(SUM(
+      LEAST(
+        COALESCE(active_seconds, 0),
+        GREATEST(
+          0,
+          FLOOR(EXTRACT(EPOCH FROM (
+            LEAST(ended_at, ${periodEndsAt}::timestamptz) -
+            GREATEST(started_at, ${periodStartedAt}::timestamptz)
+          )))
+        )::int
+      )
+    ), 0)::bigint AS weekly_active_seconds
     FROM tutor_sessions
     WHERE user_id = ${userId}
       AND ended_at IS NOT NULL
-      AND ended_at >= ${periodStartedAt}
+      AND ended_at > ${periodStartedAt}
+      AND started_at < ${periodEndsAt}
   `
 
   const row = rows[0] as
@@ -320,7 +333,7 @@ export async function finalizeSessionById(
     return { status: 'already_ended' as const, appliedSeconds: 0, endedReason }
   }
 
-  const usage = await getPersistedUsage(sql, userId)
+  await ensureTutorUsageRow(userId, sql)
   const weeklyUsage = await getPersistedWeeklyUsage(sql, userId, now)
   const rawActiveSeconds = getSessionActiveSeconds(session, now)
   const sessionActiveSeconds = Math.min(rawActiveSeconds, TUTOR_MAX_SESSION_SECONDS)
@@ -339,26 +352,35 @@ export async function finalizeSessionById(
   }
 
   const shouldIncrementCompletedSessions = sessionActiveSeconds > 0 ? 1 : 0
-  await sql`
-    UPDATE tutor_usage
-    SET
-      total_active_seconds = total_active_seconds + ${appliedSeconds},
-      total_completed_sessions = total_completed_sessions + ${shouldIncrementCompletedSessions},
-      updated_at = NOW()
-    WHERE user_id = ${userId}
+  const updatedRows = await sql`
+    WITH updated_session AS (
+      UPDATE tutor_sessions
+      SET
+        active_seconds = ${appliedSeconds},
+        ended_at = NOW(),
+        ended_reason = ${finalReason},
+        session_state = 'ended',
+        paused_at = NULL,
+        last_activity_at = NOW()
+      WHERE id = ${sessionId}::uuid AND user_id = ${userId} AND ended_at IS NULL
+      RETURNING id
+    ),
+    updated_usage AS (
+      UPDATE tutor_usage
+      SET
+        total_active_seconds = total_active_seconds + ${appliedSeconds},
+        total_completed_sessions = total_completed_sessions + ${shouldIncrementCompletedSessions},
+        updated_at = NOW()
+      WHERE user_id = ${userId}
+        AND EXISTS (SELECT 1 FROM updated_session)
+      RETURNING user_id
+    )
+    SELECT id FROM updated_session
   `
 
-  await sql`
-    UPDATE tutor_sessions
-    SET
-      active_seconds = ${appliedSeconds},
-      ended_at = NOW(),
-      ended_reason = ${finalReason},
-      session_state = 'ended',
-      paused_at = NULL,
-      last_activity_at = NOW()
-    WHERE id = ${sessionId}::uuid AND user_id = ${userId} AND ended_at IS NULL
-  `
+  if (!updatedRows[0]) {
+    return { status: 'already_ended' as const, appliedSeconds: 0, endedReason }
+  }
 
   return {
     status: 'ended' as const,

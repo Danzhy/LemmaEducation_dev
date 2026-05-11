@@ -85,7 +85,8 @@ export async function GET(
         'Content-Type': 'text/markdown; charset=utf-8',
       },
     })
-  } catch {
+  } catch (error) {
+    console.error('[tutor/review-export]', error)
     return NextResponse.json(
       { ok: false, code: 'SERVER_ERROR', message: 'Could not export this session.' },
       { status: 500 }

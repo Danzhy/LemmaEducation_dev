@@ -249,8 +249,9 @@ function assertSafeCanvasActionInput(input: Parameters<typeof canvasAction>[0]) 
 
   if (
     input.coordinateSpace === 'graph' &&
-    typeof input.xDomainStart !== 'number' &&
+    (typeof input.xDomainStart !== 'number' ||
     typeof input.xDomainEnd !== 'number'
+    )
   ) {
     throw new Error('Graph-coordinate annotations need graph domains so the board mapping stays accurate.')
   }

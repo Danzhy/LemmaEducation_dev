@@ -44,34 +44,11 @@ export function convertToLaTeX(input: string): string {
 
   // Convert superscripts: x^2 → x^{2}, x^23 → x^{23}
   // Pattern: word or number followed by ^ followed by digits or word
-  processed = processed.replace(
-    /(\w+)\^(\d+|\w+)/g,
-    (match, base, exponent) => {
-      // If exponent is multi-character, wrap in braces
-      if (exponent.length > 1 || /\d/.test(exponent)) {
-        return `${base}^{${exponent}}`
-      }
-      return `${base}^{${exponent}}`
-    }
-  )
+  processed = processed.replace(/(\w+)\^(\d+|\w+)/g, (_match, base, exponent) => `${base}^{${exponent}}`)
 
   // Convert subscripts: x_2 → x_{2}, x_i → x_{i}
   // Pattern: word or number followed by _ followed by digits or word
-  processed = processed.replace(
-    /(\w+)_(\d+|\w+)/g,
-    (match, base, subscript) => {
-      // If subscript is multi-character, wrap in braces
-      if (subscript.length > 1 || /\d/.test(subscript)) {
-        return `${base}_{${subscript}}`
-      }
-      return `${base}_{${subscript}}`
-    }
-  )
-
-  // Wrap in $ delimiters if not already wrapped
-  if (!hasLaTeXDelimiters) {
-    return `$${processed}$`
-  }
+  processed = processed.replace(/(\w+)_(\d+|\w+)/g, (_match, base, subscript) => `${base}_{${subscript}}`)
 
   return `$${processed}$`
 }

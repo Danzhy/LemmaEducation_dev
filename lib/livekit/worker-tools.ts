@@ -42,12 +42,17 @@ function compactToolResultForModel(output: unknown) {
 
   if (output && typeof output === 'object') {
     const record = output as Record<string, unknown>
-    return {
+    const compacted = {
       ...record,
       canvasActions: undefined,
       actionPlan: undefined,
       note:
         'The full tool output was rendered to the board, but large drawing payloads were omitted from the model-visible result.',
+    }
+    if (jsonByteLength(compacted) <= MAX_TOOL_RESULT_BYTES) return compacted
+    return {
+      truncated: true,
+      note: 'Tool output exceeded the model-visible size limit.',
     }
   }
 

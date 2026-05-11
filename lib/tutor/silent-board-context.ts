@@ -15,7 +15,8 @@ function cleanText(value: string) {
 function truncate(value: string, maxLength: number) {
   const cleaned = cleanText(value)
   if (cleaned.length <= maxLength) return cleaned
-  return `${cleaned.slice(0, Math.max(0, maxLength - 1)).trim()}...`
+  if (maxLength <= 3) return cleaned.slice(0, Math.max(0, maxLength)).trim()
+  return `${cleaned.slice(0, Math.max(0, maxLength - 3)).trim()}...`
 }
 
 export function isSilentTutorBoardContextText(value: unknown) {
@@ -111,7 +112,7 @@ export function stripSilentTutorBoardContextParts<T extends { content?: unknown 
 
   const visible = extractTutorVisibleMessageText(content)
   if (!visible.joined && !visible.hasAudio) return null
-  if (options.preserveVisibleMessages) return message
+  if (options.preserveVisibleMessages) return { ...message, content }
 
   return {
     ...message,

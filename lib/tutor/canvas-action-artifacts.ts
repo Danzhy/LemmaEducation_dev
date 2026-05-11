@@ -35,7 +35,10 @@ function stableHash(value: string) {
 }
 
 function canvasActionFingerprint(action: TutorCanvasAction) {
-  const { id, artifactId, artifactGroupId, ...stableAction } = action
+  const stableAction = { ...action } as Record<string, unknown>
+  delete stableAction.id
+  delete stableAction.artifactId
+  delete stableAction.artifactGroupId
   return stableHash(stableStringify(stableAction))
 }
 
@@ -44,7 +47,9 @@ export function assignCanvasArtifactIds(toolName: string, actions: TutorCanvasAc
 
   return actions.map((action, index) => {
     if (action.type === 'clear_tool_layer' || action.type === 'focus_region') {
-      const { artifactId, artifactGroupId, ...nonDrawingAction } = action
+      const nonDrawingAction = { ...action }
+      delete (nonDrawingAction as { artifactId?: unknown }).artifactId
+      delete (nonDrawingAction as { artifactGroupId?: unknown }).artifactGroupId
       return nonDrawingAction
     }
 

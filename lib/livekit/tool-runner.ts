@@ -343,7 +343,7 @@ function createLearnerContextTool(): ToolWithInvoke {
           description: 'Why learner history is relevant for this tutoring turn.',
         },
       },
-      required: ['sessionId', 'reason'],
+      required: ['reason'],
     },
     async invoke(context: unknown, input: string) {
       const parsed = JSON.parse(input || '{}') as {

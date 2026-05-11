@@ -253,43 +253,43 @@ export async function claimGuardianAccessCode(input: {
 }) {
   const sql = getNeonSql()
   const normalizedCode = input.code.trim().toUpperCase()
+  const linkId = randomUUID()
   const rows = await sql`
-    SELECT id, student_user_id
-    FROM student_access_codes
-    WHERE code = ${normalizedCode}
-      AND purpose = 'guardian_link'
-      AND claimed_at IS NULL
-      AND (expires_at IS NULL OR expires_at > NOW())
+    WITH claimed_code AS (
+      UPDATE student_access_codes
+      SET claimed_by_user_id = ${input.guardianUserId}, claimed_at = NOW()
+      WHERE code = ${normalizedCode}
+        AND purpose = 'guardian_link'
+        AND claimed_at IS NULL
+        AND (expires_at IS NULL OR expires_at > NOW())
+      RETURNING student_user_id
+    ),
+    linked_guardian AS (
+      INSERT INTO guardian_student_links (
+        id,
+        guardian_user_id,
+        student_user_id,
+        linked_at
+      )
+      SELECT
+        ${linkId}::uuid,
+        ${input.guardianUserId},
+        student_user_id,
+        NOW()
+      FROM claimed_code
+      ON CONFLICT (guardian_user_id, student_user_id)
+      DO NOTHING
+      RETURNING student_user_id
+    )
+    SELECT student_user_id
+    FROM claimed_code
     LIMIT 1
   `
 
-  const codeRow = rows[0] as { id: string; student_user_id: string } | undefined
+  const codeRow = rows[0] as { student_user_id: string } | undefined
   if (!codeRow) {
     return { ok: false as const, code: 'INVALID_STUDENT_CODE' as const }
   }
-
-  await sql`
-    INSERT INTO guardian_student_links (
-      id,
-      guardian_user_id,
-      student_user_id,
-      linked_at
-    )
-    VALUES (
-      ${randomUUID()}::uuid,
-      ${input.guardianUserId},
-      ${codeRow.student_user_id},
-      NOW()
-    )
-    ON CONFLICT (guardian_user_id, student_user_id)
-    DO NOTHING
-  `
-
-  await sql`
-    UPDATE student_access_codes
-    SET claimed_by_user_id = ${input.guardianUserId}, claimed_at = NOW()
-    WHERE id = ${codeRow.id}::uuid
-  `
 
   return { ok: true as const, studentUserId: codeRow.student_user_id }
 }

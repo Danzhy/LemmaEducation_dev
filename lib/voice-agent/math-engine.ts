@@ -1107,7 +1107,82 @@ function checkGraphInterceptStep(previousStep: string, nextStep: string): MathSt
         : 'set y = 0 before finding the x-intercept',
     }
   } catch {
-    return null
+    try {
+      const quadratic = extractQuadraticCoefficients(expression)
+
+      if (interceptType === 'y') {
+        if (claim.kind === 'none') {
+          return {
+            verdict: 'invalid',
+            reason: `The y-intercept is where x = 0. Substituting x = 0 gives y = ${formatNumber(quadratic.c, 4)}.`,
+            hintTarget: 'substitute x = 0 before finding the y-intercept',
+          }
+        }
+
+        const claimedY = claim.kind === 'coordinate' ? claim.y : claim.value
+        const axisMatches = claim.kind !== 'coordinate' || isNearlyEqual(claim.x, 0, 0.01)
+        const valueMatches = axisMatches && isNearlyEqual(claimedY, quadratic.c, 0.01)
+
+        return {
+          verdict: valueMatches ? 'valid' : 'invalid',
+          reason: valueMatches
+            ? `The y-intercept is where x = 0. Substituting x = 0 gives y = ${formatNumber(quadratic.c, 4)}.`
+            : claim.kind === 'coordinate' && !axisMatches
+              ? `A y-intercept must have x = 0, but ${formatGraphInterceptClaim(claim)} has x = ${formatNumber(claim.x, 4)}. Substituting x = 0 gives y = ${formatNumber(quadratic.c, 4)}.`
+              : `The y-intercept is where x = 0. Substituting x = 0 gives y = ${formatNumber(quadratic.c, 4)}, not ${formatGraphInterceptClaim(claim)}.`,
+          hintTarget: valueMatches
+            ? 'explain why x = 0 at a y-intercept'
+            : 'substitute x = 0 before finding the y-intercept',
+        }
+      }
+
+      const discriminant = quadratic.b ** 2 - 4 * quadratic.a * quadratic.c
+      const roots =
+        discriminant < -1e-8
+          ? []
+          : discriminant < 1e-8
+            ? [-quadratic.b / (2 * quadratic.a)]
+            : [
+                (-quadratic.b - Math.sqrt(discriminant)) / (2 * quadratic.a),
+                (-quadratic.b + Math.sqrt(discriminant)) / (2 * quadratic.a),
+              ]
+
+      if (roots.length === 0) {
+        return {
+          verdict: claim.kind === 'none' ? 'valid' : 'invalid',
+          reason: 'The x-intercepts are where y = 0. This quadratic has no real roots, so it does not cross the x-axis.',
+          hintTarget: claim.kind === 'none'
+            ? 'explain why a negative discriminant means no real x-intercepts'
+            : 'check the discriminant before naming x-intercepts',
+        }
+      }
+
+      if (claim.kind === 'none') {
+        return {
+          verdict: 'invalid',
+          reason: `The x-intercepts are where y = 0. Solving ${expression} = 0 gives x = ${roots.map((root) => formatNumber(root, 4)).join(' and x = ')}.`,
+          hintTarget: 'solve the quadratic equation for y = 0',
+        }
+      }
+
+      const claimedX = claim.kind === 'coordinate' ? claim.x : claim.value
+      const axisMatches = claim.kind !== 'coordinate' || isNearlyEqual(claim.y, 0, 0.01)
+      const valueMatches = axisMatches && roots.some((root) => isNearlyEqual(claimedX, root, 0.01))
+
+      return {
+        verdict: valueMatches ? 'valid' : 'invalid',
+        reason: valueMatches
+          ? `The x-intercepts are where y = 0. ${formatGraphInterceptClaim(claim)} matches one root of ${expression} = 0.`
+          : claim.kind === 'coordinate' && !axisMatches
+            ? `An x-intercept must have y = 0, but ${formatGraphInterceptClaim(claim)} has y = ${formatNumber(claim.y, 4)}.`
+            : `The x-intercepts are where y = 0. Solving ${expression} = 0 gives x = ${roots.map((root) => formatNumber(root, 4)).join(' and x = ')}, not ${formatGraphInterceptClaim(claim)}.`,
+        hintTarget: valueMatches
+          ? 'explain why y = 0 at an x-intercept'
+          : 'solve the quadratic equation for y = 0',
+      }
+    } catch {
+      return null
+    }
   }
 }
 
@@ -1168,10 +1243,36 @@ function checkTableOfValuesStep(previousStep: string, nextStep: string): MathSte
 }
 
 const PLAIN_NUMBER_PATTERN = String.raw`-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)`
+const FRACTION_ANSWER_PATTERN = String.raw`${PLAIN_NUMBER_PATTERN}(?:\s+\d+\s*\/\s*\d+|\s*\/\s*${PLAIN_NUMBER_PATTERN})?`
 
 function parsePlainNumber(token: string) {
   const value = Number(token.replace(/,/g, ''))
   return Number.isFinite(value) ? value : null
+}
+
+function parsePlainOrFractionNumber(token: string) {
+  const normalized = token.trim().replace(/,/g, '')
+  const mixedMatch = normalized.match(/^(-?\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/)
+  if (mixedMatch) {
+    const whole = Number(mixedMatch[1])
+    const numerator = Number(mixedMatch[2])
+    const denominator = Number(mixedMatch[3])
+    if (Number.isFinite(whole) && Number.isFinite(numerator) && Number.isFinite(denominator) && !isNearlyEqual(denominator, 0)) {
+      const sign = whole < 0 ? -1 : 1
+      return sign * (Math.abs(whole) + numerator / denominator)
+    }
+  }
+
+  const fractionMatch = normalized.match(/^(-?(?:\d+(?:\.\d+)?|\.\d+))\s*\/\s*(-?(?:\d+(?:\.\d+)?|\.\d+))$/)
+  if (fractionMatch) {
+    const numerator = Number(fractionMatch[1])
+    const denominator = Number(fractionMatch[2])
+    if (Number.isFinite(numerator) && Number.isFinite(denominator) && !isNearlyEqual(denominator, 0)) {
+      return numerator / denominator
+    }
+  }
+
+  return parsePlainNumber(normalized)
 }
 
 function extractPlainNumbers(text: string) {
@@ -1680,12 +1781,12 @@ function solveProportionEquation(text: string): ProportionEquation | null {
 
 function parseProportionAnswer(text: string) {
   const assignmentMatch =
-    text.match(new RegExp(`\\bx\\s*=\\s*(${PLAIN_NUMBER_PATTERN})\\b`, 'i')) ??
-    text.match(new RegExp(`\\b(${PLAIN_NUMBER_PATTERN})\\s*=\\s*x\\b`, 'i'))
-  if (assignmentMatch) return parsePlainNumber(assignmentMatch[1])
+    text.match(new RegExp(`\\bx\\s*=\\s*(${FRACTION_ANSWER_PATTERN})\\b`, 'i')) ??
+    text.match(new RegExp(`\\b(${FRACTION_ANSWER_PATTERN})\\s*=\\s*x\\b`, 'i'))
+  if (assignmentMatch) return parsePlainOrFractionNumber(assignmentMatch[1])
 
-  const plainMatch = text.trim().match(new RegExp(`^${PLAIN_NUMBER_PATTERN}$`))
-  return plainMatch ? parsePlainNumber(plainMatch[0]) : null
+  const plainMatch = text.trim().match(new RegExp(`^${FRACTION_ANSWER_PATTERN}$`))
+  return plainMatch ? parsePlainOrFractionNumber(plainMatch[0]) : null
 }
 
 function resolveProportionToken(token: ProportionToken, xValue: number) {
@@ -1930,7 +2031,7 @@ function extractProbabilitySetup(text: string): ProbabilitySetup | null {
   return {
     favorable,
     total,
-    useComplement: /\b(not|complement|opposite|doesn'?t|without)\b/i.test(normalized),
+    useComplement: /\b(?:not|complement|opposite|doesn'?t|without(?!\s+replacements?\b))\b/i.test(normalized),
   }
 }
 
@@ -3094,13 +3195,6 @@ function digitPlaceValueMatches(numberText: string, targetDigit: number) {
   }
 
   return matches
-}
-
-function singleDigitPlaceValue(numberText: string, targetDigit: number) {
-  const matches = digitPlaceValueMatches(numberText, targetDigit)
-  if (!matches) return null
-  if (matches.length !== 1) return null
-  return matches[0]
 }
 
 function parsePlaceValueDigitAnswer(text: string) {
@@ -6244,6 +6338,9 @@ export function canvasAction(input: {
         typeof input.yLength !== 'number'
       ) {
         throw new Error('draw_axes needs origin, xLength, and yLength.')
+      }
+      if (input.coordinateSpace === 'graph') {
+        throw new Error('draw_axes expects canvas-space coordinates. Use coordinate_plane for graph-space axes.')
       }
       actions.push({
         id: createId(),

@@ -45,6 +45,7 @@ export type LearnerContextResponse = {
   recentExcerpts: Array<{ role: 'user' | 'assistant'; content: string }>
   recentTools: Array<{ toolName: string; count: number }>
   suggestedTutorAdjustments: string[]
+  degradedContext: boolean
   instruction: string
 }
 
@@ -271,7 +272,15 @@ export function buildLearnerMisconceptionTimeline(
       return right.seenTime - left.seenTime
     })
     .slice(0, 6)
-    .map(({ priorityScore: _priorityScore, seenTime: _seenTime, ...item }) => item)
+    .map((item) => ({
+      topic: item.topic,
+      signal: item.signal,
+      count: item.count,
+      priority: item.priority,
+      sourceTools: item.sourceTools,
+      recentEvidence: item.recentEvidence,
+      lastSeen: item.lastSeen,
+    }))
 }
 
 function buildLearnerInstruction(input: Omit<LearnerContextResponse, 'ok' | 'instruction'>) {
@@ -516,6 +525,8 @@ export async function getLearnerContextForUser(input: {
     LIMIT 36
   `
 
+  let degradedContext = false
+
   const toolRows = await sql`
     SELECT tool_name, COUNT(*)::int AS count
     FROM tutor_tool_events
@@ -525,7 +536,11 @@ export async function getLearnerContextForUser(input: {
     GROUP BY tool_name
     ORDER BY count DESC, tool_name ASC
     LIMIT 8
-  `.catch(() => [])
+  `.catch((error) => {
+    degradedContext = true
+    console.error('[learner-context] recent tools unavailable', error)
+    return []
+  })
 
   const diagnosticToolRows = await sql`
     SELECT tool_name, output_json, created_at
@@ -541,7 +556,11 @@ export async function getLearnerContextForUser(input: {
       )
     ORDER BY created_at DESC
     LIMIT 36
-  `.catch(() => [])
+  `.catch((error) => {
+    degradedContext = true
+    console.error('[learner-context] diagnostic tools unavailable', error)
+    return []
+  })
 
   const sessions = sessionRows as SessionSummaryRow[]
   const messages = messageRows as MessageRow[]
@@ -599,6 +618,7 @@ export async function getLearnerContextForUser(input: {
     recentExcerpts,
     recentTools,
     suggestedTutorAdjustments,
+    degradedContext,
   }
 
   return {

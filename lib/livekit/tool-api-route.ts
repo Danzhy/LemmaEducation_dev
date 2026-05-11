@@ -189,7 +189,7 @@ export async function handleLiveKitToolRequest(
       },
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Tool failed.'
-    return jsonResponse({ ok: false, code: 'TOOL_FAILED', message }, 400)
+    console.error('[livekit/tool]', error)
+    return jsonResponse({ ok: false, code: 'TOOL_FAILED', message: 'Tool failed.' }, 400)
   }
 }

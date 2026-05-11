@@ -41,7 +41,8 @@ function cleanText(value: string) {
 function truncate(value: string, maxLength: number) {
   const cleaned = cleanText(value)
   if (cleaned.length <= maxLength) return cleaned
-  return `${cleaned.slice(0, Math.max(0, maxLength - 1)).trim()}...`
+  if (maxLength <= 3) return cleaned.slice(0, Math.max(0, maxLength)).trim()
+  return `${cleaned.slice(0, Math.max(0, maxLength - 3)).trim()}...`
 }
 
 function uniquePush(target: string[], value: string, maxItems: number) {

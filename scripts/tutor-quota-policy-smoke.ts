@@ -23,7 +23,7 @@ function createSqlStub(options: {
         },
       ]
     }
-    if (query.includes('SUM(active_seconds)')) {
+    if (query.includes('weekly_active_seconds')) {
       return [{ weekly_active_seconds: options.weeklyActiveSeconds }]
     }
     if (query.includes('FROM tutor_sessions') && query.includes('ended_at IS NULL')) {

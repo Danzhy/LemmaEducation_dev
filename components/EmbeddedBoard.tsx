@@ -83,7 +83,7 @@ const EmbeddedBoard = forwardRef<EmbeddedBoardRef, EmbeddedBoardProps>(
     const interval = setInterval(updateEditor, 100)
     updateEditor()
     return () => clearInterval(interval)
-  }, [editor])
+  }, [editor, onEditorReady])
 
   const handleMathBlockClick = () => {
     if (!editor) return

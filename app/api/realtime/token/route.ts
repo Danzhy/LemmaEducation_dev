@@ -48,14 +48,6 @@ function getGradeLevelInstruction(gradeLevel: string): string {
  * @returns { value: string } - Ephemeral token (e.g. "ek_...") for Authorization header
  */
 export async function POST(request: Request) {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: 'OPENAI_API_KEY is not configured' },
-      { status: 500 }
-    )
-  }
-
   const userId = await getSessionUserId()
   if (!userId) {
     return NextResponse.json(
@@ -65,6 +57,14 @@ export async function POST(request: Request) {
         message: 'Please sign in again.',
       },
       { status: 401 }
+    )
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'OPENAI_API_KEY is not configured' },
+      { status: 500 }
     )
   }
 
@@ -218,17 +218,25 @@ export async function POST(request: Request) {
   }
 
   try {
-    const response = await fetch(
-      'https://api.openai.com/v1/realtime/client_secrets',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ session: sessionConfig }),
-      }
-    )
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10_000)
+    let response: Response
+    try {
+      response = await fetch(
+        'https://api.openai.com/v1/realtime/client_secrets',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ session: sessionConfig }),
+          signal: controller.signal,
+        }
+      )
+    } finally {
+      clearTimeout(timeoutId)
+    }
 
     if (!response.ok) {
       const err = await response.text()
@@ -249,6 +257,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ value: data.value })
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('Token generation timed out')
+      return NextResponse.json(
+        { ok: false, code: 'OPENAI_TIMEOUT', error: 'Token generation timed out' },
+        { status: 504 }
+      )
+    }
+
     console.error('Token generation error:', error)
     return NextResponse.json(
       { error: 'Failed to create token' },

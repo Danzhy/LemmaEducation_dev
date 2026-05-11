@@ -147,7 +147,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ ok: true, draft })
-  } catch {
+  } catch (error) {
+    console.error('[tutor/follow-up-draft]', error)
     return NextResponse.json(
       { ok: false, code: 'SERVER_ERROR', message: 'Could not draft follow-up work.' },
       { status: 500 }

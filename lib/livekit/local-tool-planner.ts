@@ -155,7 +155,9 @@ function formatComparisonBarLabel(role: 'Larger' | 'Smaller', value: number, nam
 }
 
 function extractNumbers(text: string) {
-  return [...text.matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => Number(match[0]))
+  return [...text.matchAll(/-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?/g)].map((match) =>
+    Number(match[0].replace(/,/g, ''))
+  )
 }
 
 function normalizeLocalPromptText(text: string) {

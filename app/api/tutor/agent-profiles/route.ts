@@ -27,7 +27,7 @@ async function teacherOwnsClassroom(input: {
   return Boolean(rows[0])
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const user = await getSessionUser()
     if (!user) {

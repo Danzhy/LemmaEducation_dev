@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     let body
     try {
       body = await request.json()
-    } catch (err) {
+    } catch {
       return NextResponse.json(
         { ok: false, error: 'Invalid request format.' },
         { status: 400 }
@@ -182,7 +182,10 @@ export async function POST(request: Request) {
 
       // Log unexpected errors
       console.error('Unexpected database error:', err)
-      throw err
+      return NextResponse.json(
+        { ok: false, error: 'Internal server error.' },
+        { status: 500 }
+      )
     }
   } catch (error) {
     // Catch-all for any unexpected errors

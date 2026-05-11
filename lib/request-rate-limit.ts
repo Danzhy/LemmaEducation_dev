@@ -16,6 +16,7 @@ export function getTrustedClientIp(request: Request): string {
     request.headers.get('x-real-ip'),
     request.headers.get('x-vercel-forwarded-for'),
     request.headers.get('cf-connecting-ip'),
+    request.headers.get('x-forwarded-for'),
   ]
 
   for (const candidate of directCandidates) {
@@ -23,11 +24,18 @@ export function getTrustedClientIp(request: Request): string {
     if (normalized) return normalized
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    return normalizeSingleValue(request.headers.get('x-forwarded-for')) || 'unknown'
-  }
+  const fallbackFingerprint = createHash('sha256')
+    .update([
+      request.headers.get('user-agent') ?? '',
+      request.headers.get('accept-language') ?? '',
+      request.headers.get('sec-ch-ua') ?? '',
+      request.headers.get('x-vercel-id') ?? '',
+      request.headers.get('cf-ray') ?? '',
+    ].join('|'))
+    .digest('hex')
+    .slice(0, 32)
 
-  return 'unknown'
+  return `fingerprint:${fallbackFingerprint}`
 }
 
 async function ensureRateLimitTable(sql: Sql) {

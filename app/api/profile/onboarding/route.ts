@@ -118,8 +118,15 @@ export async function POST(request: Request) {
 
       if (!result.ok) {
         return NextResponse.json(
-          { ok: false, code: result.code, message: 'That class code could not be found.' },
-          { status: 400 }
+          {
+            ok: true,
+            partial: true,
+            saved: true,
+            joinOk: false,
+            code: result.code,
+            message: 'Profile saved, but that class code could not be found.',
+          },
+          { status: 202 }
         )
       }
     }
@@ -132,8 +139,15 @@ export async function POST(request: Request) {
 
       if (!result.ok) {
         return NextResponse.json(
-          { ok: false, code: result.code, message: 'That student access code is not valid.' },
-          { status: 400 }
+          {
+            ok: true,
+            partial: true,
+            saved: true,
+            joinOk: false,
+            code: result.code,
+            message: 'Profile saved, but that student access code is not valid.',
+          },
+          { status: 202 }
         )
       }
     }

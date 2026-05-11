@@ -5,6 +5,23 @@ import { getCurrentUserProfile } from '@/lib/school/profiles'
 import { getNeonSql } from '@/lib/tutor/db'
 import { takeRateLimit } from '@/lib/request-rate-limit'
 
+function guardianLinkErrorStatus(code: string) {
+  switch (code) {
+    case 'LINK_NOT_FOUND':
+    case 'NOT_FOUND':
+      return 404
+    case 'UNAUTHORIZED':
+      return 401
+    case 'FORBIDDEN':
+      return 403
+    case 'BAD_REQUEST':
+    case 'INVALID_INPUT':
+      return 400
+    default:
+      return 500
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const user = await getSessionUser()
@@ -18,7 +35,7 @@ export async function DELETE(request: Request) {
     const profile = await getCurrentUserProfile()
     if (profile?.role !== 'student' && profile?.role !== 'parent' && profile?.role !== 'admin') {
       return NextResponse.json(
-        { ok: false, code: 'FORBIDDEN', message: 'Only students or parents can change guardian links.' },
+        { ok: false, code: 'FORBIDDEN', message: 'Only students, parents, or admins can change guardian links.' },
         { status: 403 }
       )
     }
@@ -65,8 +82,14 @@ export async function DELETE(request: Request) {
 
     if (!result.ok) {
       return NextResponse.json(
-        { ok: false, code: result.code, message: 'That guardian link could not be found.' },
-        { status: 404 }
+        {
+          ok: false,
+          code: result.code,
+          message: 'message' in result && typeof result.message === 'string'
+            ? result.message
+            : 'That guardian link could not be found.',
+        },
+        { status: guardianLinkErrorStatus(result.code) }
       )
     }
 

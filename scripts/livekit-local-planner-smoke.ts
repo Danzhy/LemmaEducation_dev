@@ -1390,7 +1390,6 @@ const preservedVisibleMessage = stripSilentTutorBoardContextParts(
   { preserveVisibleMessages: true }
 )
 assert.deepEqual(preservedVisibleMessage?.content, [
-  { type: 'input_text', text: silentBoardContext },
   { type: 'input_text', text: 'How do I find the area from this diagram?' },
 ])
 
